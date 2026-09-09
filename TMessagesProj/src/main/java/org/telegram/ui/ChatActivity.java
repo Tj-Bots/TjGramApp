@@ -9689,6 +9689,20 @@ public class ChatActivity extends BaseFragment implements
     }
 
     private void checkInstantSearch() {
+        // TJ: upstream reads its own argument as an int, which truncates the ids of newer
+        // accounts. This one is a long, so any member can be searched for.
+        final long tjSearchFromUserId = getArguments().getLong("tj_search_from_user_id", 0);
+        if (tjSearchFromUserId != 0) {
+            TLRPC.User tjUser = getMessagesController().getUser(tjSearchFromUserId);
+            if (tjUser != null) {
+                openSearchWithText("");
+                if (searchUserButton != null) {
+                    searchUserButton.callOnClick();
+                }
+                searchUserMessages(tjUser, null);
+                return;
+            }
+        }
         final long searchFromUserId = getArguments().getInt("search_from_user_id", 0);
         if (searchFromUserId != 0) {
             TLRPC.User user = getMessagesController().getUser(searchFromUserId);

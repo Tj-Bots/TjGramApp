@@ -134,6 +134,10 @@
     <string name="TjDisableBatteryOptimization">בטל אופטימיזציית סוללה</string>
     <string name="TjOnlineIndicator">הצג מצב מחובר</string>
     <string name="TjOnlineIndicatorInfo">מוסיף נקודה ליד אנשים ברשימת הצ׳אטים וברשימות חברי הקבוצה: צבעונית כשהם מחוברים, ניטרלית כשלא.</string>
+    <string name="TjDirectStreaming">נגן קובצי וידאו תוך כדי הורדה</string>
+    <string name="TjShowUserMessages">הצג הודעות של החבר הזה</string>
+    <string name="TjMemberJoinedDate">הצטרף/ה ב-%1$s</string>
+    <string name="TjDirectStreamingInfo">מתחיל לנגן קובצי וידאו ברגע שהגיע מספיק, במקום לחכות להורדה מלאה — כולל קבצים שנשלחו כמסמך. הניגון עדיין תלוי במה שהמכשיר שלך יודע לפענח.</string>
     <string name="TjProtectedForwarding">העלה מחדש הודעות מוגנות</string>
     <string name="TjProtectedForwardingInfo">כש־Telegram חוסם העברה רגילה, יישלח עותק חדש של הטקסט או המדיה שהורדה. פרטי המקור לא יישמרו.</string>
     <string name="TjProtectedScreenshots">אפשר צילומי מסך</string>

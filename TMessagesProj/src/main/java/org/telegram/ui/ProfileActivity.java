@@ -7202,7 +7202,12 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 }
             }
 
-            boolean result = (canEditAdmin || canEditTag || canRestrict || allowKick);
+            boolean hasModerationActions = canEditAdmin || canEditTag || canRestrict || allowKick;
+            // TJ: upstream only opens this menu for people who can moderate, so an ordinary
+            // member long-pressing another member got nothing at all. Everyone gets the entries
+            // that need no rights - write to them, and read back what they posted here.
+            boolean canOpenMemberActions = !self && currentChat != null;
+            boolean result = hasModerationActions || canOpenMemberActions;
             if (resultOnly || !result) {
                 return result;
             }
@@ -7220,13 +7225,19 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 bg = ((RecyclerListView) view.getParent()).getClipBackground(view);
             }
 
-            ItemOptions.makeOptions(this, view)
+            ItemOptions memberOptions = ItemOptions.makeOptions(this, view)
                     .setScrimViewBackground(bg)
                     .setLongPressSelectionEnabled(false)
                     .addIf(!self, R.drawable.msg_discussion, getString(R.string.SendMessage), () -> {
                         presentFragment(ChatActivity.of(user.id));
                     })
-                    .addGapIf(!self && (canEditAdmin || canEditTag || canRestrict || allowKick))
+                    .addIf(canOpenMemberActions, R.drawable.msg_search, TjLocale.getString(R.string.TjShowUserMessages), () -> {
+                        Bundle searchArgs = new Bundle();
+                        searchArgs.putLong("chat_id", chatId);
+                        searchArgs.putLong("tj_search_from_user_id", user.id);
+                        presentFragment(new ChatActivity(searchArgs));
+                    })
+                    .addGapIf(!self && hasModerationActions)
                     .addIf(canEditTag, !isAdmin && TextUtils.isEmpty(rank) ? R.drawable.menu_tag_plus : R.drawable.menu_tag_edit, getString(isAdmin ? R.string.EditAdminTag : TextUtils.isEmpty(rank) ? R.string.AddMemberTag : R.string.EditMemberTag), () -> {
                         TagEditCell.showSheet(getContext(), currentAccount, getDialogId(), user, rank, isAdmin, isOwner, resourcesProvider);
                     })
@@ -7248,8 +7259,12 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                     .addIf(allowKick, R.drawable.msg_remove, LocaleController.getString(R.string.KickFromGroup), true, () -> {
                         kickUser(selectedUser, participant);
                     })
-                    .setMinWidth(190)
-                    .show();
+                    .setMinWidth(190);
+            if (participant.date > 0) {
+                memberOptions.addText(LocaleController.formatString(R.string.TjMemberJoinedDate,
+                        LocaleController.getInstance().getFormatterYear().format(participant.date * 1000L)), 13);
+            }
+            memberOptions.show();
         } else {
             if (participant.user_id == getUserConfig().getClientUserId()) {
                 return false;

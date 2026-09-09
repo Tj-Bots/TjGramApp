@@ -18,6 +18,8 @@ import org.telegram.ui.Components.TjFolderIcons;
 import org.telegram.ui.Cells.TextSettingsCell;
 import org.telegram.ui.ActionBar.AlertDialog;
 import org.telegram.messenger.NotificationCenter;
+import org.telegram.messenger.SharedConfig;
+import org.telegram.tgnet.ConnectionsManager;
 import org.telegram.messenger.TjLocale;
 import org.telegram.messenger.tj.TjConfig;
 import org.telegram.messenger.tj.TjBackgroundConnection;
@@ -306,6 +308,7 @@ public class TjSettingsActivity extends BaseFragment {
     private static final int ID_BACKGROUND_CONNECTION = 23;
     private static final int ID_BATTERY_OPTIMIZATION = 24;
     private static final int ID_ONLINE_INDICATOR = 25;
+    private static final int ID_DIRECT_STREAMING = 26;
 
     private static class Item {
         final int viewType;
@@ -342,6 +345,7 @@ public class TjSettingsActivity extends BaseFragment {
             case ID_DELETE_FOR_BOTH: return isDeleteForBothDefault();
             case ID_BACKGROUND_CONNECTION: return TjConfig.backgroundConnection();
             case ID_ONLINE_INDICATOR: return TjConfig.showOnlineIndicator();
+            case ID_DIRECT_STREAMING: return TjConfig.directFileStreaming();
         }
         return false;
     }
@@ -370,6 +374,7 @@ public class TjSettingsActivity extends BaseFragment {
             case ID_DELETE_FOR_BOTH: key = KEY_DELETE_FOR_BOTH; break;
             case ID_BACKGROUND_CONNECTION: key = "background_connection"; break;
             case ID_ONLINE_INDICATOR: key = "show_online_indicator"; break;
+            case ID_DIRECT_STREAMING: key = "direct_file_streaming"; break;
         }
         if (key != null) {
             getPrefs().edit().putBoolean(key, value).apply();
@@ -434,9 +439,19 @@ public class TjSettingsActivity extends BaseFragment {
                 TjGhostController.sendOfflineStatusForActiveAccounts();
             }
             if (item.id == ID_BACKGROUND_CONNECTION) {
-                // Restart the service so it picks up (or drops) its foreground notification.
+                // Restart the service so it picks up (or drops) its foreground notification, and
+                // apply the push connection immediately instead of only on the next launch.
                 ApplicationLoader.startPushService();
+                for (int a = 0; a < UserConfig.MAX_ACCOUNT_COUNT; a++) {
+                    if (UserConfig.getInstance(a).isClientActivated()) {
+                        ConnectionsManager connectionsManager = ConnectionsManager.getInstance(a);
+                        connectionsManager.setPushConnectionEnabled(connectionsManager.isPushConnectionEnabled());
+                    }
+                }
                 adapter.notifyDataSetChanged();
+            }
+            if (item.id == ID_DIRECT_STREAMING) {
+                SharedConfig.setDirectFileStreaming(value);
             }
             if (item.id == ID_GHOST_READ) {
                 TjGhostController.clearReadExceptions();
@@ -476,6 +491,9 @@ public class TjSettingsActivity extends BaseFragment {
         items.add(new Item(VIEW_TYPE_HEADER, 0, TjLocale.getString(R.string.TjSubtitles)));
         items.add(new Item(VIEW_TYPE_CHECK, ID_SUBTITLE_AUTO, TjLocale.getString(R.string.TjSubtitleAuto)));
         items.add(new Item(VIEW_TYPE_SHADOW, 0, TjLocale.getString(R.string.TjSubtitleAutoInfo)));
+        items.add(new Item(VIEW_TYPE_HEADER, 0, TjLocale.getString(R.string.TjDirectStreaming)));
+        items.add(new Item(VIEW_TYPE_CHECK, ID_DIRECT_STREAMING, TjLocale.getString(R.string.TjDirectStreaming)));
+        items.add(new Item(VIEW_TYPE_SHADOW, 0, TjLocale.getString(R.string.TjDirectStreamingInfo)));
         items.add(new Item(VIEW_TYPE_HEADER, 0, TjLocale.getString(R.string.TjBackgroundConnection)));
         items.add(new Item(VIEW_TYPE_CHECK, ID_BACKGROUND_CONNECTION, TjLocale.getString(R.string.TjBackgroundConnection)));
         if (TjBackgroundConnection.isBatteryOptimized()) {

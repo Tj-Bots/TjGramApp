@@ -248,6 +248,8 @@ public class ApplicationLoader extends Application {
         }
 
         SharedConfig.loadConfig();
+        // TJ: the streaming relaxations live in SharedConfig but are driven by the TJ switch.
+        SharedConfig.setDirectFileStreaming(org.telegram.messenger.tj.TjConfig.directFileStreaming());
         SharedPrefsHelper.init(applicationContext);
         for (int a = 0; a < UserConfig.MAX_ACCOUNT_COUNT; a++) {
             UserConfig.getInstance(a).loadConfig();
@@ -391,7 +393,12 @@ public class ApplicationLoader extends Application {
     public static void startPushService() {
         SharedPreferences preferences = MessagesController.getGlobalNotificationsSettings();
         boolean enabled;
-        if (preferences.contains("pushService")) {
+        if (org.telegram.messenger.tj.TjConfig.backgroundConnection()) {
+            // Upstream leaves this to a server-side app-config flag ("keepAliveService") that
+            // defaults to false, so the service never started and the app only caught up on
+            // updates when it was reopened. The TJ switch is the enable signal here.
+            enabled = true;
+        } else if (preferences.contains("pushService")) {
             enabled = preferences.getBoolean("pushService", true);
         } else {
             enabled = MessagesController.getMainSettings(UserConfig.selectedAccount).getBoolean("keepAliveService", false);

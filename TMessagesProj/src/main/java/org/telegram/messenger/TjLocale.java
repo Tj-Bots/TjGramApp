@@ -154,6 +154,10 @@ public class TjLocale {
         m.put("TjDisableBatteryOptimization", "בטל אופטימיזציית סוללה");
         m.put("TjOnlineIndicator", "הצג מצב מחובר");
         m.put("TjOnlineIndicatorInfo", "מוסיף נקודה ליד אנשים ברשימת הצ׳אטים וברשימות חברי הקבוצה: צבעונית כשהם מחוברים, ניטרלית כשלא.");
+        m.put("TjDirectStreaming", "נגן קובצי וידאו תוך כדי הורדה");
+        m.put("TjShowUserMessages", "הצג הודעות של החבר הזה");
+        m.put("TjMemberJoinedDate", "הצטרף/ה ב-%1$s");
+        m.put("TjDirectStreamingInfo", "מתחיל לנגן קובצי וידאו ברגע שהגיע מספיק, במקום לחכות להורדה מלאה — כולל קבצים שנשלחו כמסמך. הניגון עדיין תלוי במה שהמכשיר שלך יודע לפענח.");
         m.put("TjProtectedScreenshots", "אפשר צילומי מסך");
         m.put("TjProtectedScreenshotsInfo", "מאפשר לצלם מסך בקבוצות ובערוצים שמבקשים לחסום את זה. צ׳אטים סודיים נשארים מוגנים.");
         m.put("TjArchiveCleared", "ארכיון ההודעות המקומי נוקה");

@@ -1,6 +1,7 @@
 package org.telegram.ui.Cells;
 
 import android.content.Context;
+import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.GradientDrawable;
 import android.view.HapticFeedbackConstants;
 import android.view.MotionEvent;
@@ -191,10 +192,9 @@ public class DrawerAccountsCell extends LinearLayout {
             if (actionState == ItemTouchHelper.ACTION_STATE_DRAG && viewHolder != null) {
                 View view = viewHolder.itemView;
                 view.setTranslationZ(AndroidUtilities.dp(8));
-                view.setScaleX(1.02f);
-                view.setScaleY(1.02f);
-                view.setBackground(Theme.createRoundRectDrawable(
-                        AndroidUtilities.dp(10),
+                // Deliberately no scaling: it made the row look a different size from the slot it
+                // occupies, so the neighbours appeared to jump around while it was being moved.
+                view.setBackground(new ColorDrawable(
                         Theme.multAlpha(Theme.getColor(Theme.key_chats_menuItemText), 0.10f)));
             }
         }
@@ -204,9 +204,7 @@ public class DrawerAccountsCell extends LinearLayout {
             super.clearView(recyclerView, viewHolder);
             View view = viewHolder.itemView;
             view.setTranslationZ(0);
-            view.setScaleX(1f);
-            view.setScaleY(1f);
-            view.setBackground(Theme.createSelectorDrawable(Theme.getColor(Theme.key_listSelector), 2));
+            view.setBackground(null);
             int previewAccount = pendingPreviewAccount;
             pendingPreviewAccount = -1;
             if (orderChanged) {
@@ -257,7 +255,9 @@ public class DrawerAccountsCell extends LinearLayout {
             userCell = new DrawerUserCell(context);
             userCell.setReorderHandleVisible(false);
             addView(userCell, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, ROW_HEIGHT_DP));
-            setBackground(Theme.createSelectorDrawable(Theme.getColor(Theme.key_listSelector), 2));
+            // The highlight has to sit on the view that receives the touch, otherwise the press
+            // state never reaches the row and the feedback looks smaller than the row really is.
+            userCell.setBackground(Theme.createSelectorDrawable(Theme.getColor(Theme.key_listSelector), Theme.RIPPLE_MASK_ALL));
             userCell.setOnClickListener(v -> {
                 if (longPressHandled) {
                     longPressHandled = false;

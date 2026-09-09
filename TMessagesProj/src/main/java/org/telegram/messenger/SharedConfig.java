@@ -1329,6 +1329,19 @@ public class SharedConfig {
         editor.apply();
     }
 
+    /**
+     * TJ: sets both streaming relaxations together. Upstream keeps these behind debug-only
+     * switches, but they are what lets a video play before it has finished downloading.
+     */
+    public static void setDirectFileStreaming(boolean value) {
+        streamAllVideo = value;
+        streamMkv = value;
+        MessagesController.getGlobalMainSettings().edit()
+                .putBoolean("streamAllVideo", streamAllVideo)
+                .putBoolean("streamMkv", streamMkv)
+                .apply();
+    }
+
     public static void toggleStreamAllVideo() {
         streamAllVideo = !streamAllVideo;
         SharedPreferences preferences = MessagesController.getGlobalMainSettings();

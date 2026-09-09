@@ -283,6 +283,12 @@ public class ConnectionsManager extends BaseController {
     }
 
     public boolean isPushConnectionEnabled() {
+        if (org.telegram.messenger.tj.TjConfig.backgroundConnection()) {
+            // The dedicated push connection is what actually delivers updates while the app is
+            // off screen. Upstream gates it on a server-side flag that defaults to false, which
+            // is why messages only showed up after reopening the app.
+            return true;
+        }
         SharedPreferences preferences = MessagesController.getGlobalNotificationsSettings();
         if (preferences.contains("pushConnection")) {
             return preferences.getBoolean("pushConnection", true);
