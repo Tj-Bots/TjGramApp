@@ -108,10 +108,6 @@ public class DrawerAccountsCell extends LinearLayout {
         requestLayout();
     }
 
-    private boolean canScrollList() {
-        return listView.canScrollVertically(-1) || listView.canScrollVertically(1);
-    }
-
     private void setParentInterceptDisallowed(boolean disallowed) {
         if (parentInterceptDisallowed == disallowed) {
             return;
@@ -129,9 +125,11 @@ public class DrawerAccountsCell extends LinearLayout {
             case MotionEvent.ACTION_DOWN:
                 downX = event.getX();
                 downY = event.getY();
-                // Claim the gesture up front: the drawer's RecyclerView would otherwise steal
-                // vertical drags at the same touch slop we would use to detect them.
-                setParentInterceptDisallowed(canScrollList());
+                // Claim the gesture up front. Not just when this list can scroll: with a handful
+                // of accounts the card does not scroll at all, and then the drawer's own list was
+                // free to steal the drag the instant the finger moved - which is exactly when a
+                // reorder is starting, so the row was let go every time.
+                setParentInterceptDisallowed(true);
                 break;
             case MotionEvent.ACTION_MOVE:
                 if (parentInterceptDisallowed) {

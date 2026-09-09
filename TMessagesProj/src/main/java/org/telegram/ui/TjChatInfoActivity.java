@@ -19,6 +19,7 @@ import org.telegram.ui.ActionBar.ActionBar;
 import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.Cells.HeaderCell;
+import org.telegram.ui.Cells.TextCheckCell;
 import org.telegram.ui.Cells.TextInfoPrivacyCell;
 import org.telegram.ui.Cells.TextSettingsCell;
 import org.telegram.ui.Components.LayoutHelper;
@@ -292,6 +293,8 @@ public class TjChatInfoActivity extends BaseFragment {
                 view = new HeaderCell(parent.getContext());
             } else if (viewType == TYPE_INFO) {
                 view = new TextInfoPrivacyCell(parent.getContext());
+            } else if (viewType == TYPE_PERMISSION) {
+                view = new TextCheckCell(parent.getContext());
             } else {
                 view = new TextSettingsCell(parent.getContext());
             }
@@ -309,12 +312,11 @@ public class TjChatInfoActivity extends BaseFragment {
                 cell.setBackground(Theme.getThemedDrawable(cell.getContext(),
                         R.drawable.greydivider_bottom, Theme.key_windowBackgroundGrayShadow));
             } else if (item.type == TYPE_PERMISSION) {
-                TextSettingsCell cell = (TextSettingsCell) holder.itemView;
+                TextCheckCell cell = (TextCheckCell) holder.itemView;
                 boolean divider = position + 1 < items.size() && items.get(position + 1).type == TYPE_PERMISSION;
-                cell.setTextAndValue(item.text,
-                        LocaleController.getString(item.allowed ? R.string.Allow : R.string.Restrict), divider);
-                cell.setTextValueColor(Theme.getColor(item.allowed
-                        ? Theme.key_windowBackgroundWhiteGreenText : Theme.key_text_RedRegular));
+                cell.setTextAndCheck(item.text, item.allowed, divider);
+                // Dimmed and inert: this is what the group allows, not something to change here.
+                cell.setEnabled(false, null);
                 applyCard(cell, position);
             } else {
                 TextSettingsCell cell = (TextSettingsCell) holder.itemView;

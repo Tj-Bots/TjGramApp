@@ -10373,9 +10373,6 @@ public class MessageObject {
         if (document == null) {
             return false;
         }
-        // TJ: a video sent as a raw document has no video attribute, so everything downstream -
-        // the bubble layout, the player, streaming - treats it as a file. Fill one in first.
-        org.telegram.messenger.tj.TjVideoFiles.markPlayableVideo(document);
         boolean isAnimated = false;
         boolean isVideo = false;
         String filename = null;
