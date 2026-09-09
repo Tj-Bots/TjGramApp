@@ -155,7 +155,8 @@ public class TjLocale {
         m.put("TjOnlineIndicator", "הצג מצב מחובר");
         m.put("TjOnlineIndicatorInfo", "מוסיף נקודה ליד אנשים ברשימת הצ׳אטים וברשימות חברי הקבוצה: צבעונית כשהם מחוברים, ניטרלית כשלא.");
         m.put("TjDirectStreaming", "נגן קובצי וידאו תוך כדי הורדה");
-        m.put("TjShowUserMessages", "הצג הודעות של החבר הזה");
+        m.put("TjShowUserMessages", "חפש הודעות");
+        m.put("TjViewAdminRights", "הרשאות מנהל");
         m.put("TjMemberJoinedDate", "הצטרף/ה ב-%1$s");
         m.put("TjDirectStreamingInfo", "מתחיל לנגן קובצי וידאו ברגע שהגיע מספיק, במקום לחכות להורדה מלאה — כולל קבצים שנשלחו כמסמך. הניגון עדיין תלוי במה שהמכשיר שלך יודע לפענח.");
         m.put("TjProtectedScreenshots", "אפשר צילומי מסך");

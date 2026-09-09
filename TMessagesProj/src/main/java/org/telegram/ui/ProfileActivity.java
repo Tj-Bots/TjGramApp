@@ -7237,6 +7237,15 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                         searchArgs.putLong("tj_search_from_user_id", user.id);
                         presentFragment(new ChatActivity(searchArgs));
                     })
+                    // TJ: an ordinary member can still look at what an admin is allowed to do.
+                    // Opened with edit = false, so it is a read-only view of their rights.
+                    .addIf(isAdmin && !canEditAdmin, R.drawable.msg_admins, TjLocale.getString(R.string.TjViewAdminRights), () -> {
+                        presentFragment(new ChatRightsEditActivity(user.id, chatId,
+                                channelParticipant != null ? channelParticipant.admin_rights : null,
+                                currentChat.default_banned_rights,
+                                channelParticipant != null ? channelParticipant.banned_rights : null,
+                                rank, ChatRightsEditActivity.TYPE_ADMIN, false, false, null));
+                    })
                     .addGapIf(!self && hasModerationActions)
                     .addIf(canEditTag, !isAdmin && TextUtils.isEmpty(rank) ? R.drawable.menu_tag_plus : R.drawable.menu_tag_edit, getString(isAdmin ? R.string.EditAdminTag : TextUtils.isEmpty(rank) ? R.string.AddMemberTag : R.string.EditMemberTag), () -> {
                         TagEditCell.showSheet(getContext(), currentAccount, getDialogId(), user, rank, isAdmin, isOwner, resourcesProvider);

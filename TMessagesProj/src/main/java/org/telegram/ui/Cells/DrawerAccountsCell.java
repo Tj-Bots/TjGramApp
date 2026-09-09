@@ -154,8 +154,10 @@ public class DrawerAccountsCell extends LinearLayout {
     private class ReorderCallback extends ItemTouchHelper.Callback {
         @Override
         public boolean isLongPressDragEnabled() {
-            // Drags are started explicitly from AccountRow's long press.
-            return false;
+            // ItemTouchHelper detects the long press itself, from the RecyclerView's touch
+            // stream. Starting the drag by hand from a postDelayed runnable meant the helper
+            // never owned the gesture, so the row was dropped the moment the finger moved.
+            return true;
         }
 
         @Override
@@ -191,6 +193,13 @@ public class DrawerAccountsCell extends LinearLayout {
             super.onSelectedChanged(viewHolder, actionState);
             if (actionState == ItemTouchHelper.ACTION_STATE_DRAG && viewHolder != null) {
                 View view = viewHolder.itemView;
+                setParentInterceptDisallowed(true);
+                int account = view instanceof AccountRow ? ((AccountRow) view).boundAccount : -1;
+                pendingPreviewAccount = account == UserConfig.selectedAccount ? -1 : account;
+                try {
+                    view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
+                } catch (Exception ignore) {
+                }
                 view.setTranslationZ(AndroidUtilities.dp(8));
                 // Deliberately no scaling: it made the row look a different size from the slot it
                 // occupies, so the neighbours appeared to jump around while it was being moved.
@@ -231,7 +240,7 @@ public class DrawerAccountsCell extends LinearLayout {
             AccountRow row = (AccountRow) holder.itemView;
             int account = accounts.get(position);
             row.userCell.setAccount(account);
-            row.bind(account, holder);
+            row.bind(account);
         }
 
         @Override
@@ -243,11 +252,6 @@ public class DrawerAccountsCell extends LinearLayout {
     private class AccountRow extends LinearLayout {
         final DrawerUserCell userCell;
         private int boundAccount = -1;
-        private RecyclerView.ViewHolder boundHolder;
-        private float downX;
-        private float downY;
-        private boolean longPressHandled;
-        private Runnable longPressRunnable;
 
         AccountRow(Context context) {
             super(context);
@@ -259,75 +263,16 @@ public class DrawerAccountsCell extends LinearLayout {
             // state never reaches the row and the feedback looks smaller than the row really is.
             userCell.setBackground(Theme.createSelectorDrawable(Theme.getColor(Theme.key_listSelector), Theme.RIPPLE_MASK_ALL));
             userCell.setOnClickListener(v -> {
-                if (longPressHandled) {
-                    longPressHandled = false;
-                    return;
-                }
                 if (listener != null && boundAccount >= 0) {
                     listener.onAccountClick(boundAccount);
                 }
             });
-            userCell.setOnTouchListener((v, event) -> {
-                switch (event.getActionMasked()) {
-                    case MotionEvent.ACTION_DOWN:
-                        cancelLongPressCheck();
-                        longPressHandled = false;
-                        downX = event.getX();
-                        downY = event.getY();
-                        longPressRunnable = this::handleLongPress;
-                        userCell.postDelayed(longPressRunnable, ViewConfiguration.getLongPressTimeout());
-                        break;
-                    case MotionEvent.ACTION_MOVE:
-                        if (Math.abs(event.getX() - downX) > touchSlop
-                                || Math.abs(event.getY() - downY) > touchSlop) {
-                            cancelLongPressCheck();
-                        }
-                        break;
-                    case MotionEvent.ACTION_UP:
-                    case MotionEvent.ACTION_CANCEL:
-                        cancelLongPressCheck();
-                        break;
-                }
-                // DrawerUserCell remains the touch target, preserving its normal click behavior.
-                return false;
-            });
         }
 
-        void bind(int account, RecyclerView.ViewHolder holder) {
-            cancelLongPressCheck();
+        void bind(int account) {
             boundAccount = account;
-            boundHolder = holder;
-            longPressHandled = false;
         }
 
-        private void handleLongPress() {
-            longPressRunnable = null;
-            int account = boundAccount;
-            if (account < 0 || accounts.indexOf(account) < 0) {
-                return;
-            }
-            longPressHandled = true;
-            try {
-                userCell.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
-            } catch (Exception ignore) {
-            }
-            if (boundHolder != null) {
-                // Every account can be picked up: restricting the drag to the selected one made
-                // reordering all but impossible. A hold that never moves still opens the preview.
-                setParentInterceptDisallowed(true);
-                pendingPreviewAccount = account == UserConfig.selectedAccount ? -1 : account;
-                itemTouchHelper.startDrag(boundHolder);
-            } else if (listener != null && account != UserConfig.selectedAccount) {
-                listener.onAccountPreview(account);
-            }
-        }
-
-        private void cancelLongPressCheck() {
-            if (longPressRunnable != null) {
-                userCell.removeCallbacks(longPressRunnable);
-                longPressRunnable = null;
-            }
-        }
 
         @Override
         protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
