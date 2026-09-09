@@ -42159,7 +42159,14 @@ public class ChatActivity extends BaseFragment implements
                     }
                 }
                 boolean handled = false;
-                if (message.canPreviewDocument()) {
+                if (org.telegram.messenger.tj.TjVideoFiles.isTjMarked(message.getDocument())) {
+                    // A video someone sent as a plain file. It is drawn as the file it is, but the
+                    // tap opens the same viewer a real video would, streaming rather than
+                    // downloading first and handing the file to another app.
+                    PhotoViewer.getInstance().setParentActivity(ChatActivity.this, themeDelegate);
+                    PhotoViewer.getInstance().openPhoto(message, ChatActivity.this, dialog_id, mergeDialogId, getTopicId(), photoViewerProvider);
+                    handled = true;
+                } else if (message.canPreviewDocument()) {
                     PhotoViewer.getInstance().setParentActivity(ChatActivity.this, themeDelegate);
                     PhotoViewer.getInstance().openPhoto(message, ChatActivity.this, message.type != 0 ? dialog_id : 0, message.type != 0 ? mergeDialogId : 0, message.type != 0 ? getTopicId() : 0, photoViewerProvider);
                     handled = true;

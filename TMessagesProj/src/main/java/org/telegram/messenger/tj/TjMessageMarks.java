@@ -28,7 +28,12 @@ public final class TjMessageMarks {
         if (mark == null) {
             return R.drawable.tj_mark_trash;
         }
-        if (mark.startsWith("❌") || mark.startsWith("✖") || mark.startsWith("✗") || mark.startsWith("❎")) {
+        if (mark.startsWith("❌") || mark.startsWith("❎")) {
+            // The two X options have to differ by shape: both are tinted with the timestamp
+            // colour, so "red" and "dark" would come out identical.
+            return R.drawable.tj_mark_cross_circle;
+        }
+        if (mark.startsWith("✖") || mark.startsWith("✗")) {
             return R.drawable.tj_mark_cross;
         }
         if (mark.startsWith("🧹") || mark.startsWith("🧽")) {
@@ -58,8 +63,8 @@ public final class TjMessageMarks {
         try {
             ColoredImageSpan span = new ColoredImageSpan(drawableRes, ColoredImageSpan.ALIGN_CENTER);
             // Sized to the timestamp rather than the icon's own 24dp, so it reads as punctuation
-            // next to the time instead of as a button.
-            span.setSize(dp(11));
+            // next to the time instead of as a button - but large enough to be recognisable.
+            span.setSize(dp(14));
             builder.setSpan(span, 0, 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
         } catch (Throwable ignore) {
             return "";

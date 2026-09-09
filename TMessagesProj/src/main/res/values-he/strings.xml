@@ -163,9 +163,9 @@
     <string name="TjChatGhostEnabled">מצב רפאים הופעל בצ׳אט הזה</string>
     <string name="TjChatGhostDisabled">מצב רפאים כובה בצ׳אט הזה</string>
     <string name="TjChatGhostInfo">אישורי קריאה והקלדה מוסתרים בצ׳אט הזה. מצב מקוון חל על החשבון כולו.</string>
-    <string name="TjDeletedMarkerTrash">פח אפור</string>
-    <string name="TjDeletedMarkerRedX">איקס אדום</string>
-    <string name="TjDeletedMarkerDarkX">איקס כהה</string>
+    <string name="TjDeletedMarkerTrash">פח</string>
+    <string name="TjDeletedMarkerRedX">איקס בעיגול</string>
+    <string name="TjDeletedMarkerDarkX">איקס רגיל</string>
     <string name="TjDeletedMarkerBroom">מטאטא</string>
     <string name="TjDeletedTime">%1$s %2$s</string>
     <string name="TjDeletedEditedTime">%1$s (%2$s) %3$s</string>

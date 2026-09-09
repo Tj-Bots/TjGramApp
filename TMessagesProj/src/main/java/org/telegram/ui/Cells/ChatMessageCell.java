@@ -12795,7 +12795,8 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
             }
             seekBarWaveform.setMessageObject(messageObject);
             return 0;
-        } else if (MessageObject.isVideoDocument(documentAttach)) {
+        } else if (MessageObject.isVideoDocument(documentAttach)
+                && !org.telegram.messenger.tj.TjVideoFiles.isTjMarked(documentAttach)) {
             documentAttachType = DOCUMENT_ATTACH_TYPE_VIDEO;
             if (!messageObject.needDrawBluredPreview()) {
                 updatePlayingMessageProgress();

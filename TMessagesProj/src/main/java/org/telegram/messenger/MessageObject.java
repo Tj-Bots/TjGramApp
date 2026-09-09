@@ -6657,7 +6657,7 @@ public class MessageObject {
                 type = TYPE_GEO;
             } else if (isRoundVideo()) {
                 type = TYPE_ROUND_VIDEO;
-            } else if (isVideo()) {
+            } else if (isVideo() && !org.telegram.messenger.tj.TjVideoFiles.isTjMarked(getDocument())) {
                 type = TYPE_VIDEO;
             } else if (isVoice()) {
                 type = TYPE_VOICE;

@@ -10,21 +10,16 @@ package org.telegram.ui.Cells;
 
 import android.content.Context;
 import android.graphics.Canvas;
-import android.graphics.PorterDuff;
-import android.graphics.PorterDuffColorFilter;
 import android.graphics.RectF;
 import android.graphics.drawable.Drawable;
 import android.view.Gravity;
 import android.view.accessibility.AccessibilityNodeInfo;
-import android.widget.ImageView;
 import android.widget.FrameLayout;
 
 
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.ContactsController;
 import org.telegram.messenger.Emoji;
-import org.telegram.messenger.LocaleController;
-import org.telegram.messenger.R;
 import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.MessagesStorage;
 import org.telegram.messenger.NotificationCenter;
@@ -53,8 +48,6 @@ public class DrawerUserCell extends FrameLayout implements NotificationCenter.No
     private int accountNumber;
     private int observedAccount = -1;
     private RectF rect = new RectF();
-    private int reorderInset;
-    private ImageView reorderHandle;
 
     public DrawerUserCell(Context context) {
         super(context);
@@ -181,34 +174,6 @@ public class DrawerUserCell extends FrameLayout implements NotificationCenter.No
         return accountNumber;
     }
 
-    public void setReorderHandleVisible(boolean visible) {
-        reorderInset = visible ? AndroidUtilities.dp(34) : 0;
-        if (visible && reorderHandle == null) {
-            reorderHandle = new ImageView(getContext());
-            reorderHandle.setScaleType(ImageView.ScaleType.CENTER);
-            reorderHandle.setImageResource(R.drawable.list_reorder);
-            reorderHandle.setColorFilter(new PorterDuffColorFilter(
-                    Theme.getColor(Theme.key_chats_menuItemIcon), PorterDuff.Mode.MULTIPLY));
-            addView(reorderHandle, LayoutHelper.createFrame(40, 48,
-                    (LocaleController.isRTL ? Gravity.LEFT : Gravity.RIGHT) | Gravity.TOP));
-        }
-        if (reorderHandle != null) {
-            reorderHandle.setVisibility(visible ? VISIBLE : GONE);
-        }
-        invalidate();
-    }
-
-    /**
-     * Starting the drag from the handle's own ACTION_DOWN is the pattern the rest of the app uses
-     * for reorderable lists. Relying on a long press meant ItemTouchHelper had to win a race for
-     * the gesture against the list it is nested in, which it kept losing.
-     */
-    public void setOnReorderTouchListener(OnTouchListener listener) {
-        if (reorderHandle != null) {
-            reorderHandle.setOnTouchListener(listener);
-        }
-    }
-
     private void observeAccount(int account) {
         if (observedAccount == account) {
             return;
@@ -231,12 +196,12 @@ public class DrawerUserCell extends FrameLayout implements NotificationCenter.No
     @Override
     protected void onDraw(Canvas canvas) {
         if (UserConfig.getActivatedAccountsCount() <= 1 || !NotificationsController.getInstance(accountNumber).showBadgeNumber) {
-            textView.setRightPadding(reorderInset);
+            textView.setRightPadding(0);
             return;
         }
         int counter = MessagesStorage.getInstance(accountNumber).getMainUnreadCount();
         if (counter <= 0) {
-            textView.setRightPadding(reorderInset);
+            textView.setRightPadding(0);
             return;
         }
 
@@ -244,7 +209,7 @@ public class DrawerUserCell extends FrameLayout implements NotificationCenter.No
         int countTop = AndroidUtilities.dp(12.5f);
         int textWidth = (int) Math.ceil(Theme.dialogs_countTextPaint.measureText(text));
         int countWidth = Math.max(AndroidUtilities.dp(10), textWidth);
-        int countLeft = getMeasuredWidth() - countWidth - AndroidUtilities.dp(25) - reorderInset;
+        int countLeft = getMeasuredWidth() - countWidth - AndroidUtilities.dp(25);
 
         int x = countLeft - AndroidUtilities.dp(5.5f);
         rect.set(x, countTop, x + countWidth + AndroidUtilities.dp(14), countTop + AndroidUtilities.dp(23));
@@ -252,7 +217,7 @@ public class DrawerUserCell extends FrameLayout implements NotificationCenter.No
 
         canvas.drawText(text, rect.left + (rect.width() - textWidth) / 2, countTop + AndroidUtilities.dp(16), Theme.dialogs_countTextPaint);
 
-        textView.setRightPadding(countWidth + AndroidUtilities.dp(14 + 12) + reorderInset);
+        textView.setRightPadding(countWidth + AndroidUtilities.dp(14 + 12));
     }
 
     @Override

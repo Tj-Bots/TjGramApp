@@ -494,8 +494,11 @@ public class TjPrivacySettingsActivity extends BaseFragment implements Notificat
 
     private String deletedMarkerName() {
         String current = TjConfig.deletedMark();
-        if (current.startsWith("❌") || current.startsWith("✖") || current.startsWith("✗")) {
+        if (current.startsWith("❌") || current.startsWith("❎")) {
             return text(R.string.TjDeletedMarkerRedX);
+        }
+        if (current.startsWith("✖") || current.startsWith("✗")) {
+            return text(R.string.TjDeletedMarkerDarkX);
         }
         if (current.startsWith("🧹") || current.startsWith("🧽")) {
             return text(R.string.TjDeletedMarkerBroom);

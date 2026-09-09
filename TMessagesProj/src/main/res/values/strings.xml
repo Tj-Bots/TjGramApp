@@ -11387,9 +11387,9 @@
     <string name="TjChatGhostEnabled">Ghost enabled for this chat</string>
     <string name="TjChatGhostDisabled">Ghost disabled for this chat</string>
     <string name="TjChatGhostInfo">Read receipts and typing are hidden for this chat. Online status is account-wide.</string>
-    <string name="TjDeletedMarkerTrash">Gray trash</string>
-    <string name="TjDeletedMarkerRedX">Red X</string>
-    <string name="TjDeletedMarkerDarkX">Dark X</string>
+    <string name="TjDeletedMarkerTrash">Trash</string>
+    <string name="TjDeletedMarkerRedX">X in a circle</string>
+    <string name="TjDeletedMarkerDarkX">Plain X</string>
     <string name="TjDeletedMarkerBroom">Broom</string>
     <string name="TjDeletedTime">%1$s %2$s</string>
     <string name="TjDeletedEditedTime">%1$s (%2$s) %3$s</string>
