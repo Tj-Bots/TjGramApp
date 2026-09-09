@@ -8130,10 +8130,12 @@ public class AlertsCreator {
             }
         }
 
-        // Ticked by default: the archive is opt-out per deletion, so a message is only lost
-        // when the user deliberately clears this box.
-        final boolean[] keepLocally = {true};
+        // Ticked by default where the choice is offered, so a message is only lost when the user
+        // deliberately clears the box. Where no box is shown nothing is kept, which is what the
+        // deletion path did before this option existed.
+        final boolean[] keepLocally = {false};
         if (TjConfig.saveDeletedMessages() && !scheduled && !isSavedMessages && mode == ChatActivity.MODE_DEFAULT) {
+            keepLocally[0] = true;
             CheckBoxCell keepCell = new CheckBoxCell(activity, 1, resourcesProvider);
             keepCell.setBackgroundDrawable(Theme.getSelectorDrawable(false));
             keepCell.setText(TjLocale.getString(R.string.TjDeleteKeepLocally), "", false, false);

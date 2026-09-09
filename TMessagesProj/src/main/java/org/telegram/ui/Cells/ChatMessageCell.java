@@ -103,7 +103,6 @@ import androidx.core.math.MathUtils;
 
 import org.telegram.PhoneFormat.PhoneFormat;
 import org.telegram.messenger.AccountInstance;
-import org.telegram.messenger.tj.TjConfig;
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.AppGlobalConfig;
 import org.telegram.messenger.ApplicationLoader;
@@ -148,6 +147,7 @@ import org.telegram.messenger.utils.DrawableUtils;
 import org.telegram.messenger.utils.tlutils.TLKeyboardHelper;
 import org.telegram.messenger.utils.tlutils.TlUtils;
 import org.telegram.messenger.video.OldVideoPlayerRewinder;
+import org.telegram.messenger.tj.TjConfig;
 import org.telegram.tgnet.ConnectionsManager;
 import org.telegram.tgnet.TLObject;
 import org.telegram.tgnet.TLRPC;

@@ -40,7 +40,11 @@ public class NotificationsService extends Service {
                             TjBackgroundConnection.createNotification(this));
                 }
             } catch (Throwable error) {
+                // The system gives a service started with startForegroundService only a few
+                // seconds to call startForeground; stopping is the only way to avoid a crash.
                 FileLog.e("Tj background connection could not start in the foreground", error);
+                stopSelf();
+                return START_NOT_STICKY;
             }
         }
         return START_STICKY;

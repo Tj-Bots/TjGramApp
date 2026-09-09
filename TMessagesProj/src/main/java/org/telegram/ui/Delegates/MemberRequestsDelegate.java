@@ -458,18 +458,24 @@ public class MemberRequestsDelegate implements MemberRequestCell.OnClickListener
         AlertDialog progressDialog = new AlertDialog(fragment.getParentActivity(), AlertDialog.ALERT_TYPE_SPINNER);
         progressDialog.setCanCancel(false);
         progressDialog.show();
-        approveNextRequest(new ArrayList<>(allImporters), new int[]{0}, progressDialog);
+        approveNextRequest(new ArrayList<>(allImporters), new int[]{0}, -1, progressDialog);
     }
 
-    private void approveNextRequest(ArrayList<TLRPC.TL_chatInviteImporter> queue, int[] approved, AlertDialog progressDialog) {
+    private void approveNextRequest(ArrayList<TLRPC.TL_chatInviteImporter> queue, int[] approved,
+                                    int approvedBeforePage, AlertDialog progressDialog) {
         if (queue.isEmpty()) {
+            if (approvedBeforePage == approved[0]) {
+                // The last page approved nothing, so asking for another one would spin forever.
+                finishApprovingAll(approved[0], progressDialog, true);
+                return;
+            }
             loadRemainingRequestsToApprove(approved, progressDialog);
             return;
         }
         TLRPC.TL_chatInviteImporter next = queue.remove(0);
         TLRPC.User user = users.get(next.user_id);
         if (user == null) {
-            approveNextRequest(queue, approved, progressDialog);
+            approveNextRequest(queue, approved, approvedBeforePage, progressDialog);
             return;
         }
         TLRPC.TL_messages_hideChatJoinRequest req = new TLRPC.TL_messages_hideChatJoinRequest();
@@ -493,7 +499,7 @@ public class MemberRequestsDelegate implements MemberRequestCell.OnClickListener
                     }
                 }
                 adapter.removeItem(next);
-                approveNextRequest(queue, approved, progressDialog);
+                approveNextRequest(queue, approved, approvedBeforePage, progressDialog);
             });
         });
     }
@@ -514,7 +520,7 @@ public class MemberRequestsDelegate implements MemberRequestCell.OnClickListener
                 TLRPC.User user = importers.users.get(i);
                 users.put(user.id, user);
             }
-            approveNextRequest(new ArrayList<>(importers.importers), approved, progressDialog);
+            approveNextRequest(new ArrayList<>(importers.importers), approved, approved[0], progressDialog);
         }));
     }
 
@@ -527,12 +533,14 @@ public class MemberRequestsDelegate implements MemberRequestCell.OnClickListener
         if (fragment == null || fragment.getParentActivity() == null) {
             return;
         }
+        MessagesController.getInstance(currentAccount).loadFullChat(chatId, 0, true);
+        // Re-read the list from the server rather than assuming it emptied: a request that failed
+        // part way through leaves entries behind, and they have to stay visible.
         allImporters.clear();
         currentImporters.clear();
         adapter.notifyDataSetChanged();
-        hasMore = false;
-        onImportersChanged(query, false, true);
-        MessagesController.getInstance(currentAccount).loadFullChat(chatId, 0, true);
+        hasMore = true;
+        loadMembers();
         BulletinFactory.of(layoutContainer, fragment.getResourceProvider())
                 .createSimpleBulletin(R.raw.contact_check, LocaleController.formatString(
                         complete ? R.string.TjApproveAllRequestsDone : R.string.TjApproveAllRequestsFailed, approved))
