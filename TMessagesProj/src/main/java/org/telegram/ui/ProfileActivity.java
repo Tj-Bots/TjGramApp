@@ -450,6 +450,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
     private ActionBarMenuItem callItem;
     private ActionBarMenuItem videoCallItem;
     private ActionBarMenuItem editItem;
+    private ActionBarMenuItem tjInfoItem;
     private ActionBarMenuItem otherItem;
     private ActionBarMenuItem searchItem;
     private ActionBarMenuSubItem editColorItem;
@@ -596,6 +597,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
     private final static int channel_stories = 39;
     private final static int edit_color = 40;
     private final static int edit_profile = 41;
+    private final static int tj_chat_info = 1050;
     private final static int copy_link_profile = 42;
     private final static int set_username = 43;
     private final static int bot_privacy = 44;
@@ -2668,6 +2670,10 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                     }
                 } else if (id == report) {
                     ReportBottomSheet.openChat(ProfileActivity.this, getDialogId());
+                } else if (id == tj_chat_info) {
+                    TjChatInfoActivity info = new TjChatInfoActivity(chatId);
+                    info.setInfo(chatInfo);
+                    presentFragment(info);
                 } else if (id == edit_channel) {
                     if (isTopic) {
                         presentFragment(TopicCreateFragment.create(chatId, topicId));
@@ -4064,6 +4070,11 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         } else {
             editItem = menu.addItem(edit_channel, R.drawable.group_edit_profile);
             editItem.setContentDescription(LocaleController.getString(R.string.Edit));
+        }
+        // TJ: everything the chat exposes, in one place, reachable without admin rights.
+        if (chatId != 0 && currentChat != null && !isTopic) {
+            tjInfoItem = menu.addItem(tj_chat_info, R.drawable.msg_info);
+            tjInfoItem.setContentDescription(TjLocale.getString(R.string.TjChatInfo));
         }
         otherItem = menu.addItem(10, R.drawable.ic_ab_other, resourcesProvider);
 

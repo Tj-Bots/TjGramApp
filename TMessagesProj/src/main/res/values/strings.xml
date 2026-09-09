@@ -11358,11 +11358,15 @@
     <string name="TjDisableBatteryOptimization">Turn off battery optimization</string>
     <string name="TjOnlineIndicator">Show online status</string>
     <string name="TjOnlineIndicatorInfo">Puts a dot next to people in the chat list and in group member lists: filled while they are online, neutral while they are not.</string>
-    <string name="TjDirectStreaming">Play video files while downloading</string>
+    <string name="TjDirectStreaming">Play video files in the app</string>
     <string name="TjShowUserMessages">Search messages</string>
     <string name="TjViewAdminRights">Admin rights</string>
+    <string name="TjChatInfo">Info</string>
+    <string name="TjChatInfoDescription">Everything this chat lets you see. Moderation entries only appear if you can moderate.</string>
+    <string name="TjChatPermissions">Permissions</string>
+    <string name="TjChatPermissionsReadOnly">What ordinary members of this group are allowed to do. Only admins can change this.</string>
     <string name="TjMemberJoinedDate">Joined %1$s</string>
-    <string name="TjDirectStreamingInfo">Starts video files as soon as enough has arrived instead of waiting for the whole download, including files sent as documents. Playback still depends on what your device can decode.</string>
+    <string name="TjDirectStreamingInfo">Plays videos sent as plain files in the app, and starts them as soon as enough has arrived instead of waiting for the whole download. Covers mp4, mkv, webm, mov, avi, ts and flv; other containers keep opening in an external player. Playback still depends on what your device can decode.</string>
     <string name="TjProtectedForwarding">Re-upload protected messages</string>
     <string name="TjProtectedForwardingInfo">When normal forwarding is blocked, send a new copy of the text or downloaded media instead. Forward attribution is not preserved.</string>
     <string name="TjProtectedScreenshots">Allow screenshots</string>

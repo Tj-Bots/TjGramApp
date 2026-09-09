@@ -154,11 +154,15 @@ public class TjLocale {
         m.put("TjDisableBatteryOptimization", "בטל אופטימיזציית סוללה");
         m.put("TjOnlineIndicator", "הצג מצב מחובר");
         m.put("TjOnlineIndicatorInfo", "מוסיף נקודה ליד אנשים ברשימת הצ׳אטים וברשימות חברי הקבוצה: צבעונית כשהם מחוברים, ניטרלית כשלא.");
-        m.put("TjDirectStreaming", "נגן קובצי וידאו תוך כדי הורדה");
+        m.put("TjDirectStreaming", "נגן קובצי וידאו באפליקציה");
         m.put("TjShowUserMessages", "חפש הודעות");
         m.put("TjViewAdminRights", "הרשאות מנהל");
+        m.put("TjChatInfo", "מידע");
+        m.put("TjChatInfoDescription", "כל מה שהצ׳אט הזה מאפשר לך לראות. פעולות ניהול מופיעות רק אם יש לך הרשאה.");
+        m.put("TjChatPermissions", "הרשאות");
+        m.put("TjChatPermissionsReadOnly", "מה מותר לחברים רגילים בקבוצה הזו. רק מנהלים יכולים לשנות את זה.");
         m.put("TjMemberJoinedDate", "הצטרף/ה ב-%1$s");
-        m.put("TjDirectStreamingInfo", "מתחיל לנגן קובצי וידאו ברגע שהגיע מספיק, במקום לחכות להורדה מלאה — כולל קבצים שנשלחו כמסמך. הניגון עדיין תלוי במה שהמכשיר שלך יודע לפענח.");
+        m.put("TjDirectStreamingInfo", "מנגן בתוך האפליקציה סרטונים שנשלחו כקובץ רגיל, ומתחיל אותם ברגע שהגיע מספיק במקום לחכות להורדה מלאה. תומך ב-mp4, mkv, webm, mov, avi, ts ו-flv; פורמטים אחרים ימשיכו להיפתח בנגן חיצוני. הניגון עדיין תלוי במה שהמכשיר יודע לפענח.");
         m.put("TjProtectedScreenshots", "אפשר צילומי מסך");
         m.put("TjProtectedScreenshotsInfo", "מאפשר לצלם מסך בקבוצות ובערוצים שמבקשים לחסום את זה. צ׳אטים סודיים נשארים מוגנים.");
         m.put("TjArchiveCleared", "ארכיון ההודעות המקומי נוקה");
