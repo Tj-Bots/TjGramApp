@@ -17863,6 +17863,15 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
     }
 
     private void didPressButton(boolean animated, boolean video) {
+        if (delegate != null && currentMessageObject != null && buttonState != 1
+                && org.telegram.messenger.tj.TjVideoFiles.isTjMarked(currentMessageObject.getDocument())) {
+            // A video sent as a plain file. The file row's button is a download arrow, but the
+            // whole point here is to watch it without downloading it first, so the press opens
+            // the viewer instead. buttonState 1 is the cancel button of a download already
+            // running, which has to keep cancelling.
+            delegate.didPressImage(this, 0, 0, false);
+            return;
+        }
         if (delegate != null && currentMessageObject.isSensitive() && currentMessageObject.hasMediaSpoilers() && !currentMessageObject.needDrawBluredPreview() && !currentMessageObject.isMediaSpoilersRevealed) {
             delegate.didPressRevealSensitiveContent(this);
             return;
