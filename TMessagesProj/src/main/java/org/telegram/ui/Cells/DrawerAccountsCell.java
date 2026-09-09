@@ -255,7 +255,18 @@ public class DrawerAccountsCell extends LinearLayout {
             super(context);
             setOrientation(VERTICAL);
             userCell = new DrawerUserCell(context);
-            userCell.setReorderHandleVisible(false);
+            // A grab handle, the way every other reorderable list in the app does it.
+            userCell.setReorderHandleVisible(true);
+            userCell.setOnReorderTouchListener((v, event) -> {
+                if (event.getAction() == MotionEvent.ACTION_DOWN) {
+                    setParentInterceptDisallowed(true);
+                    RecyclerView.ViewHolder holder = listView.findContainingViewHolder(this);
+                    if (holder != null) {
+                        itemTouchHelper.startDrag(holder);
+                    }
+                }
+                return false;
+            });
             addView(userCell, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, ROW_HEIGHT_DP));
             // The highlight has to sit on the view that receives the touch, otherwise the press
             // state never reaches the row and the feedback looks smaller than the row really is.

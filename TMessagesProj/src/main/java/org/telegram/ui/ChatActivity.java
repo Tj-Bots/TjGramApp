@@ -206,7 +206,6 @@ import org.telegram.messenger.tj.TjOnlineDot;
 import org.telegram.messenger.tj.TjDeletionPolicy;
 import org.telegram.messenger.tj.TjMessageArchive;
 import org.telegram.messenger.tj.TjMessageFilter;
-import org.telegram.messenger.tj.TjVideoFiles;
 import org.telegram.messenger.tj.TjProtectedForwarder;
 import org.telegram.messenger.voip.VoIPService;
 import org.telegram.tgnet.ConnectionsManager;
@@ -42164,16 +42163,6 @@ public class ChatActivity extends BaseFragment implements
                     PhotoViewer.getInstance().setParentActivity(ChatActivity.this, themeDelegate);
                     PhotoViewer.getInstance().openPhoto(message, ChatActivity.this, message.type != 0 ? dialog_id : 0, message.type != 0 ? mergeDialogId : 0, message.type != 0 ? getTopicId() : 0, photoViewerProvider);
                     handled = true;
-                }
-                // TJ: a video sent as a plain file stays a file in the chat, but opens in the
-                // built-in player instead of being downloaded whole for another app.
-                if (!handled && TjVideoFiles.isPlayableVideoFile(message.getDocument())) {
-                    MessageObject playable = TjVideoFiles.buildPlayableCopy(currentAccount, message);
-                    if (playable != null) {
-                        PhotoViewer.getInstance().setParentActivity(ChatActivity.this, themeDelegate);
-                        PhotoViewer.getInstance().openPhoto(playable, ChatActivity.this, 0, 0, 0, null);
-                        handled = true;
-                    }
                 }
                 if (MarkdownParser.isMarkdown(message)) {
                     parseMarkdownAsync(message);

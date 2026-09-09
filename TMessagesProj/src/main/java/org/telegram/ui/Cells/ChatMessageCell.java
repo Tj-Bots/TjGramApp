@@ -148,6 +148,7 @@ import org.telegram.messenger.utils.tlutils.TLKeyboardHelper;
 import org.telegram.messenger.utils.tlutils.TlUtils;
 import org.telegram.messenger.video.OldVideoPlayerRewinder;
 import org.telegram.messenger.tj.TjConfig;
+import org.telegram.messenger.tj.TjMessageMarks;
 import org.telegram.tgnet.ConnectionsManager;
 import org.telegram.tgnet.TLObject;
 import org.telegram.tgnet.TLRPC;
@@ -18443,7 +18444,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                 signString = null;
             }
         }
-        String timeString;
+        CharSequence timeString;
         TLRPC.User author = null;
         if (currentMessageObject.isFromUser()) {
             author = MessagesController.getInstance(currentAccount).getUser(fromId);
@@ -18477,16 +18478,15 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         } else if (currentMessageObject.isRepostPreview) {
             timeString = LocaleController.formatSmallDateChat(messageObject.messageOwner.date) + ", " + LocaleController.getInstance().getFormatterDay().format((long) (messageObject.messageOwner.date) * 1000);
         } else if (messageObject.messageOwner.tjDeleted) {
-            String editedMarker = TjConfig.editedMark();
-            if (TextUtils.isEmpty(editedMarker)) {
-                editedMarker = getString(R.string.EditedMessage);
-            }
-            String deletedMarker = TjConfig.deletedMark();
+            CharSequence deletedMarker = TjMessageMarks.deleted();
             String messageTime = LocaleController.getInstance().getFormatterDay()
                     .format((long) messageObject.messageOwner.date * 1000);
-            timeString = edited
-                    ? TjLocale.formatString(R.string.TjDeletedEditedTime, editedMarker, deletedMarker, messageTime)
-                    : TjLocale.formatString(R.string.TjDeletedTime, deletedMarker, messageTime);
+            if (edited) {
+                CharSequence editedMarker = TjMessageMarks.edited(getString(R.string.EditedMessage));
+                timeString = TextUtils.concat(editedMarker, " (", deletedMarker, ") ", messageTime);
+            } else {
+                timeString = TextUtils.concat(deletedMarker, " ", messageTime);
+            }
         } else if (edited) {
             timeString = AppGlobalConfig.getInstance(currentAccount).messagePrimaryEditedDate.get() ?
                 LocaleController.formatPmEditedDate(currentMessagesGroup != null ? currentMessagesGroup.getMaxEditDate() : messageObject.messageOwner.edit_date) :
@@ -18519,11 +18519,11 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         }
         if (signString != null) {
             if (messageObject.messageOwner.via_business_bot_id != 0) {
-                currentTimeString = timeString + ", ";
+                currentTimeString = TextUtils.concat(timeString, ", ");
             } else if (messageObject.messageOwner.fwd_from != null && messageObject.messageOwner.fwd_from.imported) {
-                currentTimeString = " " + timeString;
+                currentTimeString = TextUtils.concat(" ", timeString);
             } else {
-                currentTimeString = ", " + timeString;
+                currentTimeString = TextUtils.concat(", ", timeString);
             }
         } else {
             currentTimeString = timeString;

@@ -2,25 +2,22 @@ package org.telegram.messenger.tj;
 
 import android.text.TextUtils;
 
-import org.telegram.messenger.FileLog;
-import org.telegram.messenger.MessageObject;
-import org.telegram.tgnet.NativeByteBuffer;
 import org.telegram.tgnet.TLRPC;
 
 import java.util.Locale;
 
 /**
- * Opens a video that was sent as a plain file in the built-in player.
+ * Plays a video that was sent as a plain file.
  *
  * Telegram decides something is a video only when the server-side document carries a
  * {@code documentAttributeVideo}. Bots and other clients routinely send an mp4 or mkv as a raw
  * document without it, and those land in a chat as a file row: tapping downloads the whole thing
  * and hands it to an external player.
  *
- * The message keeps looking like a file on purpose - it is one, and turning the bubble into a
- * video would misrepresent what was sent. Only the tap changes: a throwaway copy of the message
- * carries the video attribute the player and the streaming code read, and that copy is what the
- * viewer gets. Nothing in the chat, the database or a forward is touched.
+ * The attribute is what the rest of the app keys off - the bubble layout reads its width and
+ * height, the player and the streaming code read its {@code supports_streaming} flag - so the
+ * message does end up presented as a video. Keeping the file appearance was tried and it stopped
+ * playback working at all, so the trade was made the other way round.
  *
  * Only containers ExoPlayer actually has an extractor for are accepted. Claiming a .wmv or .rmvb
  * is playable would replace a working "download and open elsewhere" with a black screen.
@@ -39,15 +36,15 @@ public final class TjVideoFiles {
     }
 
     /**
-     * True when this document is a video the built-in player can handle but Telegram did not mark
-     * as one. False unless the user turned direct streaming on.
+     * Adds a local video attribute when this document is a playable video the server did not mark
+     * as one. Does nothing unless the user turned direct streaming on. Safe to call repeatedly.
      */
-    public static boolean isPlayableVideoFile(TLRPC.Document document) {
+    public static void markPlayableVideo(TLRPC.Document document) {
         if (document == null || !TjConfig.directFileStreaming()) {
-            return false;
+            return;
         }
         if (document instanceof TLRPC.TL_documentEncrypted || document.attributes == null) {
-            return false;
+            return;
         }
         String fileName = null;
         for (int a = 0, count = document.attributes.size(); a < count; a++) {
@@ -58,30 +55,14 @@ public final class TjVideoFiles {
                     || attribute instanceof TLRPC.TL_documentAttributeSticker
                     || attribute instanceof TLRPC.TL_documentAttributeImageSize) {
                 // Already a video, or something that must not be treated as one.
-                return false;
+                return;
             }
             if (attribute instanceof TLRPC.TL_documentAttributeFilename) {
                 fileName = attribute.file_name;
             }
         }
-        return isPlayableVideo(document.mime_type, fileName);
-    }
-
-    /**
-     * A copy of the message that the player will accept, leaving the original message - and the
-     * file row the user is looking at - exactly as it was.
-     */
-    public static MessageObject buildPlayableCopy(int accountId, MessageObject source) {
-        if (source == null || source.messageOwner == null) {
-            return null;
-        }
-        TLRPC.Message copiedMessage = copyMessage(source.messageOwner);
-        if (copiedMessage == null) {
-            return null;
-        }
-        TLRPC.Document document = MessageObject.getDocument(copiedMessage);
-        if (document == null || document.attributes == null) {
-            return null;
+        if (!isPlayableVideo(document.mime_type, fileName)) {
+            return;
         }
         TLRPC.TL_documentAttributeVideo video = new TLRPC.TL_documentAttributeVideo();
         video.supports_streaming = true;
@@ -90,25 +71,6 @@ public final class TjVideoFiles {
         video.w = size[0];
         video.h = size[1];
         document.attributes.add(video);
-        copiedMessage.attachPath = source.messageOwner.attachPath;
-        return new MessageObject(accountId, copiedMessage, false, false);
-    }
-
-    private static TLRPC.Message copyMessage(TLRPC.Message message) {
-        NativeByteBuffer buffer = null;
-        try {
-            buffer = new NativeByteBuffer(message.getObjectSize());
-            message.serializeToStream(buffer);
-            buffer.position(0);
-            return TLRPC.Message.TLdeserialize(buffer, buffer.readInt32(false), false);
-        } catch (Throwable error) {
-            FileLog.e("Tj playable copy failed", error);
-            return null;
-        } finally {
-            if (buffer != null) {
-                buffer.reuse();
-            }
-        }
     }
 
     private static boolean isPlayableVideo(String mimeType, String fileName) {

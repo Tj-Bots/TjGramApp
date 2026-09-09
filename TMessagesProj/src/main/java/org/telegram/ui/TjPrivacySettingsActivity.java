@@ -492,6 +492,17 @@ public class TjPrivacySettingsActivity extends BaseFragment implements Notificat
         showDialog(builder.create());
     }
 
+    private String deletedMarkerName() {
+        String current = TjConfig.deletedMark();
+        if (current.startsWith("❌") || current.startsWith("✖") || current.startsWith("✗")) {
+            return text(R.string.TjDeletedMarkerRedX);
+        }
+        if (current.startsWith("🧹") || current.startsWith("🧽")) {
+            return text(R.string.TjDeletedMarkerBroom);
+        }
+        return text(R.string.TjDeletedMarkerTrash);
+    }
+
     private void showDeletedMarkerDialog() {
         if (getParentActivity() == null) {
             return;
@@ -506,7 +517,9 @@ public class TjPrivacySettingsActivity extends BaseFragment implements Notificat
         CharSequence[] choices = new CharSequence[markers.length];
         String current = TjConfig.deletedMark();
         for (int i = 0; i < markers.length; i++) {
-            choices[i] = (markers[i].equals(current) ? "✓  " : "") + markers[i] + "  " + text(labels[i]);
+            // The stored value is still the old emoji, but it is only a key now - the mark itself
+            // is drawn, so the picker names the icon rather than showing a system emoji.
+            choices[i] = (markers[i].equals(current) ? "✓  " : "") + text(labels[i]);
         }
         AlertDialog.Builder builder = new AlertDialog.Builder(getParentActivity());
         builder.setTitle(text(R.string.TjDeletedMarker));
@@ -555,7 +568,7 @@ public class TjPrivacySettingsActivity extends BaseFragment implements Notificat
     }
 
     private String valueFor(int id) {
-        if (id == DELETED_MARKER) return TjConfig.deletedMark();
+        if (id == DELETED_MARKER) return deletedMarkerName();
         if (id == EDITED_MARKER) {
             String marker = TjConfig.editedMark();
             return marker.isEmpty() ? LocaleController.getString(R.string.EditedMessage) : marker;
