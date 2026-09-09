@@ -11414,7 +11414,6 @@
     <string name="TjCustomization">Customization</string>
     <string name="TjChannel">Channel</string>
     <string name="TjDiscussions">Discussions</string>
-    <string name="TjSourceCode">Source code</string>
     <string name="TjArchiveInsights">Archive &amp; Insights</string>
     <string name="TjDeletedAppearance">Deleted message appearance</string>
     <string name="TjDeletedAppearanceInfo">Choose how retained deleted messages and edited-message history appear in chats.</string>

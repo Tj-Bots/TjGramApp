@@ -14530,6 +14530,71 @@ public class MessagesStorage extends BaseController {
     }
 
     /**
+     * Removes every message that was only kept because the TJ archive retained it. Clearing the
+     * archive has to take the retained copies out of Telegram's own message table too, otherwise
+     * they keep showing up in chats as deleted long after the archive itself is empty.
+     */
+    public void clearTjRetainedMessages(Runnable onFinished) {
+        storageQueue.postRunnable(() -> {
+            LongSparseArray<ArrayList<Integer>> retained = new LongSparseArray<>();
+            LongSparseArray<Long> channelIds = new LongSparseArray<>();
+            SQLiteCursor cursor = null;
+            try {
+                cursor = database.queryFinalized("SELECT uid, mid, is_channel, custom_params FROM messages_v2 WHERE custom_params IS NOT NULL");
+                while (cursor.next()) {
+                    NativeByteBuffer customParams = cursor.byteBufferValue(3);
+                    if (customParams == null) {
+                        continue;
+                    }
+                    TLRPC.Message probe = new TLRPC.TL_message();
+                    try {
+                        MessageCustomParamsHelper.readLocalParams(probe, customParams);
+                    } catch (Exception ignored) {
+                        probe.tjDeleted = false;
+                    } finally {
+                        customParams.reuse();
+                    }
+                    if (!probe.tjDeleted) {
+                        continue;
+                    }
+                    long dialogId = cursor.longValue(0);
+                    ArrayList<Integer> ids = retained.get(dialogId);
+                    if (ids == null) {
+                        retained.put(dialogId, ids = new ArrayList<>());
+                        channelIds.put(dialogId, cursor.intValue(2) != 0 ? -dialogId : 0L);
+                    }
+                    ids.add(cursor.intValue(1));
+                }
+                cursor.dispose();
+                cursor = null;
+
+                for (int a = 0, N = retained.size(); a < N; a++) {
+                    long dialogId = retained.keyAt(a);
+                    ArrayList<Integer> ids = retained.valueAt(a);
+                    if (ids.isEmpty()) {
+                        continue;
+                    }
+                    // The six-argument overload skips the TJ retention filter, so these really go.
+                    markMessagesAsDeletedInternal(dialogId, ids, true, ChatActivity.MODE_DEFAULT, 0, false);
+                    updateDialogsWithDeletedMessagesInternal(dialogId, 0, ids, null);
+                    long channelId = channelIds.get(dialogId, 0L);
+                    AndroidUtilities.runOnUIThread(() -> getNotificationCenter()
+                            .postNotificationName(NotificationCenter.messagesDeleted, ids, channelId, false));
+                }
+            } catch (Exception error) {
+                checkSQLException(error);
+            } finally {
+                if (cursor != null) {
+                    cursor.dispose();
+                }
+                if (onFinished != null) {
+                    AndroidUtilities.runOnUIThread(onFinished);
+                }
+            }
+        });
+    }
+
+    /**
      * Keeps server-side deletions in Telegram's own message table. This preserves the
      * unread counter, dialog preview/date and sorting. User-initiated removals are
      * recorded by TjDeletionPolicy and continue through Telegram's normal delete path.

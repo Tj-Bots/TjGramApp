@@ -5,7 +5,10 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /** Tracks user-initiated removals so they can disappear normally from the chat UI. */
 public final class TjDeletionPolicy {
-    private static final long EXPIRY_MS = 120_000L;
+    // The server can take a while to echo a deletion back (poor connectivity, resumed
+    // session). Until the echo arrives the marker is the only thing telling the archive
+    // that the user asked for a complete removal, so it has to outlive a slow round trip.
+    private static final long EXPIRY_MS = 30 * 60_000L;
     private static final ConcurrentHashMap<String, Long> localRemovals = new ConcurrentHashMap<>();
 
     private TjDeletionPolicy() {

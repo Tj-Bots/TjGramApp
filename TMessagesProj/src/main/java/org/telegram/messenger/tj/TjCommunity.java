@@ -12,8 +12,6 @@ public final class TjCommunity {
     public static final String CHANNEL_URL = "https://t.me/TjGramApp";
     public static final String DISCUSSION_USERNAME = "@TjGramAppChat";
     public static final String DISCUSSION_URL = "https://t.me/TjGramAppChat";
-    public static final String SOURCE_LABEL = "github.com/Tj-Bots/Telegram";
-    public static final String SOURCE_URL = "https://github.com/Tj-Bots/Telegram";
 
     private static final String PREFERENCES = "tjcommunity";
     // v1 was accidentally shown in English when Telegram used an in-app Hebrew language pack.

@@ -220,7 +220,6 @@ public class TjLocale {
         m.put("TjCustomization", "התאמה אישית");
         m.put("TjChannel", "ערוץ");
         m.put("TjDiscussions", "דיונים");
-        m.put("TjSourceCode", "קוד מקור");
         m.put("TjArchiveInsights", "ארכיון ומעקב");
         m.put("TjDeletedAppearance", "מראה הודעות שנמחקו");
         m.put("TjDeletedAppearanceInfo", "כאן אפשר לבחור כיצד יוצגו בצ׳אטים הודעות שנמחקו והיסטוריית עריכות שנשמרו.");

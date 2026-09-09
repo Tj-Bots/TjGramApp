@@ -156,6 +156,7 @@ import org.telegram.ui.ThemePreviewActivity;
 import org.telegram.ui.TjSettingsActivity;
 import org.telegram.messenger.tj.TjConfig;
 import org.telegram.messenger.tj.TjDeletionPolicy;
+import org.telegram.messenger.tj.TjMessageArchive;
 import org.telegram.ui.TooManyCommunitiesActivity;
 import org.telegram.ui.community.cells.CommunityBanGroupConfirmCell;
 
@@ -8129,13 +8130,16 @@ public class AlertsCreator {
             }
         }
 
-        final boolean[] keepLocally = {false};
+        // Ticked by default: the archive is opt-out per deletion, so a message is only lost
+        // when the user deliberately clears this box.
+        final boolean[] keepLocally = {true};
         if (TjConfig.saveDeletedMessages() && !scheduled && !isSavedMessages && mode == ChatActivity.MODE_DEFAULT) {
             CheckBoxCell keepCell = new CheckBoxCell(activity, 1, resourcesProvider);
             keepCell.setBackgroundDrawable(Theme.getSelectorDrawable(false));
             keepCell.setText(TjLocale.getString(R.string.TjDeleteKeepLocally), "", false, false);
             keepCell.setPadding(LocaleController.isRTL ? dp(16) : dp(8), 0,
                     LocaleController.isRTL ? dp(8) : dp(16), 0);
+            keepCell.setChecked(true, false);
             int top = deleteOptions.getChildCount() * 48;
             deleteOptions.addView(keepCell, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 48,
                     Gravity.TOP | Gravity.LEFT, 0, top, 0, 0));
@@ -8190,6 +8194,7 @@ public class AlertsCreator {
                 if (!ids.isEmpty()) {
                     if (!keepLocally[0]) {
                         TjDeletionPolicy.markLocalRemoval(currentAccount, thisDialogId, ids);
+                        TjMessageArchive.getInstance().deleteSnapshots(currentAccount, thisDialogId, ids);
                     }
                     MessagesController.getInstance(currentAccount).deleteMessages(ids, random_ids, encryptedChat, thisDialogId, topicId, deleteForAll[0], mode);
                 }
@@ -8215,6 +8220,7 @@ public class AlertsCreator {
                     long deleteDialogId = (a == 1 && mergeDialogId != 0) ? mergeDialogId : thisDialogId;
                     if (!keepLocally[0]) {
                         TjDeletionPolicy.markLocalRemoval(currentAccount, deleteDialogId, ids);
+                        TjMessageArchive.getInstance().deleteSnapshots(currentAccount, deleteDialogId, ids);
                     }
                     MessagesController.getInstance(currentAccount).deleteMessages(ids, random_ids, encryptedChat, deleteDialogId, topicId, deleteForAll[0], mode);
                     selectedMessages[a].clear();

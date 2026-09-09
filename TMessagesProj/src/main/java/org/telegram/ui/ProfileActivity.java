@@ -5626,6 +5626,8 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             nameTextView[a].setFocusable(a == 0);
             nameTextView[a].setEllipsizeByGradient(true);
             nameTextView[a].setRightDrawableOutside(a == 0);
+            // TJ: long press on the profile title copies the chat name.
+            nameTextView[a].setOnLongClickListener(this::onProfileNameLongClick);
             avatarContainer2.addView(nameTextView[a], LayoutHelper.createFrame(a == 0 ? initialTitleWidth : LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.LEFT | Gravity.TOP, 109, -6, (a == 0 ? rightMargin - (hasTitleExpanded ? 10 : 0) : 0), 0));
         }
         for (int a = 0; a < onlineTextView.length; a++) {
@@ -16804,6 +16806,26 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             updateCollectibleHint();
             AndroidUtilities.runOnUIThread(collectibleHint::hide, 6 * 1000);
         }
+    }
+
+    /** TJ: copies the profile title (user, group, channel or bot name) on long press. */
+    private boolean onProfileNameLongClick(View view) {
+        if (!(view instanceof SimpleTextView)) {
+            return false;
+        }
+        CharSequence name = ((SimpleTextView) view).getText();
+        if (name == null || name.length() == 0) {
+            return false;
+        }
+        AndroidUtilities.addToClipboard(name.toString());
+        try {
+            view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
+        } catch (Exception ignored) {
+        }
+        BulletinFactory.of(ProfileActivity.this)
+                .createCopyBulletin(LocaleController.getString(R.string.TextCopied))
+                .show();
+        return true;
     }
 
     public void updateCollectibleHint() {

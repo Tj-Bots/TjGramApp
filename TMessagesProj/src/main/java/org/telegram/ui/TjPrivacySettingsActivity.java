@@ -520,9 +520,13 @@ public class TjPrivacySettingsActivity extends BaseFragment implements Notificat
         builder.setMessage(text(R.string.TjClearArchiveText));
         builder.setPositiveButton(LocaleController.getString(R.string.Delete), (dialog, which) ->
                 TjMessageArchive.getInstance().clear(currentAccount, success -> {
-                    if (success && getParentActivity() != null) {
-                        Toast.makeText(getParentActivity(), text(R.string.TjArchiveCleared), Toast.LENGTH_SHORT).show();
-                    }
+                    // Snapshots alone are not the whole archive: the retained copies also live in
+                    // Telegram's message table, and they are what keeps showing up in chats.
+                    getMessagesStorage().clearTjRetainedMessages(() -> {
+                        if (success && getParentActivity() != null) {
+                            Toast.makeText(getParentActivity(), text(R.string.TjArchiveCleared), Toast.LENGTH_SHORT).show();
+                        }
+                    });
                 }));
         builder.setNegativeButton(LocaleController.getString(R.string.Cancel), null);
         showDialog(builder.create());

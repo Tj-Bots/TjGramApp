@@ -402,6 +402,53 @@ public final class TjMessageArchive extends SQLiteOpenHelper {
         });
     }
 
+    /**
+     * Drops every locally archived copy of the given messages. Used when the user deletes a
+     * message and explicitly asks not to keep it on the device, so nothing survives the removal.
+     */
+    public void deleteSnapshots(int accountId, long dialogId, ArrayList<Integer> messageIds) {
+        if (messageIds == null || messageIds.isEmpty()) {
+            return;
+        }
+        long ownerUserId = UserConfig.getInstance(accountId).getClientUserId();
+        if (ownerUserId == 0) {
+            return;
+        }
+        ArrayList<Integer> ids = new ArrayList<>(messageIds);
+        Utilities.globalQueue.postRunnable(() -> {
+            for (Integer messageId : ids) {
+                if (messageId == null) {
+                    continue;
+                }
+                String[] arguments = new String[]{String.valueOf(ownerUserId), String.valueOf(accountId),
+                        String.valueOf(dialogId), String.valueOf(messageId)};
+                try (Cursor cursor = getReadableDatabase().query("snapshots",
+                        new String[]{"media_path"},
+                        "owner_user_id=? AND account_id=? AND dialog_id=? AND message_id=?",
+                        arguments, null, null, null)) {
+                    while (cursor.moveToNext()) {
+                        String mediaPath = cursor.getString(0);
+                        if (!TextUtils.isEmpty(mediaPath)) {
+                            File file = new File(mediaPath);
+                            if (file.isFile() && !file.delete()) {
+                                FileLog.e("Could not delete Tj archived attachment " + file.getName());
+                            }
+                        }
+                    }
+                } catch (Throwable error) {
+                    FileLog.e("Tj archived attachment lookup failed", error);
+                }
+                try {
+                    getWritableDatabase().delete("snapshots",
+                            "owner_user_id=? AND account_id=? AND dialog_id=? AND message_id=?", arguments);
+                } catch (Throwable error) {
+                    FileLog.e("Tj archived snapshot delete failed", error);
+                }
+                revisionIndex.remove(revisionKey(ownerUserId, accountId, dialogId, messageId));
+            }
+        });
+    }
+
     public void clear(int accountId, Callback<Boolean> callback) {
         clearOwner(UserConfig.getInstance(accountId).getClientUserId(), callback);
     }
