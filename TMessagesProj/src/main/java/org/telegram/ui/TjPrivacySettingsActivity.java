@@ -75,6 +75,7 @@ public class TjPrivacySettingsActivity extends BaseFragment implements Notificat
     private static final int CLEAR_ARCHIVE = 32;
     private static final int ARCHIVE_LIMIT = 33;
     private static final int PROTECTED_FORWARDING = 40;
+    private static final int PROTECTED_SCREENSHOTS = 41;
     private static final int FILTERS = 50;
     private static final int FILTERS_IN_CHATS = 51;
     private static final int FILTERS_CASE_INSENSITIVE = 52;
@@ -230,7 +231,8 @@ public class TjPrivacySettingsActivity extends BaseFragment implements Notificat
 
             items.add(new Item(TYPE_HEADER, 0, R.string.TjProtectedForwarding));
             items.add(new Item(TYPE_CHECK, PROTECTED_FORWARDING, R.string.TjProtectedForwarding));
-            items.add(new Item(TYPE_INFO, 0, R.string.TjProtectedForwardingInfo));
+            items.add(new Item(TYPE_CHECK, PROTECTED_SCREENSHOTS, R.string.TjProtectedScreenshots));
+            items.add(new Item(TYPE_INFO, 0, R.string.TjProtectedScreenshotsInfo));
             return;
         }
 
@@ -393,6 +395,7 @@ public class TjPrivacySettingsActivity extends BaseFragment implements Notificat
             case MEDIA_PUBLIC_CHANNEL: return TjConfig.savePublicChannelMedia();
             case MEDIA_PRIVATE_CHANNEL: return TjConfig.savePrivateChannelMedia();
             case PROTECTED_FORWARDING: return TjConfig.protectedForwarding();
+            case PROTECTED_SCREENSHOTS: return TjConfig.allowProtectedScreenshots();
             case FILTERS: return TjConfig.messageFilters();
             case FILTERS_IN_CHATS: return TjConfig.filtersInChats();
             case FILTERS_CASE_INSENSITIVE: return TjConfig.filtersCaseInsensitive();
@@ -434,6 +437,7 @@ public class TjPrivacySettingsActivity extends BaseFragment implements Notificat
             case MEDIA_PUBLIC_CHANNEL: key = "archive_media_public_channels"; break;
             case MEDIA_PRIVATE_CHANNEL: key = "archive_media_private_channels"; break;
             case PROTECTED_FORWARDING: key = "protected_forwarding"; break;
+            case PROTECTED_SCREENSHOTS: key = "allow_protected_screenshots"; break;
             case FILTERS: key = "message_filters"; break;
             case FILTERS_IN_CHATS: key = "message_filters_in_chats"; break;
             case FILTERS_CASE_INSENSITIVE: key = "message_filters_case_insensitive"; break;

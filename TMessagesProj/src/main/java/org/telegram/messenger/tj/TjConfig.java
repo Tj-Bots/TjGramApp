@@ -79,6 +79,28 @@ public final class TjConfig {
         }
     }
 
+    private static String ghostReactionsKey(int account, long dialogId, long topicId) {
+        long ownerId = UserConfig.getInstance(account).getClientUserId();
+        return "ghost_reactions_read_" + ownerId + "_" + dialogId + "_" + topicId;
+    }
+
+    /** True when the user already viewed this dialog's reactions while Ghost suppressed the receipt. */
+    public static boolean ghostReactionsReadLocally(int account, long dialogId, long topicId) {
+        return dialogId != 0 && get(ghostReactionsKey(account, dialogId, topicId), false);
+    }
+
+    public static void setGhostReactionsReadLocally(int account, long dialogId, long topicId, boolean value) {
+        if (dialogId == 0) {
+            return;
+        }
+        String key = ghostReactionsKey(account, dialogId, topicId);
+        if (value) {
+            put(key, true);
+        } else {
+            prefs().edit().remove(key).apply();
+        }
+    }
+
     public static boolean saveDeletedMessages() { return get("archive_deleted_messages", true); }
     public static boolean dimDeletedMessages() { return get("dim_deleted_messages", true); }
     public static boolean saveEditedMessages() { return get("archive_edited_messages", true); }
@@ -94,6 +116,8 @@ public final class TjConfig {
     public static int archiveLimitGb() { return Math.max(1, Math.min(10, get("archive_limit_gb", 3))); }
 
     public static boolean protectedForwarding() { return get("protected_forwarding", true); }
+    /** Lets the user capture the screen in chats that ask clients to block it. Secret chats are never affected. */
+    public static boolean allowProtectedScreenshots() { return get("allow_protected_screenshots", true); }
     public static boolean messageFilters() { return get("message_filters", false); }
     public static boolean filtersInChats() { return get("message_filters_in_chats", false); }
     public static boolean filtersCaseInsensitive() { return get("message_filters_case_insensitive", true); }

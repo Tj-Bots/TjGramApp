@@ -14209,8 +14209,10 @@ public class MessagesController extends BaseController implements NotificationCe
                                 getNotificationCenter().postNotificationName(NotificationCenter.updateMentionsCount, currentDialog.id, 0L, currentDialog.unread_mentions_count);
                             }
                         }
-                        if (currentDialog.unread_reactions_count != value.unread_reactions_count) {
-                            currentDialog.unread_reactions_count = value.unread_reactions_count;
+                        int syncedUnreadReactions = TjGhostController.filterUnreadReactionsCount(
+                                currentAccount, currentDialog.id, 0, value.unread_reactions_count);
+                        if (currentDialog.unread_reactions_count != syncedUnreadReactions) {
+                            currentDialog.unread_reactions_count = syncedUnreadReactions;
                             getNotificationCenter().postNotificationName(NotificationCenter.dialogsUnreadReactionsCounterChanged, currentDialog.id, 0L, currentDialog.unread_reactions_count, null);
                         }
                         if (currentDialog.unread_poll_votes_count != value.unread_poll_votes_count) {
@@ -21403,7 +21405,8 @@ public class MessagesController extends BaseController implements NotificationCe
                 ConnectionsManager.getInstance(currentAccount).sendRequest(req, (response, error) -> {
                     if (response != null) {
                         TLRPC.TL_messages_peerDialogs dialogs = (TLRPC.TL_messages_peerDialogs) response;
-                        int count = dialogs.dialogs.size() == 0 ? 0 : dialogs.dialogs.get(0).unread_reactions_count;
+                        int count = TjGhostController.filterUnreadReactionsCount(currentAccount, dialogId, topicId,
+                                dialogs.dialogs.size() == 0 ? 0 : dialogs.dialogs.get(0).unread_reactions_count);
                         AndroidUtilities.runOnUIThread(() -> {
                             TLRPC.Dialog dialog = dialogs_dict.get(dialogId);
                             if (dialog == null) {
@@ -21423,7 +21426,8 @@ public class MessagesController extends BaseController implements NotificationCe
                 ConnectionsManager.getInstance(currentAccount).sendRequest(req, (response, error) -> {
                     if (response != null) {
                         TLRPC.TL_messages_savedDialogs topics = (TLRPC.TL_messages_savedDialogs) response;
-                        int count = topics.dialogs.size() == 0 ? 0 : topics.dialogs.get(0).unread_reactions_count;
+                        int count = TjGhostController.filterUnreadReactionsCount(currentAccount, dialogId, topicId,
+                                topics.dialogs.size() == 0 ? 0 : topics.dialogs.get(0).unread_reactions_count);
                         AndroidUtilities.runOnUIThread(() -> {
                             getMessagesController().getTopicsController().updateReactionsUnread(dialogId, topicId, count, false);
                             getMessagesStorage().updateUnreadReactionsCount(dialogId, topicId, count);
@@ -21438,7 +21442,8 @@ public class MessagesController extends BaseController implements NotificationCe
                 ConnectionsManager.getInstance(currentAccount).sendRequest(req, (response, error) -> {
                     if (response != null) {
                         TLRPC.TL_messages_forumTopics topics = (TLRPC.TL_messages_forumTopics) response;
-                        int count = topics.topics.size() == 0 ? 0 : topics.topics.get(0).unread_reactions_count;
+                        int count = TjGhostController.filterUnreadReactionsCount(currentAccount, dialogId, topicId,
+                                topics.topics.size() == 0 ? 0 : topics.topics.get(0).unread_reactions_count);
                         AndroidUtilities.runOnUIThread(() -> {
                             getMessagesController().getTopicsController().updateReactionsUnread(dialogId, topicId, count, false);
                             getMessagesStorage().updateUnreadReactionsCount(dialogId, topicId, count);
@@ -21449,6 +21454,10 @@ public class MessagesController extends BaseController implements NotificationCe
             }
         } else if (changed) {
             int finalNewUnreadCount = newUnreadCount;
+            if (finalNewUnreadCount > 0) {
+                // A reaction the user has not seen yet: the badge is allowed back.
+                TjGhostController.onNewReactions(currentAccount, dialogId, topicId);
+            }
             AndroidUtilities.runOnUIThread(() -> {
                 if (topicId == 0) {
                     TLRPC.Dialog dialog = dialogs_dict.get(dialogId);
@@ -21608,6 +21617,8 @@ public class MessagesController extends BaseController implements NotificationCe
             topicsController.markAllReactionsAsRead(-dialogId, topicId);
         }
         getMessagesStorage().updateUnreadReactionsCount(dialogId, topicId, 0);
+        // Ghost drops the request below, so remember locally that these were seen.
+        TjGhostController.onReactionsRead(currentAccount, dialogId, topicId);
         TLRPC.TL_messages_readReactions req = new TLRPC.TL_messages_readReactions();
         req.peer = getInputPeer(dialogId);
 

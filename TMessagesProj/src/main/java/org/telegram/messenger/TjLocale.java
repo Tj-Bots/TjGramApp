@@ -140,6 +140,16 @@ public class TjLocale {
         m.put("TjClearArchive", "נקה את הארכיון המקומי");
         m.put("TjClearArchiveTitle", "לנקות את ארכיון ההודעות?");
         m.put("TjClearArchiveText", "כל ההודעות המחוקות והגרסאות שנשמרו מקומית יימחקו. אי אפשר לבטל את הפעולה.");
+        m.put("TjApproveAllRequestsTitle", "לאשר את כל הבקשות?");
+        m.put("TjApproveAllRequestsGroup", "כל מי שממתין להצטרף לקבוצה הזו יתווסף.");
+        m.put("TjApproveAllRequestsChannel", "כל מי שממתין להצטרף לערוץ הזה יתווסף.");
+        m.put("TjApproveAllRequests", "אשר את כולם");
+        m.put("TjApproveAllRequestsProgress", "מאשר בקשות…");
+        m.put("TjApproveAllRequestsDone", "אושרו %1$d בקשות");
+        m.put("TjApproveAllRequestsFailed", "לא הצלחנו לאשר את כל הבקשות. אושרו %1$d.");
+        m.put("TjOneTimeSaveFailed", "המדיה החד־פעמית כבר לא שמורה במכשיר הזה.");
+        m.put("TjProtectedScreenshots", "אפשר צילומי מסך");
+        m.put("TjProtectedScreenshotsInfo", "מאפשר לצלם מסך בקבוצות ובערוצים שמבקשים לחסום את זה. צ׳אטים סודיים נשארים מוגנים.");
         m.put("TjArchiveCleared", "ארכיון ההודעות המקומי נוקה");
         m.put("TjProtectedForwarding", "העלה מחדש הודעות מוגנות");
         m.put("TjProtectedForwardingInfo", "כש־Telegram חוסם העברה רגילה, יישלח עותק חדש של הטקסט או המדיה שהורדה. פרטי המקור לא יישמרו.");

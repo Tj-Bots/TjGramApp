@@ -1273,6 +1273,7 @@ public class ChatActivity extends BaseFragment implements
     public final static int OPTION_TJ_TTL = 1012;
     public final static int OPTION_TJ_READ_UNTIL = 1013;
     public final static int OPTION_TJ_CLEAR_CACHE = 1014;
+    public final static int OPTION_TJ_SAVE_ONE_TIME = 1015;
 
     private final static int[] allowedNotificationsDuringChatListAnimations = new int[]{
             NotificationCenter.messagesRead,
@@ -8761,9 +8762,11 @@ public class ChatActivity extends BaseFragment implements
         });
         chatScrollHelper.setAnimationCallback(chatScrollHelperCallback);
 
+        // TJ: content-protected chats can be captured when the user allows it. Secret chats are
+        // never included - their secure window stays exactly as upstream leaves it.
         flagSecure = new FlagSecureReason(getParentActivity().getWindow(), () ->
             currentEncryptedChat != null ||
-            isPeerNoForwards()
+            isPeerNoForwards() && !TjConfig.allowProtectedScreenshots()
         );
 
         if (oldMessage != null) {
@@ -33549,6 +33552,51 @@ public class ChatActivity extends BaseFragment implements
         MediaController.saveFile(path, getParentActivity(), messageObject.isVideo() ? 1 : 0, null, null);
     }
 
+    /**
+     * TJ: one-time photos and videos are preserved by the archive, so the user can keep them.
+     * Only offered in ordinary private chats - secret chats keep their upstream protections.
+     */
+    private boolean canSaveOneTimeMedia(MessageObject message) {
+        return message != null
+                && message.isSecretMedia()
+                && currentEncryptedChat == null
+                && dialog_id > 0
+                && chatMode == MODE_DEFAULT
+                && (message.isPhoto() || message.isVideo() || message.isGif());
+    }
+
+    private void saveOneTimeMediaToGallery(MessageObject messageObject) {
+        if (messageObject == null || getParentActivity() == null) {
+            return;
+        }
+        if (hasLocalMediaFile(messageObject)) {
+            saveMessageToGallery(messageObject);
+            return;
+        }
+        final boolean isVideo = messageObject.isVideo();
+        TjMessageArchive.getInstance().getArchivedMediaPath(currentAccount, messageObject.getDialogId(),
+                messageObject.getId(), path -> {
+                    if (getParentActivity() == null) {
+                        return;
+                    }
+                    if (TextUtils.isEmpty(path)) {
+                        BulletinFactory.of(ChatActivity.this).createErrorBulletin(
+                                TjLocale.getString(R.string.TjOneTimeSaveFailed), themeDelegate).show();
+                        return;
+                    }
+                    MediaController.saveFile(path, getParentActivity(), isVideo ? 1 : 0, null, null);
+                });
+    }
+
+    private boolean hasLocalMediaFile(MessageObject messageObject) {
+        if (!TextUtils.isEmpty(messageObject.messageOwner.attachPath)
+                && new File(messageObject.messageOwner.attachPath).exists()) {
+            return true;
+        }
+        File file = FileLoader.getInstance(currentAccount).getPathToMessage(messageObject.messageOwner);
+        return file != null && file.exists();
+    }
+
     private void processSelectedOption(int option) {
         if (selectedObject == null || getParentActivity() == null) {
             return;
@@ -33598,6 +33646,9 @@ public class ChatActivity extends BaseFragment implements
                 break;
             case OPTION_TJ_CLEAR_CACHE:
                 clearSelectedVideoFromCache();
+                break;
+            case OPTION_TJ_SAVE_ONE_TIME:
+                saveOneTimeMediaToGallery(selectedObject);
                 break;
             case OPTION_RETRY: {
                 final MessageObject object = selectedObject;
@@ -45061,6 +45112,17 @@ public class ChatActivity extends BaseFragment implements
             }
         });
 
+        // TJ: forward the link straight into another chat, the same way quick share works.
+        if (!isHashtag && !isMail && !str.startsWith("video?") && !str.startsWith("tg:")) {
+            options.add(R.drawable.msg_share, getString(R.string.LinkActionShare), () -> {
+                if (getParentActivity() == null) {
+                    return;
+                }
+                String shareLink = str.startsWith("@") ? "https://t.me/" + str.substring(1) : str;
+                showDialog(new ShareAlert(getParentActivity(), null, shareLink, false, shareLink, false, themeDelegate));
+            });
+        }
+
         if (inAppBrowser && !isHashtag && !isMail && !str.startsWith("tg:")) {
             options.add(R.drawable.outline_saved_24, getString(R.string.WebBookmarkAdd), () -> {
                 ArticleViewer.addBookmark(str, currentAccount, contentView, null, themeDelegate);
@@ -46811,6 +46873,13 @@ public class ChatActivity extends BaseFragment implements
             items.add(TjLocale.getString(R.string.TjMarkMediaViewed));
             options.add(OPTION_TJ_TTL);
             icons.add(R.drawable.msg_autodelete);
+        }
+        // TJ: one-time media in a normal private chat is preserved, so it can also be kept in the
+        // gallery. Secret chats are deliberately left out - their protections stay as they are.
+        if (canSaveOneTimeMedia(message)) {
+            items.add(LocaleController.getString(R.string.SaveToGallery));
+            options.add(OPTION_TJ_SAVE_ONE_TIME);
+            icons.add(R.drawable.msg_gallery);
         }
         if (hasVideoCache(message)) {
             items.add(TjLocale.getString(R.string.TjClearFromCache));

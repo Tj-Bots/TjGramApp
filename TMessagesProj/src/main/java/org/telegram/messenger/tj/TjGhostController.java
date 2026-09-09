@@ -128,6 +128,36 @@ public final class TjGhostController {
         }
     }
 
+    /**
+     * True when a read receipt for this dialog would be suppressed. Ghost keeps the server
+     * unaware, so anything that relies on the server confirming a read has to be tracked locally.
+     */
+    public static boolean suppressesReads(int account, long dialogId) {
+        return TjConfig.hideReads() || TjConfig.chatGhostEnabled(account, dialogId);
+    }
+
+    /**
+     * Records that the user viewed this dialog's reactions. Without it the suppressed
+     * readReactions call leaves the server counting them as unread, and the next dialog sync
+     * brings the badge straight back even though the user has seen every one of them.
+     */
+    public static void onReactionsRead(int account, long dialogId, long topicId) {
+        TjConfig.setGhostReactionsReadLocally(account, dialogId, topicId, suppressesReads(account, dialogId));
+    }
+
+    /** Called when a genuinely new reaction arrives, so the badge is allowed back. */
+    public static void onNewReactions(int account, long dialogId, long topicId) {
+        TjConfig.setGhostReactionsReadLocally(account, dialogId, topicId, false);
+    }
+
+    /** Server-reported unread reaction counts are stale for dialogs the user already viewed. */
+    public static int filterUnreadReactionsCount(int account, long dialogId, long topicId, int count) {
+        if (count > 0 && TjConfig.ghostReactionsReadLocally(account, dialogId, topicId)) {
+            return 0;
+        }
+        return count;
+    }
+
     public static boolean shouldDropRead(int account, TLObject request) {
         if (!isReadRequest(request)) {
             return false;

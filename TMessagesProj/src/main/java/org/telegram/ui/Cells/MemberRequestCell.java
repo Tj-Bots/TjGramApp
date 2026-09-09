@@ -66,6 +66,14 @@ public class MemberRequestCell extends FrameLayout {
                 clickListener.onAddClicked(importer);
             }
         });
+        // TJ: holding the button approves every pending request instead of one at a time.
+        addButton.setOnLongClickListener(v -> {
+            if (clickListener == null) {
+                return false;
+            }
+            clickListener.onAddAllClicked();
+            return true;
+        });
         addView(addButton, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, 32, LocaleController.isRTL ? Gravity.RIGHT : Gravity.LEFT, LocaleController.isRTL ? 0 : 73, 62, LocaleController.isRTL ? 73 : 0, 0));
 
         float addButtonWidth = addButton.getPaint().measureText(addButton.getText().toString()) + btnPadding * 2;
@@ -145,5 +153,8 @@ public class MemberRequestCell extends FrameLayout {
         void onAddClicked(TLRPC.TL_chatInviteImporter importer);
 
         void onDismissClicked(TLRPC.TL_chatInviteImporter importer);
+
+        /** TJ: approve every pending request at once. */
+        void onAddAllClicked();
     }
 }

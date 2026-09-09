@@ -406,6 +406,38 @@ public final class TjMessageArchive extends SQLiteOpenHelper {
      * Drops every locally archived copy of the given messages. Used when the user deletes a
      * message and explicitly asks not to keep it on the device, so nothing survives the removal.
      */
+    /**
+     * Resolves the archived attachment for one message, so preserved one-time media can be
+     * re-used after Telegram has dropped its own copy. Answers null when nothing is stored.
+     */
+    public void getArchivedMediaPath(int accountId, long dialogId, int messageId, Callback<String> callback) {
+        long ownerUserId = UserConfig.getInstance(accountId).getClientUserId();
+        if (ownerUserId == 0 || callback == null) {
+            return;
+        }
+        Utilities.globalQueue.postRunnable(() -> {
+            String result = null;
+            try (Cursor cursor = getReadableDatabase().query("snapshots",
+                    new String[]{"media_path"},
+                    "owner_user_id=? AND account_id=? AND dialog_id=? AND message_id=? AND kind=?",
+                    new String[]{String.valueOf(ownerUserId), String.valueOf(accountId),
+                            String.valueOf(dialogId), String.valueOf(messageId), String.valueOf(KIND_DELETED)},
+                    null, null, "captured_at DESC")) {
+                while (cursor.moveToNext()) {
+                    String mediaPath = cursor.getString(0);
+                    if (!TextUtils.isEmpty(mediaPath) && new File(mediaPath).isFile()) {
+                        result = mediaPath;
+                        break;
+                    }
+                }
+            } catch (Throwable error) {
+                FileLog.e("Tj archived media lookup failed", error);
+            }
+            String path = result;
+            AndroidUtilities.runOnUIThread(() -> callback.onResult(path));
+        });
+    }
+
     public void deleteSnapshots(int accountId, long dialogId, ArrayList<Integer> messageIds) {
         if (messageIds == null || messageIds.isEmpty()) {
             return;

@@ -50,6 +50,7 @@ import org.telegram.messenger.MemberRequestsController;
 import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.R;
 import org.telegram.messenger.UserObject;
+import org.telegram.messenger.TjLocale;
 import org.telegram.messenger.Utilities;
 import org.telegram.tgnet.ConnectionsManager;
 import org.telegram.tgnet.TLRPC;
@@ -61,10 +62,12 @@ import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.AvatarPreviewPagerIndicator;
 import org.telegram.ui.Cells.MemberRequestCell;
 import org.telegram.ui.ChatActivity;
+import org.telegram.ui.ActionBar.AlertDialog;
 import org.telegram.ui.Components.AlertsCreator;
 import org.telegram.ui.Components.AvatarDrawable;
 import org.telegram.ui.Components.BackupImageView;
 import org.telegram.ui.Components.Bulletin;
+import org.telegram.ui.Components.BulletinFactory;
 import org.telegram.ui.Components.CubicBezierInterpolator;
 import org.telegram.ui.Components.FlickerLoadingView;
 import org.telegram.ui.Components.LayoutHelper;
@@ -115,6 +118,7 @@ public class MemberRequestsDelegate implements MemberRequestCell.OnClickListener
     private boolean isDataLoaded;
     private boolean isFirstLoading = true;
     private boolean isShowLastItemDivider = true;
+    private boolean isApprovingAll;
 
     public MemberRequestsDelegate(BaseFragment fragment, FrameLayout layoutContainer, long chatId, boolean showSearchMenu) {
         this.fragment = fragment;
@@ -146,6 +150,14 @@ public class MemberRequestsDelegate implements MemberRequestCell.OnClickListener
             recyclerView.setSections();
             recyclerView.setLayoutManager(layoutManager);
             recyclerView.setOnItemClickListener(this::onItemClick);
+            // TJ: holding any request approves all of them.
+            recyclerView.setOnItemLongClickListener((view, position) -> {
+                if (!(view instanceof MemberRequestCell)) {
+                    return false;
+                }
+                onAddAllClicked();
+                return true;
+            });
             recyclerView.setOnScrollListener(listScrollListener);
             recyclerView.setSelectorDrawableColor(Theme.getColor(Theme.key_listSelector, fragment.getResourceProvider()));
             rootLayout.addView(recyclerView, MATCH_PARENT, MATCH_PARENT);
@@ -417,6 +429,114 @@ public class MemberRequestsDelegate implements MemberRequestCell.OnClickListener
     @Override
     public void onDismissClicked(TLRPC.TL_chatInviteImporter importer) {
         hideChatJoinRequest(importer, false);
+    }
+
+    /**
+     * TJ: approves every pending request instead of tapping through them one at a time. Requests
+     * are sent one after another so the server sees the same sequence a person would produce, and
+     * a fresh page is pulled once the loaded ones are done, since only 30 arrive at a time.
+     */
+    @Override
+    public void onAddAllClicked() {
+        if (isApprovingAll || fragment == null || fragment.getParentActivity() == null || allImporters.isEmpty()) {
+            return;
+        }
+        AlertDialog.Builder builder = new AlertDialog.Builder(fragment.getParentActivity(), fragment.getResourceProvider());
+        builder.setTitle(TjLocale.getString(R.string.TjApproveAllRequestsTitle));
+        builder.setMessage(TjLocale.getString(isChannel
+                ? R.string.TjApproveAllRequestsChannel : R.string.TjApproveAllRequestsGroup));
+        builder.setPositiveButton(TjLocale.getString(R.string.TjApproveAllRequests), (dialog, which) -> approveAllRequests());
+        builder.setNegativeButton(LocaleController.getString(R.string.Cancel), null);
+        fragment.showDialog(builder.create());
+    }
+
+    private void approveAllRequests() {
+        if (isApprovingAll || fragment == null || fragment.getParentActivity() == null) {
+            return;
+        }
+        isApprovingAll = true;
+        AlertDialog progressDialog = new AlertDialog(fragment.getParentActivity(), AlertDialog.ALERT_TYPE_SPINNER);
+        progressDialog.setCanCancel(false);
+        progressDialog.show();
+        approveNextRequest(new ArrayList<>(allImporters), new int[]{0}, progressDialog);
+    }
+
+    private void approveNextRequest(ArrayList<TLRPC.TL_chatInviteImporter> queue, int[] approved, AlertDialog progressDialog) {
+        if (queue.isEmpty()) {
+            loadRemainingRequestsToApprove(approved, progressDialog);
+            return;
+        }
+        TLRPC.TL_chatInviteImporter next = queue.remove(0);
+        TLRPC.User user = users.get(next.user_id);
+        if (user == null) {
+            approveNextRequest(queue, approved, progressDialog);
+            return;
+        }
+        TLRPC.TL_messages_hideChatJoinRequest req = new TLRPC.TL_messages_hideChatJoinRequest();
+        req.approved = true;
+        req.peer = MessagesController.getInstance(currentAccount).getInputPeer(-chatId);
+        req.user_id = MessagesController.getInstance(currentAccount).getInputUser(user);
+        ConnectionsManager.getInstance(currentAccount).sendRequest(req, (response, error) -> {
+            if (error == null && response instanceof TLRPC.TL_updates) {
+                MessagesController.getInstance(currentAccount).processUpdates((TLRPC.TL_updates) response, false);
+            }
+            AndroidUtilities.runOnUIThread(() -> {
+                if (error != null) {
+                    finishApprovingAll(approved[0], progressDialog, false);
+                    return;
+                }
+                approved[0]++;
+                for (int i = 0; i < allImporters.size(); ++i) {
+                    if (allImporters.get(i).user_id == next.user_id) {
+                        allImporters.remove(i);
+                        break;
+                    }
+                }
+                adapter.removeItem(next);
+                approveNextRequest(queue, approved, progressDialog);
+            });
+        });
+    }
+
+    /** Requests arrive 30 at a time, so keep pulling the first page until nothing is pending. */
+    private void loadRemainingRequestsToApprove(int[] approved, AlertDialog progressDialog) {
+        controller.getImporters(chatId, null, null, users, (response, error) -> AndroidUtilities.runOnUIThread(() -> {
+            if (error != null || !(response instanceof TLRPC.TL_messages_chatInviteImporters)) {
+                finishApprovingAll(approved[0], progressDialog, error == null);
+                return;
+            }
+            TLRPC.TL_messages_chatInviteImporters importers = (TLRPC.TL_messages_chatInviteImporters) response;
+            if (importers.importers.isEmpty()) {
+                finishApprovingAll(approved[0], progressDialog, true);
+                return;
+            }
+            for (int i = 0; i < importers.users.size(); ++i) {
+                TLRPC.User user = importers.users.get(i);
+                users.put(user.id, user);
+            }
+            approveNextRequest(new ArrayList<>(importers.importers), approved, progressDialog);
+        }));
+    }
+
+    private void finishApprovingAll(int approved, AlertDialog progressDialog, boolean complete) {
+        isApprovingAll = false;
+        try {
+            progressDialog.dismiss();
+        } catch (Exception ignored) {
+        }
+        if (fragment == null || fragment.getParentActivity() == null) {
+            return;
+        }
+        allImporters.clear();
+        currentImporters.clear();
+        adapter.notifyDataSetChanged();
+        hasMore = false;
+        onImportersChanged(query, false, true);
+        MessagesController.getInstance(currentAccount).loadFullChat(chatId, 0, true);
+        BulletinFactory.of(layoutContainer, fragment.getResourceProvider())
+                .createSimpleBulletin(R.raw.contact_check, LocaleController.formatString(
+                        complete ? R.string.TjApproveAllRequestsDone : R.string.TjApproveAllRequestsFailed, approved))
+                .show();
     }
 
     public void setAdapterItemsEnabled(boolean adapterItemsEnabled) {
