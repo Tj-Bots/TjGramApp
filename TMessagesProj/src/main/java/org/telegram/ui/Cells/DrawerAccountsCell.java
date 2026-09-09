@@ -50,6 +50,7 @@ public class DrawerAccountsCell extends LinearLayout {
 
     private Listener listener;
     private boolean orderChanged;
+    private int pendingPreviewAccount = -1;
     private float downX;
     private float downY;
     private boolean parentInterceptDisallowed;
@@ -206,11 +207,16 @@ public class DrawerAccountsCell extends LinearLayout {
             view.setScaleX(1f);
             view.setScaleY(1f);
             view.setBackground(Theme.createSelectorDrawable(Theme.getColor(Theme.key_listSelector), 2));
+            int previewAccount = pendingPreviewAccount;
+            pendingPreviewAccount = -1;
             if (orderChanged) {
                 orderChanged = false;
                 if (listener != null) {
                     listener.onAccountsReordered(new ArrayList<>(accounts));
                 }
+            } else if (previewAccount >= 0 && listener != null) {
+                // The hold never moved anything, so it was a request to peek at that account.
+                listener.onAccountPreview(previewAccount);
             }
         }
     }
@@ -305,12 +311,13 @@ public class DrawerAccountsCell extends LinearLayout {
                 userCell.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
             } catch (Exception ignore) {
             }
-            if (account == UserConfig.selectedAccount || AndroidUtilities.isTablet()) {
-                if (boundHolder != null) {
-                    setParentInterceptDisallowed(true);
-                    itemTouchHelper.startDrag(boundHolder);
-                }
-            } else if (listener != null) {
+            if (boundHolder != null) {
+                // Every account can be picked up: restricting the drag to the selected one made
+                // reordering all but impossible. A hold that never moves still opens the preview.
+                setParentInterceptDisallowed(true);
+                pendingPreviewAccount = account == UserConfig.selectedAccount ? -1 : account;
+                itemTouchHelper.startDrag(boundHolder);
+            } else if (listener != null && account != UserConfig.selectedAccount) {
                 listener.onAccountPreview(account);
             }
         }

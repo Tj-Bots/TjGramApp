@@ -202,6 +202,7 @@ import org.telegram.messenger.utils.tlutils.TlUtils;
 import org.telegram.messenger.tj.TjGhostController;
 import org.telegram.messenger.tj.TjHistoryController;
 import org.telegram.messenger.tj.TjConfig;
+import org.telegram.messenger.tj.TjOnlineDot;
 import org.telegram.messenger.tj.TjDeletionPolicy;
 import org.telegram.messenger.tj.TjMessageArchive;
 import org.telegram.messenger.tj.TjMessageFilter;
@@ -6471,6 +6472,8 @@ public class ChatActivity extends BaseFragment implements
                             canvas.translate(dp(24) * getSideMenuAlpha(), 0f);
                         }
                         imageReceiver.draw(canvas);
+                        // TJ: presence dot on the sender's avatar, matching the chat list.
+                        drawSenderPresenceDot(canvas, imageReceiver, message);
                         canvas.restore();
 
                         if (!replaceAnimation && child.getTranslationY() != 0) {
@@ -33553,6 +33556,26 @@ public class ChatActivity extends BaseFragment implements
     }
 
     /**
+     * TJ: draws the presence dot over a message sender's avatar, so a group reads the same way
+     * as the chat list. Only real people get one - bots, channels and yourself are skipped.
+     */
+    private void drawSenderPresenceDot(Canvas canvas, ImageReceiver avatar, MessageObject message) {
+        if (!TjOnlineDot.isEnabled() || message == null || avatar == null) {
+            return;
+        }
+        long senderId = message.getSenderId();
+        if (senderId <= 0) {
+            return;
+        }
+        TLRPC.User sender = getMessagesController().getUser(senderId);
+        if (!TjOnlineDot.showsFor(sender)) {
+            return;
+        }
+        TjOnlineDot.draw(canvas, avatar.getImageX(), avatar.getImageY(), avatar.getImageWidth(),
+                TjOnlineDot.isOnline(currentAccount, sender), LocaleController.isRTL, themeDelegate);
+    }
+
+    /**
      * TJ: one-time photos and videos are preserved by the archive, so the user can keep them.
      * Only offered in ordinary private chats - secret chats keep their upstream protections.
      */
@@ -36649,7 +36672,29 @@ public class ChatActivity extends BaseFragment implements
                 }
                 final int finalTimestamp = timestamp;
                 boolean noforwards = isPeerNoForwards() || (messageObject != null && messageObject.messageOwner != null && messageObject.messageOwner.noforwards);
-                builder.setItems(noforwards ? new CharSequence[] {LocaleController.getString(R.string.Open)} : new CharSequence[]{LocaleController.getString(R.string.Open), LocaleController.getString(R.string.Copy)}, (dialog, which) -> {
+                // TJ: link buttons get the same Share entry as a long press on a plain link. The
+                // entries are built as a list because Share is not always available.
+                final ArrayList<CharSequence> linkItems = new ArrayList<>();
+                final ArrayList<Integer> linkActions = new ArrayList<>();
+                linkItems.add(LocaleController.getString(R.string.Open));
+                linkActions.add(0);
+                if (!noforwards) {
+                    linkItems.add(LocaleController.getString(R.string.Copy));
+                    linkActions.add(1);
+                    if (!str.startsWith("video?") && !str.startsWith("tg:")) {
+                        linkItems.add(LocaleController.getString(R.string.LinkActionShare));
+                        linkActions.add(2);
+                    }
+                }
+                builder.setItems(linkItems.toArray(new CharSequence[0]), (dialog, index) -> {
+                    final int which = linkActions.get(index);
+                    if (which == 2) {
+                        if (getParentActivity() != null) {
+                            String shareLink = str.startsWith("@") ? "https://t.me/" + str.substring(1) : str;
+                            showDialog(new ShareAlert(getParentActivity(), null, shareLink, false, shareLink, false, themeDelegate));
+                        }
+                        return;
+                    }
                     if (which == 0) {
                         if (str.startsWith("video?")) {
                             didPressMessageUrl(url, false, messageObject, cell);

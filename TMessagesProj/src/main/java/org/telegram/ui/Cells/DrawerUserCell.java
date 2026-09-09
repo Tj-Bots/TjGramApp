@@ -94,6 +94,10 @@ public class DrawerUserCell extends FrameLayout implements NotificationCenter.No
         textView.setTextColor(Theme.getColor(Theme.key_chats_menuItemText));
         observeAccount(accountNumber);
         NotificationCenter.getGlobalInstance().addObserver(this, NotificationCenter.emojiLoaded);
+        // Without this the tick keeps pointing at the account you just left until the row is
+        // recycled, so the drawer looks like the switch never happened.
+        NotificationCenter.getGlobalInstance().addObserver(this, NotificationCenter.activeAccountChanged);
+        updateSelectedMark();
     }
 
     @Override
@@ -101,6 +105,7 @@ public class DrawerUserCell extends FrameLayout implements NotificationCenter.No
         super.onDetachedFromWindow();
         unobserveAccount();
         NotificationCenter.getGlobalInstance().removeObserver(this, NotificationCenter.emojiLoaded);
+        NotificationCenter.getGlobalInstance().removeObserver(this, NotificationCenter.activeAccountChanged);
 
         if (textView.getRightDrawable() instanceof AnimatedEmojiDrawable.WrapSizeDrawable) {
             Drawable drawable = ((AnimatedEmojiDrawable.WrapSizeDrawable) textView.getRightDrawable()).getDrawable();
@@ -118,6 +123,8 @@ public class DrawerUserCell extends FrameLayout implements NotificationCenter.No
             }
         } else if (id == NotificationCenter.emojiLoaded) {
             textView.invalidate();
+        } else if (id == NotificationCenter.activeAccountChanged) {
+            updateSelectedMark();
         } else if (id == NotificationCenter.updateInterfaces) {
             if (((int) args[0] & MessagesController.UPDATE_MASK_EMOJI_STATUS) > 0) {
                 setAccount(accountNumber);
@@ -156,7 +163,12 @@ public class DrawerUserCell extends FrameLayout implements NotificationCenter.No
         status.setColor(Theme.getColor(Theme.key_chats_verifiedBackground));
         imageView.getImageReceiver().setCurrentAccount(account);
         imageView.setForUserOrChat(user, avatarDrawable);
-        checkBox.setVisibility(account == UserConfig.selectedAccount ? VISIBLE : INVISIBLE);
+        updateSelectedMark();
+    }
+
+    /** Marks this row as the account currently in use. */
+    private void updateSelectedMark() {
+        checkBox.setVisibility(accountNumber == UserConfig.selectedAccount ? VISIBLE : INVISIBLE);
     }
 
     public int getAccountNumber() {

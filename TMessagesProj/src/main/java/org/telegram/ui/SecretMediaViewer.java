@@ -87,6 +87,7 @@ import org.telegram.messenger.FileLog;
 import org.telegram.messenger.R;
 import org.telegram.messenger.SharedConfig;
 import org.telegram.messenger.UserConfig;
+import org.telegram.messenger.DialogObject;
 import org.telegram.messenger.tj.TjConfig;
 import org.telegram.messenger.utils.WindowVisibilityManager;
 import org.telegram.tgnet.ConnectionsManager;
@@ -1574,6 +1575,15 @@ public class SecretMediaViewer implements NotificationCenter.NotificationCenterD
         }
 
         WindowManager wm = (WindowManager) parentActivity.getSystemService(Context.WINDOW_SERVICE);
+        // TJ: one-time media in an ordinary private chat follows the user's screenshot setting.
+        // Secret chats keep the secure window no matter what.
+        boolean secretChat = DialogObject.isEncryptedDialog(messageObject.getDialogId());
+        if (!secretChat && TjConfig.allowProtectedScreenshots()) {
+            windowLayoutParams.flags &= ~WindowManager.LayoutParams.FLAG_SECURE;
+        } else {
+            windowLayoutParams.flags |= WindowManager.LayoutParams.FLAG_SECURE;
+        }
+        AndroidUtilities.logFlagSecure();
         wm.addView(windowView, windowLayoutParams);
         secretDeleteTimer.invalidate();
         isVisible = true;
