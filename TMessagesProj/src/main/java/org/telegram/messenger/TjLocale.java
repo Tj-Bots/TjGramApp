@@ -148,6 +148,12 @@ public class TjLocale {
         m.put("TjApproveAllRequestsDone", "אושרו %1$d בקשות");
         m.put("TjApproveAllRequestsFailed", "לא הצלחנו לאשר את כל הבקשות. אושרו %1$d.");
         m.put("TjOneTimeSaveFailed", "המדיה החד־פעמית כבר לא שמורה במכשיר הזה.");
+        m.put("TjBackgroundConnection", "חיבור ברקע");
+        m.put("TjBackgroundConnectionInfo", "שומר על TjGram מחובר גם כשהאפליקציה סגורה כדי שההודעות יגיעו מיד. מציג התראה שקטה שאנדרואיד דורש בשביל זה.");
+        m.put("TjBackgroundConnectionRunning", "מחובר ברקע");
+        m.put("TjDisableBatteryOptimization", "בטל אופטימיזציית סוללה");
+        m.put("TjOnlineIndicator", "הצג מצב מחובר");
+        m.put("TjOnlineIndicatorInfo", "מוסיף נקודה ליד אנשים ברשימת הצ׳אטים וברשימות חברי הקבוצה: צבעונית כשהם מחוברים, ניטרלית כשלא.");
         m.put("TjProtectedScreenshots", "אפשר צילומי מסך");
         m.put("TjProtectedScreenshotsInfo", "מאפשר לצלם מסך בקבוצות ובערוצים שמבקשים לחסום את זה. צ׳אטים סודיים נשארים מוגנים.");
         m.put("TjArchiveCleared", "ארכיון ההודעות המקומי נוקה");

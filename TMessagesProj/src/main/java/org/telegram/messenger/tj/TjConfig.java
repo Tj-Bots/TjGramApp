@@ -127,6 +127,10 @@ public final class TjConfig {
     public static boolean localPremium() { return get("local_premium", false); }
     public static boolean hideSponsoredMessages() { return get("hide_sponsored_messages", true); }
     public static boolean crashReportsEnabled() { return get("crash_reports_enabled", false); }
+    /** Draws a presence dot next to people in the chat list and in member lists. */
+    public static boolean showOnlineIndicator() { return get("show_online_indicator", true); }
+    /** Keeps the app connected while it is off screen instead of relying on push alone. */
+    public static boolean backgroundConnection() { return get("background_connection", true); }
     public static boolean showGhostInDrawer() { return get("show_ghost_in_drawer", true); }
     public static boolean showKillInDrawer() { return get("show_kill_in_drawer", false); }
 

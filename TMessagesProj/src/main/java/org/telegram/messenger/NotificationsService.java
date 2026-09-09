@@ -11,7 +11,11 @@ package org.telegram.messenger;
 import android.app.Service;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.pm.ServiceInfo;
+import android.os.Build;
 import android.os.IBinder;
+
+import org.telegram.messenger.tj.TjBackgroundConnection;
 
 public class NotificationsService extends Service {
 
@@ -23,6 +27,22 @@ public class NotificationsService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+        // A plain background service is stopped once the last activity goes away, taking the
+        // connection with it. Running in the foreground is what keeps messages arriving.
+        if (TjBackgroundConnection.isEnabled()) {
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    startForeground(TjBackgroundConnection.NOTIFICATION_ID,
+                            TjBackgroundConnection.createNotification(this),
+                            ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC);
+                } else {
+                    startForeground(TjBackgroundConnection.NOTIFICATION_ID,
+                            TjBackgroundConnection.createNotification(this));
+                }
+            } catch (Throwable error) {
+                FileLog.e("Tj background connection could not start in the foreground", error);
+            }
+        }
         return START_STICKY;
     }
 

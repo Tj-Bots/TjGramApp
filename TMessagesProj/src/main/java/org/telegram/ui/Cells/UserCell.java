@@ -42,6 +42,7 @@ import org.telegram.messenger.UserConfig;
 import org.telegram.messenger.UserObject;
 import org.telegram.messenger.utils.DrawableUtils;
 import org.telegram.tgnet.ConnectionsManager;
+import org.telegram.messenger.tj.TjOnlineDot;
 import org.telegram.tgnet.TLRPC;
 import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.ActionBar.SimpleTextView;
@@ -168,6 +169,13 @@ public class UserCell extends FrameLayout implements NotificationCenter.Notifica
                     StoriesUtilities.drawAvatarWithStory(dialogId, canvas, imageReceiver, storyParams);
                 } else {
                     super.onDraw(canvas);
+                }
+                // TJ: presence dot, so members of a group read the same way as the chat list.
+                TLRPC.User presenceUser = currentObject instanceof TLRPC.User ? (TLRPC.User) currentObject : null;
+                if (TjOnlineDot.showsFor(presenceUser)) {
+                    TjOnlineDot.draw(canvas, 0, 0, Math.min(getMeasuredWidth(), getMeasuredHeight()),
+                            TjOnlineDot.isOnline(currentAccount, presenceUser), LocaleController.isRTL,
+                            resourcesProvider);
                 }
             }
 

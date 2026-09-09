@@ -20,6 +20,7 @@ import org.telegram.ui.ActionBar.AlertDialog;
 import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.TjLocale;
 import org.telegram.messenger.tj.TjConfig;
+import org.telegram.messenger.tj.TjBackgroundConnection;
 import org.telegram.messenger.tj.TjGhostController;
 import org.telegram.ui.ActionBar.ActionBar;
 import org.telegram.ui.ActionBar.BaseFragment;
@@ -302,6 +303,9 @@ public class TjSettingsActivity extends BaseFragment {
     private static final int ID_GHOST_SCHEDULE_MESSAGES = 20;
     private static final int ID_PRIVACY_ARCHIVE = 21;
     private static final int ID_GHOST_SETTINGS = 22;
+    private static final int ID_BACKGROUND_CONNECTION = 23;
+    private static final int ID_BATTERY_OPTIMIZATION = 24;
+    private static final int ID_ONLINE_INDICATOR = 25;
 
     private static class Item {
         final int viewType;
@@ -336,6 +340,8 @@ public class TjSettingsActivity extends BaseFragment {
             case ID_SUBTITLE_AUTO: return isSubtitleAutoEnabled();
             case ID_MENU_REPLY_PRIVATELY: return isReplyPrivatelyEnabled();
             case ID_DELETE_FOR_BOTH: return isDeleteForBothDefault();
+            case ID_BACKGROUND_CONNECTION: return TjConfig.backgroundConnection();
+            case ID_ONLINE_INDICATOR: return TjConfig.showOnlineIndicator();
         }
         return false;
     }
@@ -362,6 +368,8 @@ public class TjSettingsActivity extends BaseFragment {
             case ID_SUBTITLE_AUTO: key = KEY_SUBTITLE_AUTO; break;
             case ID_MENU_REPLY_PRIVATELY: key = KEY_MENU_REPLY_PRIVATELY; break;
             case ID_DELETE_FOR_BOTH: key = KEY_DELETE_FOR_BOTH; break;
+            case ID_BACKGROUND_CONNECTION: key = "background_connection"; break;
+            case ID_ONLINE_INDICATOR: key = "show_online_indicator"; break;
         }
         if (key != null) {
             getPrefs().edit().putBoolean(key, value).apply();
@@ -412,6 +420,10 @@ public class TjSettingsActivity extends BaseFragment {
                 presentFragment(new TjPrivacySettingsActivity(true));
                 return;
             }
+            if (item.id == ID_BATTERY_OPTIMIZATION) {
+                TjBackgroundConnection.requestIgnoreBatteryOptimizations(getParentActivity());
+                return;
+            }
             if (item.viewType != VIEW_TYPE_CHECK) {
                 return;
             }
@@ -420,6 +432,11 @@ public class TjSettingsActivity extends BaseFragment {
             ((TextCheckCell) view).setChecked(value);
             if (value && (item.id == ID_GHOST_MODE || item.id == ID_GHOST_FORCE_OFFLINE)) {
                 TjGhostController.sendOfflineStatusForActiveAccounts();
+            }
+            if (item.id == ID_BACKGROUND_CONNECTION) {
+                // Restart the service so it picks up (or drops) its foreground notification.
+                ApplicationLoader.startPushService();
+                adapter.notifyDataSetChanged();
             }
             if (item.id == ID_GHOST_READ) {
                 TjGhostController.clearReadExceptions();
@@ -445,7 +462,8 @@ public class TjSettingsActivity extends BaseFragment {
         items.add(new Item(VIEW_TYPE_SHADOW, 0, TjLocale.getString(R.string.TjBotApiIdsInfo)));
         items.add(new Item(VIEW_TYPE_HEADER, 0, TjLocale.getString(R.string.TjChatsHeader)));
         items.add(new Item(VIEW_TYPE_CHECK, ID_SHOW_CALL_BUTTON, TjLocale.getString(R.string.TjShowCallButton)));
-        items.add(new Item(VIEW_TYPE_SHADOW, 0, TjLocale.getString(R.string.TjShowCallButtonInfo)));
+        items.add(new Item(VIEW_TYPE_CHECK, ID_ONLINE_INDICATOR, TjLocale.getString(R.string.TjOnlineIndicator)));
+        items.add(new Item(VIEW_TYPE_SHADOW, 0, TjLocale.getString(R.string.TjOnlineIndicatorInfo)));
         items.add(new Item(VIEW_TYPE_HEADER, 0, TjLocale.getString(R.string.TjGhostMode)));
         items.add(new Item(VIEW_TYPE_SETTING, ID_GHOST_SETTINGS, TjLocale.getString(R.string.TjGhostSettings)));
         items.add(new Item(VIEW_TYPE_SHADOW, 0, TjLocale.getString(R.string.TjGhostModeInfo)));
@@ -458,6 +476,12 @@ public class TjSettingsActivity extends BaseFragment {
         items.add(new Item(VIEW_TYPE_HEADER, 0, TjLocale.getString(R.string.TjSubtitles)));
         items.add(new Item(VIEW_TYPE_CHECK, ID_SUBTITLE_AUTO, TjLocale.getString(R.string.TjSubtitleAuto)));
         items.add(new Item(VIEW_TYPE_SHADOW, 0, TjLocale.getString(R.string.TjSubtitleAutoInfo)));
+        items.add(new Item(VIEW_TYPE_HEADER, 0, TjLocale.getString(R.string.TjBackgroundConnection)));
+        items.add(new Item(VIEW_TYPE_CHECK, ID_BACKGROUND_CONNECTION, TjLocale.getString(R.string.TjBackgroundConnection)));
+        if (TjBackgroundConnection.isBatteryOptimized()) {
+            items.add(new Item(VIEW_TYPE_SETTING, ID_BATTERY_OPTIMIZATION, TjLocale.getString(R.string.TjDisableBatteryOptimization)));
+        }
+        items.add(new Item(VIEW_TYPE_SHADOW, 0, TjLocale.getString(R.string.TjBackgroundConnectionInfo)));
         items.add(new Item(VIEW_TYPE_HEADER, 0, TjLocale.getString(R.string.TjMessageMenuHeader)));
         items.add(new Item(VIEW_TYPE_CHECK, ID_MENU_MESSAGE_INFO, TjLocale.getString(R.string.TjMessageInfo)));
         items.add(new Item(VIEW_TYPE_CHECK, ID_MENU_SAVE_TO_SAVED, TjLocale.getString(R.string.TjSaveToSaved)));

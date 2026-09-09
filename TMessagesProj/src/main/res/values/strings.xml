@@ -11352,6 +11352,12 @@
     <string name="TjApproveAllRequestsDone">Approved %1$d requests</string>
     <string name="TjApproveAllRequestsFailed">Could not approve every request. %1$d were approved.</string>
     <string name="TjOneTimeSaveFailed">The one-time media is no longer stored on this device.</string>
+    <string name="TjBackgroundConnection">Background connection</string>
+    <string name="TjBackgroundConnectionInfo">Keeps TjGram connected while it is closed so messages arrive right away. Shows a silent notification that Android requires for this.</string>
+    <string name="TjBackgroundConnectionRunning">Connected in the background</string>
+    <string name="TjDisableBatteryOptimization">Turn off battery optimization</string>
+    <string name="TjOnlineIndicator">Show online status</string>
+    <string name="TjOnlineIndicatorInfo">Puts a dot next to people in the chat list and in group member lists: filled while they are online, neutral while they are not.</string>
     <string name="TjProtectedForwarding">Re-upload protected messages</string>
     <string name="TjProtectedForwardingInfo">When normal forwarding is blocked, send a new copy of the text or downloaded media instead. Forward attribution is not preserved.</string>
     <string name="TjProtectedScreenshots">Allow screenshots</string>

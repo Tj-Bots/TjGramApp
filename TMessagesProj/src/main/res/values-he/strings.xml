@@ -128,6 +128,12 @@
     <string name="TjApproveAllRequestsDone">אושרו %1$d בקשות</string>
     <string name="TjApproveAllRequestsFailed">לא הצלחנו לאשר את כל הבקשות. אושרו %1$d.</string>
     <string name="TjOneTimeSaveFailed">המדיה החד־פעמית כבר לא שמורה במכשיר הזה.</string>
+    <string name="TjBackgroundConnection">חיבור ברקע</string>
+    <string name="TjBackgroundConnectionInfo">שומר על TjGram מחובר גם כשהאפליקציה סגורה כדי שההודעות יגיעו מיד. מציג התראה שקטה שאנדרואיד דורש בשביל זה.</string>
+    <string name="TjBackgroundConnectionRunning">מחובר ברקע</string>
+    <string name="TjDisableBatteryOptimization">בטל אופטימיזציית סוללה</string>
+    <string name="TjOnlineIndicator">הצג מצב מחובר</string>
+    <string name="TjOnlineIndicatorInfo">מוסיף נקודה ליד אנשים ברשימת הצ׳אטים וברשימות חברי הקבוצה: צבעונית כשהם מחוברים, ניטרלית כשלא.</string>
     <string name="TjProtectedForwarding">העלה מחדש הודעות מוגנות</string>
     <string name="TjProtectedForwardingInfo">כש־Telegram חוסם העברה רגילה, יישלח עותק חדש של הטקסט או המדיה שהורדה. פרטי המקור לא יישמרו.</string>
     <string name="TjProtectedScreenshots">אפשר צילומי מסך</string>
