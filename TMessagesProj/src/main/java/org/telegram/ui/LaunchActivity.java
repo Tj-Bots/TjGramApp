@@ -8371,6 +8371,18 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
         sideMenuContainer = new FrameLayout(this);
         sideMenu = new RecyclerListView(this) {
             @Override
+            protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
+                // The drawer runs to the very bottom of the screen, under the navigation bar, so
+                // the last entry in it - TjGram's own settings - sat behind the back and recents
+                // buttons and could not be tapped. Keeping the bar's height free lifts it clear.
+                int bottom = AndroidUtilities.navigationBarHeight;
+                if (getPaddingBottom() != bottom) {
+                    setPadding(0, 0, 0, bottom);
+                }
+                super.onMeasure(widthMeasureSpec, heightMeasureSpec);
+            }
+
+            @Override
             public boolean drawChild(Canvas canvas, View child, long drawingTime) {
                 int restore = -1;
                 if (sideMenuItemAnimator != null && sideMenuItemAnimator.isRunning() && sideMenuItemAnimator.isAnimatingChild(child)) {

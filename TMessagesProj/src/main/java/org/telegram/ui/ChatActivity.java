@@ -47699,12 +47699,12 @@ public class ChatActivity extends BaseFragment implements
                                      ArrayList<Integer> options, ArrayList<Integer> icons) {
         LinearLayout row = new LinearLayout(getParentActivity());
         row.setOrientation(LinearLayout.HORIZONTAL);
-        if (LocaleController.isRTL) {
-            // The first shortcut is the one nearest the reader, which is the right-hand end here.
-            row.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
-        }
+        // The rest of the app mirrors itself by hand rather than by layout direction, so this row
+        // is laid out left to right whatever the language is, and the order of the children is
+        // what decides which end the first shortcut sits at.
+        row.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
         for (int i = 0; i < indexes.size(); i++) {
-            final int index = indexes.get(i);
+            final int index = indexes.get(LocaleController.isRTL ? indexes.size() - 1 - i : i);
             final int option = options.get(index);
             ImageView button = new ImageView(getParentActivity());
             button.setScaleType(ImageView.ScaleType.CENTER);
