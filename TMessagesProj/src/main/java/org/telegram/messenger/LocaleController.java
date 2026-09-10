@@ -34,6 +34,7 @@ import androidx.annotation.RequiresApi;
 import androidx.annotation.StringRes;
 
 import org.telegram.messenger.time.FastDateFormat;
+import org.telegram.messenger.tj.TjLastSeenEstimator;
 import org.telegram.tgnet.Vector;
 import org.telegram.ui.Components.TypefaceSpan;
 import org.telegram.ui.Stars.StarsController;
@@ -3027,6 +3028,13 @@ public class LocaleController {
                     isOnline[0] = true;
                 }
                 return getString("Online", R.string.Online);
+            }
+        }
+        if (user != null && !user.bot && !UserObject.isDeleted(user)
+                && (user.status == null || user.status.expires <= 0)) {
+            int estimatedLastSeen = TjLastSeenEstimator.getInstance().getLastSeen(currentAccount, user.id);
+            if (estimatedLastSeen > 0) {
+                return formatDateOnline(estimatedLastSeen, madeShorter) + " ~";
             }
         }
         if (user == null || user.status == null || user.status.expires == 0 || UserObject.isDeleted(user) || user instanceof TLRPC.TL_userEmpty) {

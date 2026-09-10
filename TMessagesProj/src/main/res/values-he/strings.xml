@@ -71,6 +71,7 @@
     <string name="TjGhostOptionLocked">האפשרות הזו לא תשתנה יחד עם מתג מצב הרפאים.</string>
     <string name="TjGhostOptionUnlocked">האפשרות הזו תשתנה יחד עם מתג מצב הרפאים.</string>
     <string name="TjGhostModeInfo">מצב רפאים מסתיר את הפעילות שלך מאחרים. בחר מה הוא כולל.</string>
+    <string name="TjEstimatedLastSeen">הצג נראה לאחרונה משוער</string>
     <string name="TjLikelyOffline">כנראה לא מחובר</string>
     <string name="TjGhostWarning">מצב רפאים אינו תכונה רשמית של טלגרם. ייתכן שטלגרם תתייחס לזה כהתנהגות חריגה, אז השימוש על אחריותך.</string>
     <string name="TjGhostDontWarnAgain">אל תציג את זה שוב</string>

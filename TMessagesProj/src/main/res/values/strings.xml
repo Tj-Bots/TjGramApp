@@ -11295,6 +11295,7 @@
     <string name="TjGhostOptionLocked">This option will not change with the Ghost mode switch.</string>
     <string name="TjGhostOptionUnlocked">This option will follow the Ghost mode switch.</string>
     <string name="TjGhostModeInfo">Ghost mode hides your activity from other people. Choose what it covers.</string>
+    <string name="TjEstimatedLastSeen">Show estimated last seen</string>
     <string name="TjLikelyOffline">Likely offline</string>
     <string name="TjGhostWarning">Ghost mode is not an official Telegram feature. Telegram may treat it as unusual behaviour, so use it at your own risk.</string>
     <string name="TjGhostDontWarnAgain">Don\'t show this again</string>

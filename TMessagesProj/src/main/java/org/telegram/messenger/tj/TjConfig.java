@@ -67,6 +67,8 @@ public final class TjConfig {
     public static boolean readAfterReply() { return ghostEnabled() && get("ghost_read_after_reply", false); }
     public static boolean scheduleMessages() { return ghostEnabled() && get("ghost_schedule_messages", false); }
     public static boolean sendWithoutSound() { return ghostEnabled() && get("ghost_send_without_sound", false); }
+    /** Shows precise locally observed activity when Telegram only exposes a coarse user status. */
+    public static boolean estimatedLastSeen() { return get("estimated_last_seen", true); }
 
     private static String chatGhostKey(int account, long dialogId) {
         long ownerId = UserConfig.getInstance(account).getClientUserId();
