@@ -159,13 +159,13 @@
     <string name="TjMarkMediaViewed">סמן את המדיה כנצפתה</string>
     <string name="TjViewOnceSaveFailed">לא ניתן היה לשמור את המדיה החד־פעמית. היא לא סומנה כנצפתה.</string>
     <string name="TjClearFromCache">נקה מהמטמון</string>
-    <string name="TjEnableChatGhost">הפעל מצב רפאים בצ׳אט הזה</string>
-    <string name="TjDisableChatGhost">כבה מצב רפאים בצ׳אט הזה</string>
+    <string name="TjEnableChatGhost">הפעל מצב רפאים</string>
+    <string name="TjDisableChatGhost">כבה מצב רפאים</string>
     <string name="TjChatGhostEnabled">מצב רפאים הופעל בצ׳אט הזה</string>
     <string name="TjChatGhostDisabled">מצב רפאים כובה בצ׳אט הזה</string>
     <string name="TjChatGhostInfo">אישורי קריאה והקלדה מוסתרים בצ׳אט הזה. מצב מקוון חל על החשבון כולו.</string>
     <string name="TjChatMenu">TjGram</string>
-    <string name="TjChatGhostSettings">הגדרות מצב רפאים לצ׳אט הזה</string>
+    <string name="TjChatGhostSettings">הגדרות רפאים</string>
     <string name="TjChatGhostBehavior">התנהגות הצ׳אט</string>
     <string name="TjChatGhostMode">מצב רפאים בצ׳אט הזה</string>
     <string name="TjChatGhostReadReceipts">אישורי קריאה</string>
@@ -179,7 +179,7 @@
     <string name="TjChatGhostEffectiveOff">נשלח כרגיל כרגע</string>
     <string name="TjChatGhostModeInfo">בחירה נקודתית לצ׳אט גוברת על מתג מצב הרפאים הכללי. האפשרות לפעול לפי ההגדרות הכלליות משתנה אוטומטית יחד עם המתג הכללי.</string>
     <string name="TjChatGhostOnlineInfo">מצב מקוון חל על החשבון כולו ואי אפשר לשנות אותו עבור צ׳אט אחד בלבד.</string>
-    <string name="TjChatGhostReset">אפס חריגות בצ׳אט</string>
+    <string name="TjChatGhostReset">אפס חריגות</string>
     <string name="TjChatGhostResetDone">הצ׳אט פועל כעת לפי הגדרות מצב הרפאים הכלליות</string>
     <string name="TjChatGhostResetTitle">לאפס את הגדרות מצב הרפאים בצ׳אט הזה?</string>
     <string name="TjChatGhostResetText">המצב הנקודתי והבחירות עבור אישורי קריאה והקלדה יוסרו.</string>

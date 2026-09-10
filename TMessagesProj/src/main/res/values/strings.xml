@@ -11383,13 +11383,13 @@
     <string name="TjMarkMediaViewed">Mark media as viewed</string>
     <string name="TjViewOnceSaveFailed">Could not preserve this one-time media. It was not marked as viewed.</string>
     <string name="TjClearFromCache">Clear from cache</string>
-    <string name="TjEnableChatGhost">Enable Ghost for this chat</string>
-    <string name="TjDisableChatGhost">Disable Ghost for this chat</string>
+    <string name="TjEnableChatGhost">Enable Ghost</string>
+    <string name="TjDisableChatGhost">Disable Ghost</string>
     <string name="TjChatGhostEnabled">Ghost enabled for this chat</string>
     <string name="TjChatGhostDisabled">Ghost disabled for this chat</string>
     <string name="TjChatGhostInfo">Read receipts and typing are hidden for this chat. Online status is account-wide.</string>
     <string name="TjChatMenu">TjGram</string>
-    <string name="TjChatGhostSettings">Ghost settings for this chat</string>
+    <string name="TjChatGhostSettings">Ghost settings</string>
     <string name="TjChatGhostBehavior">Chat behavior</string>
     <string name="TjChatGhostMode">Ghost mode for this chat</string>
     <string name="TjChatGhostReadReceipts">Read receipts</string>
@@ -11403,7 +11403,7 @@
     <string name="TjChatGhostEffectiveOff">Currently sent normally</string>
     <string name="TjChatGhostModeInfo">A chat-specific choice overrides the global Ghost switch. Follow global settings changes automatically with the global switch.</string>
     <string name="TjChatGhostOnlineInfo">Online presence is account-wide and cannot be changed for only one chat.</string>
-    <string name="TjChatGhostReset">Reset chat overrides</string>
+    <string name="TjChatGhostReset">Reset overrides</string>
     <string name="TjChatGhostResetDone">This chat now follows the global Ghost settings</string>
     <string name="TjChatGhostResetTitle">Reset Ghost settings for this chat?</string>
     <string name="TjChatGhostResetText">The chat-specific mode, read receipt and typing choices will be removed.</string>

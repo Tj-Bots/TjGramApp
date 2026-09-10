@@ -4474,6 +4474,13 @@ public class ChatActivity extends BaseFragment implements
                 });
                 muteItemGap = headerItem.lazilyAddColoredGap();
             }
+            tjChatSubmenu = new TjChatMenuSubmenu(context, headerItem.getPopupLayout().getSwipeBack(), getResourceProvider());
+            tjChatMenuItem = headerItem.lazilyAddSwipeBackItem(R.drawable.tj_ghost, null,
+                    TjLocale.getString(R.string.TjChatMenu), tjChatSubmenu.layout);
+            tjChatMenuItem.setOnClickListener(view -> {
+                rebuildTjChatSubmenu();
+                tjChatMenuItem.openSwipeBack();
+            });
             if (currentChat != null) {
                 headerItem.lazilyAddSubItem(open_direct, R.drawable.msg_markunread, getString(R.string.ChannelOpenDirect));
                 headerItem.setSubItemShown(open_direct, ChatObject.isChannel(currentChat) && !ChatObject.isMonoForum(currentChat) && currentChat.linked_monoforum_id != 0 && ChatObject.canManageMonoForum(currentAccount, -currentChat.linked_monoforum_id));
@@ -4526,14 +4533,7 @@ public class ChatActivity extends BaseFragment implements
                     LocaleController.getString(UserObject.isBotForum(currentUser) ? R.string.ClearAllHistory : R.string.ClearHistory));
             }
             headerItem.lazilyAddSubItem(jump_to_first_message, R.drawable.msg_go_up, TjLocale.getString(R.string.TjGoToFirstMessage));
-            tjChatSubmenu = new TjChatMenuSubmenu(context, headerItem.getPopupLayout().getSwipeBack(), getResourceProvider());
-            tjChatMenuItem = headerItem.lazilyAddSwipeBackItem(R.drawable.tj_ghost, null,
-                    TjLocale.getString(R.string.TjChatMenu), tjChatSubmenu.layout);
-            tjChatMenuItem.setOnClickListener(view -> {
-                rebuildTjChatSubmenu();
-                tjChatMenuItem.openSwipeBack();
-            });
-            pinnedVisibilityItem = headerItem.lazilyAddSubItem(toggle_pinned_visibility, R.drawable.msg_pin, TjLocale.getString(R.string.TjHidePinnedMessage));
+            pinnedVisibilityItem = headerItem.lazilyAddSubItem(toggle_pinned_visibility, R.drawable.msg_archive, TjLocale.getString(R.string.TjHidePinnedMessage));
             headerItem.hideSubItem(toggle_pinned_visibility);
             boolean addedSettings = false;
             if (!isTopic) {
@@ -28593,12 +28593,16 @@ public class ChatActivity extends BaseFragment implements
                 SharedPreferences pinPrefs = MessagesController.getNotificationsSettings(currentAccount);
                 boolean isHidden = pinnedMessageIds.get(0) == pinPrefs.getInt("pin_" + dialog_id, 0);
                 String label = TjLocale.getString(isHidden ? R.string.TjShowPinnedMessage : R.string.TjHidePinnedMessage);
+                // Putting it away and taking it back out again, which is what this does - a pin
+                // said nothing about which of the two the tap would do.
+                int icon = isHidden ? R.drawable.msg_unarchive : R.drawable.msg_archive;
                 if (pinnedVisibilityItem != null) {
                     pinnedVisibilityItem.text = label;
+                    pinnedVisibilityItem.icon = icon;
                 }
                 View pinnedVisibilityView = headerItem.getSubItem(toggle_pinned_visibility);
                 if (pinnedVisibilityView instanceof ActionBarMenuSubItem) {
-                    ((ActionBarMenuSubItem) pinnedVisibilityView).setTextAndIcon(label, R.drawable.msg_pin);
+                    ((ActionBarMenuSubItem) pinnedVisibilityView).setTextAndIcon(label, icon);
                 }
             } else {
                 headerItem.hideSubItem(toggle_pinned_visibility);

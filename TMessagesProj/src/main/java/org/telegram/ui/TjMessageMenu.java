@@ -116,6 +116,18 @@ public final class TjMessageMenu {
     }
 
     /**
+     * The options one chosen action can stand for. A link to a message in a private chat or with a
+     * bot is a different link from a link to one in a public chat, but to the person tapping it is
+     * the same button, and it belongs in the same place.
+     */
+    private static int[] variants(int option) {
+        if (option == ChatActivity.OPTION_COPY_LINK) {
+            return new int[]{ChatActivity.OPTION_COPY_LINK, ChatActivity.OPTION_COPY_DEEPLINK};
+        }
+        return new int[]{option};
+    }
+
+    /**
      * Positions in a menu's option list that belong in the row, in the chosen order. Only actions
      * this particular message actually offers are taken - the row never invents an action.
      */
@@ -125,7 +137,13 @@ public final class TjMessageMenu {
             return indexes;
         }
         for (Integer action : selected()) {
-            int index = options.indexOf(action);
+            int index = -1;
+            for (int variant : variants(action)) {
+                index = options.indexOf(variant);
+                if (index >= 0) {
+                    break;
+                }
+            }
             if (index >= 0) {
                 indexes.add(index);
             }

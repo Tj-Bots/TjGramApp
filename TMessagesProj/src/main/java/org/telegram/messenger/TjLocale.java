@@ -188,13 +188,13 @@ public class TjLocale {
         m.put("TjMarkMediaViewed", "סמן את המדיה כנצפתה");
         m.put("TjViewOnceSaveFailed", "לא ניתן היה לשמור את המדיה החד־פעמית. היא לא סומנה כנצפתה.");
         m.put("TjClearFromCache", "נקה מהמטמון");
-        m.put("TjEnableChatGhost", "הפעל מצב רפאים בצ׳אט הזה");
-        m.put("TjDisableChatGhost", "כבה מצב רפאים בצ׳אט הזה");
+        m.put("TjEnableChatGhost", "הפעל מצב רפאים");
+        m.put("TjDisableChatGhost", "כבה מצב רפאים");
         m.put("TjChatGhostEnabled", "מצב רפאים הופעל בצ׳אט הזה");
         m.put("TjChatGhostDisabled", "מצב רפאים כובה בצ׳אט הזה");
         m.put("TjChatGhostInfo", "אישורי קריאה והקלדה מוסתרים בצ׳אט הזה. מצב מקוון חל על החשבון כולו.");
         m.put("TjChatMenu", "TjGram");
-        m.put("TjChatGhostSettings", "הגדרות מצב רפאים לצ׳אט הזה");
+        m.put("TjChatGhostSettings", "הגדרות רפאים");
         m.put("TjChatGhostBehavior", "התנהגות הצ׳אט");
         m.put("TjChatGhostMode", "מצב רפאים בצ׳אט הזה");
         m.put("TjChatGhostReadReceipts", "אישורי קריאה");
@@ -208,7 +208,7 @@ public class TjLocale {
         m.put("TjChatGhostEffectiveOff", "נשלח כרגיל כרגע");
         m.put("TjChatGhostModeInfo", "בחירה נקודתית לצ׳אט גוברת על מתג מצב הרפאים הכללי. האפשרות לפעול לפי ההגדרות הכלליות משתנה אוטומטית יחד עם המתג הכללי.");
         m.put("TjChatGhostOnlineInfo", "מצב מקוון חל על החשבון כולו ואי אפשר לשנות אותו עבור צ׳אט אחד בלבד.");
-        m.put("TjChatGhostReset", "אפס חריגות בצ׳אט");
+        m.put("TjChatGhostReset", "אפס חריגות");
         m.put("TjChatGhostResetDone", "הצ׳אט פועל כעת לפי הגדרות מצב הרפאים הכלליות");
         m.put("TjChatGhostResetTitle", "לאפס את הגדרות מצב הרפאים בצ׳אט הזה?");
         m.put("TjChatGhostResetText", "המצב הנקודתי והבחירות עבור אישורי קריאה והקלדה יוסרו.");
