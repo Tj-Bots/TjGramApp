@@ -663,6 +663,11 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
     private int channelInfoRow;
     private int usernameRow;
     private int userIdRow;
+    // What the server will say about a person you are meeting for the first time: the country
+    // their number belongs to and the month they joined Telegram. Both arrive with the peer
+    // settings, and both are simply absent for most people you already know.
+    private int tjPhoneCountryRow;
+    private int tjRegistrationRow;
     private int groupMembersRow;
     private int groupAdministratorsRow;
     private int groupPermissionsRow;
@@ -2147,6 +2152,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             getNotificationCenter().addObserver(this, NotificationCenter.blockedUsersDidLoad);
             getNotificationCenter().addObserver(this, NotificationCenter.botInfoDidLoad);
             getNotificationCenter().addObserver(this, NotificationCenter.userInfoDidLoad);
+            getNotificationCenter().addObserver(this, NotificationCenter.peerSettingsDidLoad);
             getNotificationCenter().addObserver(this, NotificationCenter.privacyRulesUpdated);
             NotificationCenter.getGlobalInstance().addObserver(this, NotificationCenter.reloadInterface);
 
@@ -2157,6 +2163,9 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             }
             userInfo = getMessagesController().getUserFull(userId);
             getMessagesController().loadFullUser(getMessagesController().getUser(userId), classGuid, true);
+            // Asked for explicitly: the full user carries these only sometimes, and this is the
+            // request that fills them in for a person who is not a contact.
+            getMessagesController().loadPeerSettings(user, null);
             participantsMap = null;
 
             if (UserObject.isUserSelf(user)) {
@@ -2412,6 +2421,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             getNotificationCenter().removeObserver(this, NotificationCenter.blockedUsersDidLoad);
             getNotificationCenter().removeObserver(this, NotificationCenter.botInfoDidLoad);
             getNotificationCenter().removeObserver(this, NotificationCenter.userInfoDidLoad);
+            getNotificationCenter().removeObserver(this, NotificationCenter.peerSettingsDidLoad);
             getNotificationCenter().removeObserver(this, NotificationCenter.privacyRulesUpdated);
             NotificationCenter.getGlobalInstance().removeObserver(this, NotificationCenter.reloadInterface);
             getMessagesController().cancelLoadFullUser(userId);
@@ -9359,6 +9369,10 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 botInfo = info;
                 updateListAnimated(false);
             }
+        } else if (id == NotificationCenter.peerSettingsDidLoad) {
+            if (args.length > 0 && args[0] instanceof Long && (Long) args[0] == userId && listAdapter != null) {
+                updateListAnimated(false);
+            }
         } else if (id == NotificationCenter.userInfoDidLoad) {
             final long uid = (Long) args[0];
             if (uid == userId) {
@@ -10577,6 +10591,14 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         return chatId != 0;
     }
 
+    /** The country and joining month the server is willing to tell us about this person. */
+    private TLRPC.PeerSettings tjPeerSettings() {
+        if (userId == 0 || userId == getUserConfig().getClientUserId()) {
+            return null;
+        }
+        return getMessagesController().getPeerSettings(userId);
+    }
+
     private void updateRowsIds() {
         updateNotifications(false);
 
@@ -10592,6 +10614,8 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         birthdayRow = -1;
         setUsernameRow = -1;
         userIdRow = -1;
+        tjPhoneCountryRow = -1;
+        tjRegistrationRow = -1;
         groupMembersRow = -1;
         groupAdministratorsRow = -1;
         groupPermissionsRow = -1;
@@ -10857,6 +10881,13 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 }
                 if (user != null) {
                     userIdRow = rowCount++;
+                }
+                TLRPC.PeerSettings tjSettings = tjPeerSettings();
+                if (tjSettings != null && !TextUtils.isEmpty(tjSettings.phone_country)) {
+                    tjPhoneCountryRow = rowCount++;
+                }
+                if (tjSettings != null && !TextUtils.isEmpty(tjSettings.registration_month)) {
+                    tjRegistrationRow = rowCount++;
                 }
                 if (userInfo != null) {
                     if (userInfo.birthday != null) {
@@ -13684,6 +13715,20 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                         }
                         String value = dcId > 0 ? "DC" + dcId : "ID";
                         detailCell.setTextAndValue(getBotApiPeerId(), value, false);
+                    } else if (position == tjPhoneCountryRow) {
+                        TLRPC.PeerSettings settings = tjPeerSettings();
+                        if (settings != null) {
+                            detailCell.setTextAndValue(
+                                    LocaleController.getCountryWithFlag(settings.phone_country, 13, R.string.ContactInfoPhoneFragment),
+                                    LocaleController.getString(R.string.ContactInfoPhone), false);
+                        }
+                    } else if (position == tjRegistrationRow) {
+                        TLRPC.PeerSettings settings = tjPeerSettings();
+                        if (settings != null) {
+                            detailCell.setTextAndValue(
+                                    org.telegram.ui.Cells.UserInfoCell.displayDate(settings.registration_month),
+                                    LocaleController.getString(R.string.ContactInfoRegistration), false);
+                        }
                     } else if (position == noteRow) {
                         final TLRPC.UserFull userInfo = getMessagesController().getUserFull(userId);
                         if (userInfo == null) return;
@@ -14525,7 +14570,8 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             if (position == infoHeaderRow || position == membersHeaderRow || position == settingsSectionRow2 ||
                     position == numberSectionRow || position == helpHeaderRow || position == debugHeaderRow || position == botPermissionsHeader) {
                 return VIEW_TYPE_HEADER;
-            } else if (position == phoneRow || position == locationRow || position == numberRow || position == birthdayRow || position == userIdRow) {
+            } else if (position == phoneRow || position == locationRow || position == numberRow || position == birthdayRow || position == userIdRow
+                    || position == tjPhoneCountryRow || position == tjRegistrationRow) {
                 return VIEW_TYPE_TEXT_DETAIL;
             } else if (position == usernameRow || position == setUsernameRow) {
                 return VIEW_TYPE_TEXT_DETAIL_MULTILINE;
@@ -15933,6 +15979,8 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             put(++pointer, channelInfoRow, sparseIntArray);
             put(++pointer, usernameRow, sparseIntArray);
             put(++pointer, userIdRow, sparseIntArray);
+            put(++pointer, tjPhoneCountryRow, sparseIntArray);
+            put(++pointer, tjRegistrationRow, sparseIntArray);
             put(++pointer, groupMembersRow, sparseIntArray);
             put(++pointer, groupAdministratorsRow, sparseIntArray);
             put(++pointer, groupPermissionsRow, sparseIntArray);
