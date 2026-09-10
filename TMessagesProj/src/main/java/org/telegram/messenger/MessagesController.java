@@ -59,6 +59,7 @@ import org.telegram.messenger.browser.Browser;
 import org.telegram.messenger.tj.TjConfig;
 import org.telegram.messenger.tj.TjDeletionPolicy;
 import org.telegram.messenger.tj.TjGhostController;
+import org.telegram.messenger.tj.TjLastSeenEstimator;
 import org.telegram.messenger.support.LongSparseIntArray;
 import org.telegram.messenger.support.LongSparseLongArray;
 import org.telegram.messenger.utils.EphemeralMessagesHelper;
@@ -17974,9 +17975,14 @@ public class MessagesController extends BaseController implements NotificationCe
                     }
                 }
             }
-            if (!updates.out && user != null && user.status != null && user.status.expires <= 0 && Math.abs(getConnectionsManager().getCurrentTime() - updates.date) < 30) {
-                onlinePrivacy.put(user.id, updates.date);
-                updateStatus = true;
+            if (!updates.out && user != null) {
+                TjLastSeenEstimator.getInstance().record(currentAccount, user.id, updates.date,
+                        TjLastSeenEstimator.SOURCE_MESSAGE);
+                if (user.status != null && user.status.expires <= 0
+                        && Math.abs(getConnectionsManager().getCurrentTime() - updates.date) < 30) {
+                    onlinePrivacy.put(user.id, updates.date);
+                    updateStatus = true;
+                }
             }
 
             if (missingData) {
@@ -18593,9 +18599,14 @@ public class MessagesController extends BaseController implements NotificationCe
                                 }
                                 return false;
                             }
-                            if (!message.out && a == 1 && user.status != null && user.status.expires <= 0 && Math.abs(getConnectionsManager().getCurrentTime() - message.date) < 30) {
-                                onlinePrivacy.put(userId, message.date);
-                                interfaceUpdateMask |= UPDATE_MASK_STATUS;
+                            if (!message.out && a == 1) {
+                                TjLastSeenEstimator.getInstance().record(currentAccount, userId, message.date,
+                                        TjLastSeenEstimator.SOURCE_MESSAGE);
+                                if (user.status != null && user.status.expires <= 0
+                                        && Math.abs(getConnectionsManager().getCurrentTime() - message.date) < 30) {
+                                    onlinePrivacy.put(userId, message.date);
+                                    interfaceUpdateMask |= UPDATE_MASK_STATUS;
+                                }
                             }
                         }
                     }
@@ -18831,9 +18842,13 @@ public class MessagesController extends BaseController implements NotificationCe
                     markAsReadMessagesOutbox.put(update.peer.user_id, update.max_id);
                     dialogId = update.peer.user_id;
                     TLRPC.User user = getUser(update.peer.user_id);
-                    if (user != null && user.status != null && user.status.expires <= 0 && Math.abs(getConnectionsManager().getCurrentTime() - date) < 30) {
-                        onlinePrivacy.put(update.peer.user_id, date);
-                        interfaceUpdateMask |= UPDATE_MASK_STATUS;
+                    if (Math.abs(getConnectionsManager().getCurrentTime() - date) < 30) {
+                        TjLastSeenEstimator.getInstance().record(currentAccount, update.peer.user_id, date,
+                                TjLastSeenEstimator.SOURCE_READ);
+                        if (user != null && user.status != null && user.status.expires <= 0) {
+                            onlinePrivacy.put(update.peer.user_id, date);
+                            interfaceUpdateMask |= UPDATE_MASK_STATUS;
+                        }
                     }
                 }
                 Integer value = dialogs_read_outbox_max.get(dialogId);
@@ -19019,6 +19034,8 @@ public class MessagesController extends BaseController implements NotificationCe
                     }
                     if (Math.abs(getConnectionsManager().getCurrentTime() - date) < 30) {
                         onlinePrivacy.put(userId, date);
+                        TjLastSeenEstimator.getInstance().record(currentAccount, userId, date,
+                                TjLastSeenEstimator.SOURCE_TYPING);
                     }
                 }
             } else if (baseUpdate instanceof TL_update.TL_updateChatParticipants) {
@@ -19182,6 +19199,8 @@ public class MessagesController extends BaseController implements NotificationCe
                     }
                     if (Math.abs(getConnectionsManager().getCurrentTime() - date) < 30) {
                         onlinePrivacy.put(encryptedChat.user_id, date);
+                        TjLastSeenEstimator.getInstance().record(currentAccount, encryptedChat.user_id, date,
+                                TjLastSeenEstimator.SOURCE_TYPING);
                     }
                 }
             } else if (baseUpdate instanceof TL_update.TL_updateEncryptedMessagesRead) {
@@ -19499,6 +19518,12 @@ public class MessagesController extends BaseController implements NotificationCe
 
                 MessageObject.getDialogId(message);
 
+                if (!message.out && message.from_id instanceof TLRPC.TL_peerUser) {
+                    int activityDate = message.edit_date > 0 ? message.edit_date : date;
+                    TjLastSeenEstimator.getInstance().record(currentAccount, message.from_id.user_id,
+                            activityDate, TjLastSeenEstimator.SOURCE_EDIT);
+                }
+
                 ConcurrentHashMap<Long, Integer> read_max = message.out ? dialogs_read_outbox_max : dialogs_read_inbox_max;
                 Integer value = read_max.get(message.dialog_id);
                 if (value == null) {
@@ -19586,6 +19611,16 @@ public class MessagesController extends BaseController implements NotificationCe
             } else if (baseUpdate instanceof TL_update.TL_updateMessageReactions) {
                 TL_update.TL_updateMessageReactions update = (TL_update.TL_updateMessageReactions) baseUpdate;
                 long dialogId = MessageObject.getPeerId(update.peer);
+
+                if (update.reactions != null && update.reactions.recent_reactions != null) {
+                    for (TLRPC.MessagePeerReaction reaction : update.reactions.recent_reactions) {
+                        if (reaction != null && reaction.peer_id instanceof TLRPC.TL_peerUser) {
+                            TjLastSeenEstimator.getInstance().record(currentAccount,
+                                    reaction.peer_id.user_id, reaction.date,
+                                    TjLastSeenEstimator.SOURCE_REACTION);
+                        }
+                    }
+                }
 
                 getMessagesStorage().updateMessageReactions(dialogId, update.msg_id, update.reactions);
 
@@ -19936,6 +19971,14 @@ public class MessagesController extends BaseController implements NotificationCe
                     } else if (baseUpdate instanceof TL_update.TL_updateUserStatus) {
                         TL_update.TL_updateUserStatus update = (TL_update.TL_updateUserStatus) baseUpdate;
                         TLRPC.User currentUser = getUser(update.user_id);
+
+                        if (update.status instanceof TLRPC.TL_userStatusOffline && update.status.expires > 0) {
+                            TjLastSeenEstimator.getInstance().record(currentAccount, update.user_id,
+                                    update.status.expires, TjLastSeenEstimator.SOURCE_STATUS);
+                        } else if (update.status instanceof TLRPC.TL_userStatusOnline) {
+                            TjLastSeenEstimator.getInstance().record(currentAccount, update.user_id,
+                                    getConnectionsManager().getCurrentTime(), TjLastSeenEstimator.SOURCE_STATUS);
+                        }
 
                         if (update.status instanceof TLRPC.TL_userStatusRecently) {
                             update.status.expires = -100;

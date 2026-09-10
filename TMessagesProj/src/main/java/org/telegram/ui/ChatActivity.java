@@ -508,6 +508,8 @@ public class ChatActivity extends BaseFragment implements
     private SuggestEmojiView suggestEmojiPanel;
     private ActionBarMenuItem.Item muteItem;
     private ActionBarMenuItem.Item muteItemGap;
+    private ActionBarMenuItem.Item tjChatMenuItem;
+    private TjChatMenuSubmenu tjChatSubmenu;
     private ActionBarMenuItem.Item feeItemGap;
     private ActionBarMenuItem.Item feeItemText;
     private ChatNotificationsPopupWrapper chatNotificationsPopupWrapper;
@@ -3882,20 +3884,6 @@ public class ChatActivity extends BaseFragment implements
                     showDialog(AlertsCreator.createTTLAlert(getParentActivity(), currentEncryptedChat, themeDelegate).create());
                 } else if (id == jump_to_first_message) {
                     jumpToDate(1);
-                } else if (id == toggle_chat_ghost) {
-                    boolean enabled = !TjConfig.chatGhostEnabled(currentAccount, dialog_id);
-                    TjConfig.setChatGhostEnabled(currentAccount, dialog_id, enabled);
-                    if (headerItem != null) {
-                        View item = headerItem.getSubItem(toggle_chat_ghost);
-                        if (item instanceof org.telegram.ui.ActionBar.ActionBarMenuSubItem) {
-                            ((org.telegram.ui.ActionBar.ActionBarMenuSubItem) item).setText(TjLocale.getString(
-                                    enabled ? R.string.TjDisableChatGhost : R.string.TjEnableChatGhost));
-                        }
-                    }
-                    BulletinFactory.of(ChatActivity.this).createSimpleBulletin(
-                            R.raw.chats_infotip,
-                            TjLocale.getString(enabled ? R.string.TjChatGhostEnabled : R.string.TjChatGhostDisabled),
-                            TjLocale.getString(R.string.TjChatGhostInfo)).show();
                 } else if (id == toggle_pinned_visibility) {
                     SharedPreferences preferences = MessagesController.getNotificationsSettings(currentAccount);
                     // pinnedMessageView is created lazily and never released, so it cannot tell us
@@ -4538,9 +4526,13 @@ public class ChatActivity extends BaseFragment implements
                     LocaleController.getString(UserObject.isBotForum(currentUser) ? R.string.ClearAllHistory : R.string.ClearHistory));
             }
             headerItem.lazilyAddSubItem(jump_to_first_message, R.drawable.msg_go_up, TjLocale.getString(R.string.TjGoToFirstMessage));
-            headerItem.lazilyAddSubItem(toggle_chat_ghost, R.drawable.msg_markunread,
-                    TjLocale.getString(TjConfig.chatGhostEnabled(currentAccount, dialog_id)
-                            ? R.string.TjDisableChatGhost : R.string.TjEnableChatGhost));
+            tjChatSubmenu = new TjChatMenuSubmenu(context, headerItem.getPopupLayout().getSwipeBack(), getResourceProvider());
+            tjChatMenuItem = headerItem.lazilyAddSwipeBackItem(R.drawable.tj_ghost, null,
+                    TjLocale.getString(R.string.TjChatMenu), tjChatSubmenu.layout);
+            tjChatMenuItem.setOnClickListener(view -> {
+                rebuildTjChatSubmenu();
+                tjChatMenuItem.openSwipeBack();
+            });
             pinnedVisibilityItem = headerItem.lazilyAddSubItem(toggle_pinned_visibility, R.drawable.msg_pin, TjLocale.getString(R.string.TjHidePinnedMessage));
             headerItem.hideSubItem(toggle_pinned_visibility);
             boolean addedSettings = false;
@@ -19744,6 +19736,61 @@ public class ChatActivity extends BaseFragment implements
             headerItem.showSubItem(bot_settings);
         } else {
             headerItem.hideSubItem(bot_settings);
+        }
+    }
+
+    private void rebuildTjChatSubmenu() {
+        if (tjChatSubmenu == null || dialog_id == 0) {
+            return;
+        }
+        tjChatSubmenu.clear();
+
+        boolean ghostEnabled = TjConfig.chatGhostEnabled(currentAccount, dialog_id);
+        tjChatSubmenu.addRow(ghostEnabled ? R.drawable.tj_ghost_off : R.drawable.tj_ghost,
+                TjLocale.getString(ghostEnabled ? R.string.TjDisableChatGhost : R.string.TjEnableChatGhost),
+                ghostEnabled, () -> {
+                    boolean enabled = !TjConfig.chatGhostEnabled(currentAccount, dialog_id);
+                    TjConfig.setChatGhostEnabled(currentAccount, dialog_id, enabled);
+                    rebuildTjChatSubmenu();
+                    BulletinFactory.of(ChatActivity.this).createSimpleBulletin(
+                            R.raw.chats_infotip,
+                            TjLocale.getString(enabled ? R.string.TjChatGhostEnabled : R.string.TjChatGhostDisabled),
+                            TjLocale.getString(R.string.TjChatGhostInfo)).show();
+                });
+
+        boolean readsHidden = TjConfig.hideReads(currentAccount, dialog_id);
+        tjChatSubmenu.addRow(R.drawable.msg_markunread,
+                TjLocale.getString(R.string.TjChatGhostReadReceipts), readsHidden, () -> {
+                    TjConfig.setChatReadState(currentAccount, dialog_id,
+                            readsHidden ? TjConfig.CHAT_GHOST_OFF : TjConfig.CHAT_GHOST_ON);
+                    rebuildTjChatSubmenu();
+                });
+
+        boolean typingHidden = TjConfig.hideTyping(currentAccount, dialog_id);
+        tjChatSubmenu.addRow(R.drawable.msg_edit,
+                TjLocale.getString(R.string.TjChatGhostTypingStatus), typingHidden, () -> {
+                    TjConfig.setChatTypingState(currentAccount, dialog_id,
+                            typingHidden ? TjConfig.CHAT_GHOST_OFF : TjConfig.CHAT_GHOST_ON);
+                    rebuildTjChatSubmenu();
+                });
+
+        tjChatSubmenu.addAction(R.drawable.msg_settings_old,
+                TjLocale.getString(R.string.TjChatGhostSettings), () -> {
+                    if (headerItem != null) {
+                        headerItem.toggleSubMenu();
+                    }
+                    presentFragment(new TjChatGhostSettingsActivity(dialog_id));
+                });
+
+        if (TjConfig.hasChatGhostOverrides(currentAccount, dialog_id)) {
+            tjChatSubmenu.addAction(R.drawable.msg_clear,
+                    TjLocale.getString(R.string.TjChatGhostReset), () -> {
+                        TjConfig.clearChatGhostOverrides(currentAccount, dialog_id);
+                        rebuildTjChatSubmenu();
+                        BulletinFactory.of(ChatActivity.this).createSimpleBulletin(
+                                R.raw.chats_infotip,
+                                TjLocale.getString(R.string.TjChatGhostResetDone)).show();
+                    });
         }
     }
 

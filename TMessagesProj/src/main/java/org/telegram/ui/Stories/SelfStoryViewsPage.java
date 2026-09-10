@@ -45,6 +45,7 @@ import org.telegram.messenger.NotificationsController;
 import org.telegram.messenger.R;
 import org.telegram.messenger.UserConfig;
 import org.telegram.messenger.UserObject;
+import org.telegram.messenger.tj.TjLastSeenEstimator;
 import org.telegram.tgnet.ConnectionsManager;
 import org.telegram.tgnet.TLRPC;
 import org.telegram.tgnet.tl.TL_stories;
@@ -1263,6 +1264,15 @@ public class SelfStoryViewsPage extends FrameLayout implements NotificationCente
                         MessagesController.getInstance(currentAccount).putUsers(res.users, false);
                         MessagesController.getInstance(currentAccount).putChats(res.chats, false);
                         MessagesStorage.getInstance(currentAccount).putUsersAndChats(res.users, res.chats, true, false);
+                        for (TL_stories.StoryReaction storyReaction : res.reactions) {
+                            if (storyReaction instanceof TL_stories.TL_storyReaction
+                                    && storyReaction.peer_id instanceof TLRPC.TL_peerUser) {
+                                TjLastSeenEstimator.getInstance().record(currentAccount,
+                                        storyReaction.peer_id.user_id,
+                                        ((TL_stories.TL_storyReaction) storyReaction).date,
+                                        TjLastSeenEstimator.SOURCE_REACTION);
+                            }
+                        }
                         if (initial) {
                             initial = false;
                             for (int i = 0; i < reactions.size(); i++) {
@@ -1349,6 +1359,13 @@ public class SelfStoryViewsPage extends FrameLayout implements NotificationCente
                         MessagesController.getInstance(currentAccount).putUsers(res.users, false);
                         MessagesController.getInstance(currentAccount).putChats(res.chats, false);
                         MessagesStorage.getInstance(currentAccount).putUsersAndChats(res.users, res.chats, true, false);
+                        for (TL_stories.StoryView storyView : res.views) {
+                            if (storyView != null && storyView.user_id > 0 && storyView.date > 0) {
+                                TjLastSeenEstimator.getInstance().record(currentAccount,
+                                        storyView.user_id, storyView.date,
+                                        TjLastSeenEstimator.SOURCE_STORY_VIEW);
+                            }
+                        }
                         if (initial) {
                             initial = false;
                             for (int i = 0; i < views.size(); i++) {

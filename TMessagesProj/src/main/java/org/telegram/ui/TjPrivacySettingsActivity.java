@@ -65,6 +65,7 @@ public class TjPrivacySettingsActivity extends BaseFragment implements Notificat
     private static final int SAVE_REACTIONS = 13;
     private static final int SAVE_BOTS = 14;
     private static final int DIM_DELETED = 15;
+    private static final int ESTIMATED_LAST_SEEN = 16;
     private static final int SAVE_MEDIA = 20;
     private static final int MEDIA_PRIVATE = 21;
     private static final int MEDIA_PUBLIC_GROUP = 22;
@@ -201,6 +202,7 @@ public class TjPrivacySettingsActivity extends BaseFragment implements Notificat
                 items.add(new Item(TYPE_CHECK, FORCE_OFFLINE, R.string.TjGhostForceOffline));
             }
             items.add(new Item(TYPE_INFO, 0, R.string.TjGhostModeInfo));
+            items.add(new Item(TYPE_CHECK, ESTIMATED_LAST_SEEN, R.string.TjEstimatedLastSeen));
             items.add(new Item(TYPE_CHECK, READ_AFTER_REPLY, R.string.TjGhostReadAfterReply));
             items.add(new Item(TYPE_INFO, 0, R.string.TjGhostReadAfterReplyInfo));
             items.add(new Item(TYPE_CHECK, SCHEDULE_MESSAGES, R.string.TjGhostScheduleMessages));
@@ -319,6 +321,14 @@ public class TjPrivacySettingsActivity extends BaseFragment implements Notificat
                     }
                 }
             }
+            if (item.id == ESTIMATED_LAST_SEEN) {
+                for (int account = 0; account < org.telegram.messenger.UserConfig.MAX_ACCOUNT_COUNT; account++) {
+                    if (org.telegram.messenger.UserConfig.getInstance(account).isClientActivated()) {
+                        NotificationCenter.getInstance(account).postNotificationName(
+                                NotificationCenter.updateInterfaces, MessagesController.UPDATE_MASK_STATUS);
+                    }
+                }
+            }
             if (item.id == CRASH_REPORTS) {
                 ApplicationLoader.updateTjCrashReports(value);
             }
@@ -383,6 +393,7 @@ public class TjPrivacySettingsActivity extends BaseFragment implements Notificat
             case READ_AFTER_REPLY: return prefs().getBoolean("ghost_read_after_reply", false);
             case SCHEDULE_MESSAGES: return prefs().getBoolean("ghost_schedule_messages", false);
             case SEND_WITHOUT_SOUND: return prefs().getBoolean("ghost_send_without_sound", false);
+            case ESTIMATED_LAST_SEEN: return TjConfig.estimatedLastSeen();
             case SAVE_DELETED: return TjConfig.saveDeletedMessages();
             case SAVE_EDITED: return TjConfig.saveEditedMessages();
             case SAVE_FORMATTING: return TjConfig.saveFormatting();
@@ -425,6 +436,7 @@ public class TjPrivacySettingsActivity extends BaseFragment implements Notificat
             case READ_AFTER_REPLY: key = "ghost_read_after_reply"; break;
             case SCHEDULE_MESSAGES: key = "ghost_schedule_messages"; break;
             case SEND_WITHOUT_SOUND: key = "ghost_send_without_sound"; break;
+            case ESTIMATED_LAST_SEEN: key = "estimated_last_seen"; break;
             case SAVE_DELETED: key = "archive_deleted_messages"; break;
             case SAVE_EDITED: key = "archive_edited_messages"; break;
             case SAVE_FORMATTING: key = "archive_formatting"; break;

@@ -21,6 +21,10 @@ import javax.crypto.spec.GCMParameterSpec;
 
 /** Central, UI-independent configuration for TjGram features. */
 public final class TjConfig {
+    public static final int CHAT_GHOST_INHERIT = -1;
+    public static final int CHAT_GHOST_OFF = 0;
+    public static final int CHAT_GHOST_ON = 1;
+
     private static final String PREFS_NAME = "tjsettings";
     private static final String SYNC_TOKEN_LEGACY = "tj_sync_token";
     private static final String SYNC_TOKEN_CIPHERTEXT = "tj_sync_token_ciphertext";
@@ -63,20 +67,132 @@ public final class TjConfig {
     public static boolean readAfterReply() { return ghostEnabled() && get("ghost_read_after_reply", false); }
     public static boolean scheduleMessages() { return ghostEnabled() && get("ghost_schedule_messages", false); }
     public static boolean sendWithoutSound() { return ghostEnabled() && get("ghost_send_without_sound", false); }
+    /** Shows precise locally observed activity when Telegram only exposes a coarse user status. */
+    public static boolean estimatedLastSeen() { return get("estimated_last_seen", true); }
 
     private static String chatGhostKey(int account, long dialogId) {
         long ownerId = UserConfig.getInstance(account).getClientUserId();
         return "chat_ghost_" + ownerId + "_" + dialogId;
     }
 
+    private static String chatGhostFeatureKey(String feature, int account, long dialogId) {
+        long ownerId = UserConfig.getInstance(account).getClientUserId();
+        return "chat_ghost_" + feature + "_" + ownerId + "_" + dialogId;
+    }
+
+    private static int getChatOverrideState(String key) {
+        SharedPreferences preferences = prefs();
+        if (!preferences.contains(key)) {
+            return CHAT_GHOST_INHERIT;
+        }
+        int state = preferences.getInt(key, CHAT_GHOST_INHERIT);
+        return state == CHAT_GHOST_ON || state == CHAT_GHOST_OFF ? state : CHAT_GHOST_INHERIT;
+    }
+
+    private static void setChatOverrideState(String key, int state) {
+        if (state == CHAT_GHOST_INHERIT) {
+            prefs().edit().remove(key).apply();
+        } else {
+            put(key, state == CHAT_GHOST_ON ? CHAT_GHOST_ON : CHAT_GHOST_OFF);
+        }
+    }
+
+    public static int chatGhostState(int account, long dialogId) {
+        if (dialogId == 0) {
+            return CHAT_GHOST_INHERIT;
+        }
+        String stateKey = chatGhostFeatureKey("mode", account, dialogId);
+        if (prefs().contains(stateKey)) {
+            return getChatOverrideState(stateKey);
+        }
+        // Before per-chat tri-state settings, only true was a meaningful override. A stored
+        // false meant the old toggle was off, so preserve that as inheritance rather than
+        // silently turning it into the new explicit-off state.
+        String legacyKey = chatGhostKey(account, dialogId);
+        return prefs().contains(legacyKey) && prefs().getBoolean(legacyKey, false)
+                ? CHAT_GHOST_ON : CHAT_GHOST_INHERIT;
+    }
+
     public static boolean chatGhostEnabled(int account, long dialogId) {
-        return dialogId != 0 && get(chatGhostKey(account, dialogId), false);
+        int state = chatGhostState(account, dialogId);
+        return state == CHAT_GHOST_INHERIT ? ghostEnabled() : state == CHAT_GHOST_ON;
     }
 
     public static void setChatGhostEnabled(int account, long dialogId, boolean enabled) {
+        setChatGhostState(account, dialogId, enabled ? CHAT_GHOST_ON : CHAT_GHOST_OFF);
+    }
+
+    public static void setChatGhostState(int account, long dialogId, int state) {
         if (dialogId != 0) {
-            put(chatGhostKey(account, dialogId), enabled);
+            SharedPreferences.Editor editor = prefs().edit().remove(chatGhostKey(account, dialogId));
+            String stateKey = chatGhostFeatureKey("mode", account, dialogId);
+            if (state == CHAT_GHOST_INHERIT) {
+                editor.remove(stateKey);
+            } else {
+                editor.putInt(stateKey, state == CHAT_GHOST_ON ? CHAT_GHOST_ON : CHAT_GHOST_OFF);
+            }
+            editor.apply();
         }
+    }
+
+    public static int chatReadState(int account, long dialogId) {
+        return dialogId == 0 ? CHAT_GHOST_INHERIT
+                : getChatOverrideState(chatGhostFeatureKey("read", account, dialogId));
+    }
+
+    public static void setChatReadState(int account, long dialogId, int state) {
+        if (dialogId != 0) {
+            setChatOverrideState(chatGhostFeatureKey("read", account, dialogId), state);
+        }
+    }
+
+    public static int chatTypingState(int account, long dialogId) {
+        return dialogId == 0 ? CHAT_GHOST_INHERIT
+                : getChatOverrideState(chatGhostFeatureKey("typing", account, dialogId));
+    }
+
+    public static void setChatTypingState(int account, long dialogId, int state) {
+        if (dialogId != 0) {
+            setChatOverrideState(chatGhostFeatureKey("typing", account, dialogId), state);
+        }
+    }
+
+    private static boolean resolveChatFeature(int featureState, int chatState, boolean globalValue) {
+        if (featureState != CHAT_GHOST_INHERIT) {
+            return featureState == CHAT_GHOST_ON;
+        }
+        if (chatState != CHAT_GHOST_INHERIT) {
+            return chatState == CHAT_GHOST_ON;
+        }
+        return globalValue;
+    }
+
+    public static boolean hideReads(int account, long dialogId) {
+        return dialogId == 0 ? hideReads()
+                : resolveChatFeature(chatReadState(account, dialogId), chatGhostState(account, dialogId), hideReads());
+    }
+
+    public static boolean hideTyping(int account, long dialogId) {
+        return dialogId == 0 ? hideTyping()
+                : resolveChatFeature(chatTypingState(account, dialogId), chatGhostState(account, dialogId), hideTyping());
+    }
+
+    public static boolean hasChatGhostOverrides(int account, long dialogId) {
+        return chatGhostState(account, dialogId) != CHAT_GHOST_INHERIT
+                || chatReadState(account, dialogId) != CHAT_GHOST_INHERIT
+                || chatTypingState(account, dialogId) != CHAT_GHOST_INHERIT;
+    }
+
+    public static void clearChatGhostOverrides(int account, long dialogId) {
+        if (dialogId == 0) {
+            return;
+        }
+        prefs().edit()
+                .remove(chatGhostKey(account, dialogId))
+                .remove(chatGhostFeatureKey("mode", account, dialogId))
+                .remove(chatGhostFeatureKey("read", account, dialogId))
+                .remove(chatGhostFeatureKey("typing", account, dialogId))
+                .apply();
     }
 
     private static String ghostReactionsKey(int account, long dialogId, long topicId) {

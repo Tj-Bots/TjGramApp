@@ -107,7 +107,7 @@ public final class TjGhostController {
             dialogId = org.telegram.messenger.DialogObject.makeEncryptedDialogId(
                     ((TLRPC.TL_messages_setEncryptedTyping) request).peer.chat_id);
         }
-        return TjConfig.hideTyping() || TjConfig.chatGhostEnabled(account, dialogId);
+        return TjConfig.hideTyping(account, dialogId);
     }
 
     public static boolean shouldForceOffline(TLObject request) {
@@ -133,7 +133,7 @@ public final class TjGhostController {
      * unaware, so anything that relies on the server confirming a read has to be tracked locally.
      */
     public static boolean suppressesReads(int account, long dialogId) {
-        return TjConfig.hideReads() || TjConfig.chatGhostEnabled(account, dialogId);
+        return TjConfig.hideReads(account, dialogId);
     }
 
     /**
@@ -163,7 +163,7 @@ public final class TjGhostController {
             return false;
         }
         long requestDialogId = getReadDialogId(account, request);
-        if (!TjConfig.hideReads() && !TjConfig.chatGhostEnabled(account, requestDialogId)) {
+        if (!TjConfig.hideReads(account, requestDialogId)) {
             return false;
         }
         long now = android.os.SystemClock.elapsedRealtime();
