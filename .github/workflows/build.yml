@@ -37,7 +37,7 @@ jobs:
           # hit survive a fresh checkout, where every file has a new timestamp.
           echo "CCACHE_PATH=$(which ccache)" >> $GITHUB_ENV
           echo "CCACHE_DIR=$HOME/.cache/ccache" >> $GITHUB_ENV
-          echo "CCACHE_MAXSIZE=3G" >> $GITHUB_ENV
+          echo "CCACHE_MAXSIZE=2G" >> $GITHUB_ENV
           echo "CCACHE_COMPILERCHECK=content" >> $GITHUB_ENV
 
       # The native half - ffmpeg, dav1d, libvpx, openh264, opus, tlottie - is what takes the
@@ -71,10 +71,36 @@ jobs:
           APP_HASH=${{ secrets.TG_API_HASH }}
           EOF
 
+      # gradle.properties asks for an 8 GB heap, which is right on a development machine and
+      # fatal here: a hosted runner has 7 GB in total, and between the Gradle daemon, the Kotlin
+      # daemon and the native compilers the kernel killed the whole job. That is why the build
+      # step simply stopped mid-way with no failing task and no downloadable log.
+      - name: Make room for the build
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost /opt/hostedtoolcache/CodeQL || true
+          for ndk in /usr/local/lib/android/sdk/ndk/*; do
+            case "$ndk" in
+              *27.2.12479018) ;;
+              *) sudo rm -rf "$ndk" || true ;;
+            esac
+          done
+          echo "--- disk ---"; df -h /
+          echo "--- memory ---"; free -m
+
       - name: Build debug APK
-        run: ./gradlew :TMessagesProj_App:assembleAfatDebug --stacktrace --build-cache
+        run: |
+          ./gradlew :TMessagesProj_App:assembleAfatDebug --stacktrace --build-cache \
+            --no-daemon --max-workers=2 \
+            -Dorg.gradle.jvmargs="-Xmx3g -XX:MaxMetaspaceSize=768m" \
+            -Dkotlin.daemon.jvm.options="-Xmx1g"
         env:
           ANDROID_NDK_HOME: /usr/local/lib/android/sdk/ndk/27.2.12479018
+
+      - name: What the build left behind
+        if: always()
+        run: |
+          echo "--- disk ---"; df -h /
+          echo "--- memory ---"; free -m
 
       - name: ccache statistics
         if: always()
