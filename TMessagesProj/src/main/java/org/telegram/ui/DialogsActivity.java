@@ -808,6 +808,11 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         private boolean prepareForMoving(MotionEvent ev, boolean forward) {
             int id = filterTabsView.getNextPageId(forward);
             if (id < 0) {
+                if (isDrawerBeyondFoldersDirection(forward)) {
+                    maybeStartTracking = false;
+                    startedTracking = false;
+                    openDrawerFromFoldersEdge();
+                }
                 return false;
             }
             getParent().requestDisallowInterceptTouchEvent(true);
@@ -3648,7 +3653,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
 
                     ArrayList<MessagesController.DialogFilter> titleFilters = getMessagesController().getDialogFilters();
                     updateTitleForTab(tab.isDefault, tab.id >= 0 && tab.id < titleFilters.size() ? titleFilters.get(tab.id).name : null);
-                    updateDrawerSwipeAllowed(tab.isDefault);
+                    updateDrawerSwipeAllowed();
                 }
 
                 @Override
@@ -6860,12 +6865,9 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             return;
         }
         MessagesController.DialogFilter filter = getMessagesController().getDialogFilters().get(viewPages[a].selectedType);
-        // Both the tap-a-tab and the swipe-between-folders paths settle here, but only the tap
-        // path fires FilterTabsView's onPageSelected, so the drawer swipe gate has to be
-        // refreshed here too - otherwise it keeps the value it had on the All tab and the drawer
-        // opens on every folder. The filter is the authoritative source; FilterTabsView's own
-        // selectedTabId is not updated by the swipe path until later.
-        updateDrawerSwipeAllowed(filter.isDefault());
+        // Both tapping and swiping can make folder tabs appear or disappear, so keep ownership
+        // of the horizontal gesture synchronized with the currently visible UI.
+        updateDrawerSwipeAllowed();
         updateTitleForTab(filter.isDefault(), filter.name);
         if (filter.isDefault()) {
             viewPages[a].dialogsType = initialDialogsType;
@@ -7078,7 +7080,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
     @Override
     public void onResume() {
         super.onResume();
-        updateDrawerSwipeAllowed(filterTabsView == null || filterTabsView.getVisibility() != View.VISIBLE || filterTabsView.isFirstTabSelected());
+        updateDrawerSwipeAllowed();
         // Ghost mode is toggled from the drawer, so refresh the badge when we come back.
         updateTitleForTab(filterTabsView == null || filterTabsView.getVisibility() != View.VISIBLE || filterTabsView.isFirstTabSelected(), null);
         if (dialogStoriesCell != null) {
@@ -8528,11 +8530,33 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         }
     }
 
-    private void updateDrawerSwipeAllowed(boolean onDefaultTab) {
+    private boolean isDrawerBeyondFoldersDirection(boolean forward) {
+        return initialDialogsType == DIALOGS_TYPE_DEFAULT
+                && !onlySelect && folderId == 0 && communityId == 0
+                && forward != LocaleController.isRTL;
+    }
+
+    private void openDrawerFromFoldersEdge() {
         if (getParentActivity() instanceof LaunchActivity) {
             DrawerLayoutContainer container = ((LaunchActivity) getParentActivity()).drawerLayoutContainer;
             if (container != null) {
-                container.setAllowDrawerSwipe(onDefaultTab && !onlySelect && folderId == 0 && communityId == 0);
+                container.openDrawer(false);
+            }
+        }
+    }
+
+    private void updateDrawerSwipeAllowed() {
+        if (getParentActivity() instanceof LaunchActivity) {
+            DrawerLayoutContainer container = ((LaunchActivity) getParentActivity()).drawerLayoutContainer;
+            if (container != null) {
+                boolean folderTabsHandleHorizontalSwipes = filterTabsView != null
+                        && filterTabsView.getVisibility() == View.VISIBLE
+                        && filterTabsView.getTabsCount() > 0;
+                // DrawerLayoutContainer only recognizes left-to-right opening. While folder tabs
+                // are visible, ContentView owns the gesture so it can use the locale direction
+                // and open the drawer only after getNextPageId() reports the outer folder edge.
+                container.setAllowDrawerSwipe(!folderTabsHandleHorizontalSwipes
+                        && !onlySelect && folderId == 0 && communityId == 0);
             }
         }
     }
