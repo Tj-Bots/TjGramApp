@@ -128,7 +128,7 @@ public final class TjConfig {
     public static boolean hideSponsoredMessages() { return get("hide_sponsored_messages", true); }
     public static boolean crashReportsEnabled() { return get("crash_reports_enabled", false); }
     /** Plays video files straight from the network instead of waiting for the whole download. */
-    public static boolean directFileStreaming() { return get("direct_file_streaming", false); }
+    public static boolean directFileStreaming() { return get("direct_file_streaming", true); }
     /** Draws a presence dot next to people in the chat list and in member lists. */
     public static boolean showOnlineIndicator() { return get("show_online_indicator", true); }
     /** Keeps the app connected while it is off screen instead of relying on push alone. */
