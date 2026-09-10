@@ -11435,6 +11435,13 @@
     <string name="TjJoinChannelAction">Join channel</string>
     <string name="TjNotNow">Not now</string>
     <string name="TjCategories">Categories</string>
+    <string name="TjGhostModeDesc">Read and type without being seen</string>
+    <string name="TjGhostModeOnValue">On</string>
+    <string name="TjArchiveInsightsDesc">Keep deleted and edited messages on this device</string>
+    <string name="TjMessageFiltersDesc">Hide messages that contain words you choose</string>
+    <string name="TjCustomizationDesc">Marks, extras, side menu and sync</string>
+    <string name="TjAdvancedSettingsDesc">Chats, menus, background and direct viewing</string>
+    <string name="TjSettingsFooter">TjGram is an unofficial Telegram client. Everything it keeps stays on this device.</string>
     <string name="TjLinks">Links</string>
     <string name="TjCustomization">Customization</string>
     <string name="TjChannel">Channel</string>
@@ -11442,7 +11449,7 @@
     <string name="TjArchiveInsights">Archive &amp; Insights</string>
     <string name="TjDeletedAppearance">Deleted message appearance</string>
     <string name="TjDeletedAppearanceInfo">Choose how retained deleted messages and edited-message history appear in chats.</string>
-    <string name="TjAdvancedSettings">Advanced appearance and chat settings</string>
+    <string name="TjAdvancedSettings">Advanced</string>
     <string name="TjProtectedForwardFailed">Could not prepare %1$d protected message(s). The remaining messages were sent.</string>
     <string name="TjReorderAccount">Drag to reorder account</string>
 </resources>

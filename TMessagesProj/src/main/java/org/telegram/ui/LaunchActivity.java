@@ -8410,6 +8410,11 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
                 drawerLayoutContainer.closeDrawer(false);
                 openAddAccount();
             }
+
+            @Override
+            public void onAccountsReordered(ArrayList<Integer> accounts) {
+                drawerLayoutAdapter.setAccountOrder(accounts);
+            }
         });
         sideMenuContainer.addView(sideMenu, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
         drawerLayoutContainer.setDrawerLayout(sideMenuContainer, sideMenu);

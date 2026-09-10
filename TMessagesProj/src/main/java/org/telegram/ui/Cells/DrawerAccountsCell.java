@@ -1,8 +1,11 @@
 package org.telegram.ui.Cells;
 
 import android.content.Context;
+import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.GradientDrawable;
+import android.view.HapticFeedbackConstants;
 import android.view.MotionEvent;
+import android.view.View;
 import android.view.ViewConfiguration;
 import android.view.ViewGroup;
 import android.view.ViewParent;
@@ -10,6 +13,7 @@ import android.view.accessibility.AccessibilityNodeInfo;
 import android.widget.LinearLayout;
 
 import androidx.annotation.NonNull;
+import androidx.recyclerview.widget.ItemTouchHelper;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
@@ -17,7 +21,6 @@ import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.UserConfig;
 import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.Components.LayoutHelper;
-import org.telegram.ui.Components.RecyclerListView;
 
 import java.util.ArrayList;
 
@@ -28,6 +31,7 @@ public class DrawerAccountsCell extends LinearLayout {
         void onAccountClick(int account);
         void onAccountPreview(int account);
         void onAddAccount();
+        void onAccountsReordered(ArrayList<Integer> accounts);
     }
 
     /**
@@ -37,13 +41,22 @@ public class DrawerAccountsCell extends LinearLayout {
     private static final int MAX_VISIBLE_ROWS = 4;
     private static final int ROW_HEIGHT_DP = 48;
 
-    private final RecyclerListView listView;
+    /**
+     * A plain RecyclerView on purpose. RecyclerListView installs its own item-touch listener that
+     * runs ahead of everything added later, including the drag helper, and it also swallows the
+     * press state of a clickable child - which is what made a hold here behave differently
+     * depending on where in the row it started.
+     */
+    private final RecyclerView listView;
     private final DrawerAddCell addCell;
     private final AccountsAdapter adapter = new AccountsAdapter();
     private final ArrayList<Integer> accounts = new ArrayList<>();
+    private final ItemTouchHelper itemTouchHelper;
     private final int touchSlop;
 
     private Listener listener;
+    private boolean orderChanged;
+    private boolean dragging;
     private float downX;
     private float downY;
     private boolean parentInterceptDisallowed;
@@ -58,7 +71,7 @@ public class DrawerAccountsCell extends LinearLayout {
         background.setCornerRadius(AndroidUtilities.dp(14));
         setBackground(background);
 
-        listView = new RecyclerListView(context) {
+        listView = new RecyclerView(context) {
             @Override
             protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
                 int rows = Math.max(1, Math.min(MAX_VISIBLE_ROWS, accounts.size()));
@@ -82,12 +95,15 @@ public class DrawerAccountsCell extends LinearLayout {
             }
         });
         addView(addCell, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, ROW_HEIGHT_DP));
+
+        itemTouchHelper = new ItemTouchHelper(new ReorderCallback());
+        itemTouchHelper.attachToRecyclerView(listView);
     }
 
     public void setAccounts(ArrayList<Integer> value, Listener listener) {
         this.listener = listener;
         if (accounts.equals(value)) {
-            // Rebinding the drawer must not reset the scroll position.
+            // Rebinding the drawer must not restart an in-flight drag or reset the scroll position.
             return;
         }
         accounts.clear();
@@ -118,12 +134,12 @@ public class DrawerAccountsCell extends LinearLayout {
             case MotionEvent.ACTION_DOWN:
                 downX = event.getX();
                 downY = event.getY();
-                // Only when this card has more accounts than it can show: otherwise there is
-                // nothing to scroll here and the drawer should keep the gesture.
+                // Claimed only when there is something here to scroll; otherwise the drawer keeps
+                // the gesture and can still be scrolled or swiped shut from on top of this card.
                 setParentInterceptDisallowed(canScrollList());
                 break;
             case MotionEvent.ACTION_MOVE:
-                if (parentInterceptDisallowed) {
+                if (parentInterceptDisallowed && !dragging) {
                     float dx = Math.abs(event.getX() - downX);
                     float dy = Math.abs(event.getY() - downY);
                     if (dx > touchSlop && dx > dy * 1.5f) {
@@ -140,15 +156,90 @@ public class DrawerAccountsCell extends LinearLayout {
         return super.dispatchTouchEvent(event);
     }
 
-    private class AccountsAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
-        @NonNull
+    private class ReorderCallback extends ItemTouchHelper.Callback {
         @Override
-        public RecyclerView.ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-            return new RecyclerListView.Holder(new AccountRow(parent.getContext()));
+        public boolean isLongPressDragEnabled() {
+            // The drag is started by hand from a hold on the avatar. Letting the helper detect the
+            // long press as well would put two detectors on the same gesture, and the row's own
+            // long press - the one that peeks at an account - would race them both.
+            return false;
         }
 
         @Override
-        public void onBindViewHolder(@NonNull RecyclerView.ViewHolder holder, int position) {
+        public boolean isItemViewSwipeEnabled() {
+            return false;
+        }
+
+        @Override
+        public int getMovementFlags(@NonNull RecyclerView recyclerView, @NonNull RecyclerView.ViewHolder viewHolder) {
+            return makeMovementFlags(ItemTouchHelper.UP | ItemTouchHelper.DOWN, 0);
+        }
+
+        @Override
+        public boolean onMove(@NonNull RecyclerView recyclerView, @NonNull RecyclerView.ViewHolder from, @NonNull RecyclerView.ViewHolder to) {
+            int fromPosition = from.getAdapterPosition();
+            int toPosition = to.getAdapterPosition();
+            if (fromPosition < 0 || toPosition < 0
+                    || fromPosition >= accounts.size() || toPosition >= accounts.size()) {
+                return false;
+            }
+            accounts.add(toPosition, accounts.remove(fromPosition));
+            adapter.notifyItemMoved(fromPosition, toPosition);
+            orderChanged = true;
+            return true;
+        }
+
+        @Override
+        public void onSwiped(@NonNull RecyclerView.ViewHolder viewHolder, int direction) {
+        }
+
+        @Override
+        public void onSelectedChanged(RecyclerView.ViewHolder viewHolder, int actionState) {
+            super.onSelectedChanged(viewHolder, actionState);
+            if (actionState == ItemTouchHelper.ACTION_STATE_DRAG && viewHolder != null) {
+                dragging = true;
+                setParentInterceptDisallowed(true);
+                View view = viewHolder.itemView;
+                view.setTranslationZ(AndroidUtilities.dp(8));
+                // Deliberately no scaling: it made the row look a different size from the slot it
+                // occupies, so the neighbours appeared to jump around while it was being moved.
+                view.setBackground(new ColorDrawable(
+                        Theme.multAlpha(Theme.getColor(Theme.key_chats_menuItemText), 0.10f)));
+            }
+        }
+
+        @Override
+        public void clearView(@NonNull RecyclerView recyclerView, @NonNull RecyclerView.ViewHolder viewHolder) {
+            super.clearView(recyclerView, viewHolder);
+            dragging = false;
+            View view = viewHolder.itemView;
+            view.setTranslationZ(0);
+            view.setBackground(null);
+            if (orderChanged) {
+                orderChanged = false;
+                if (listener != null) {
+                    listener.onAccountsReordered(new ArrayList<>(accounts));
+                }
+            }
+        }
+    }
+
+    private class AccountsAdapter extends RecyclerView.Adapter<AccountsAdapter.Holder> {
+
+        class Holder extends RecyclerView.ViewHolder {
+            Holder(View itemView) {
+                super(itemView);
+            }
+        }
+
+        @NonNull
+        @Override
+        public Holder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+            return new Holder(new AccountRow(parent.getContext()));
+        }
+
+        @Override
+        public void onBindViewHolder(@NonNull Holder holder, int position) {
             AccountRow row = (AccountRow) holder.itemView;
             int account = accounts.get(position);
             row.userCell.setAccount(account);
@@ -164,7 +255,10 @@ public class DrawerAccountsCell extends LinearLayout {
     private class AccountRow extends LinearLayout {
         final DrawerUserCell userCell;
         private int boundAccount = -1;
+        private float pressX;
+        private float pressY;
 
+        @SuppressWarnings("ClickableViewAccessibility")
         AccountRow(Context context) {
             super(context);
             setOrientation(VERTICAL);
@@ -173,15 +267,39 @@ public class DrawerAccountsCell extends LinearLayout {
             // The highlight has to sit on the view that receives the touch, otherwise the press
             // state never reaches the row and the feedback looks smaller than the row really is.
             userCell.setBackground(Theme.createSelectorDrawable(Theme.getColor(Theme.key_listSelector), Theme.RIPPLE_MASK_ALL));
+            userCell.setOnTouchListener((v, event) -> {
+                if (event.getActionMasked() == MotionEvent.ACTION_DOWN) {
+                    pressX = event.getX();
+                    pressY = event.getY();
+                }
+                return false;
+            });
             userCell.setOnClickListener(v -> {
                 if (listener != null && boundAccount >= 0) {
                     listener.onAccountClick(boundAccount);
                 }
             });
             userCell.setOnLongClickListener(v -> {
-                if (listener == null || boundAccount < 0 || boundAccount == UserConfig.selectedAccount) {
+                if (listener == null || boundAccount < 0) {
                     return false;
                 }
+                if (userCell.isOnAvatar(pressX, pressY)) {
+                    // Hold the picture to move the account.
+                    RecyclerView.ViewHolder holder = listView.findContainingViewHolder(AccountRow.this);
+                    if (holder == null) {
+                        return false;
+                    }
+                    try {
+                        v.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
+                    } catch (Exception ignore) {
+                    }
+                    itemTouchHelper.startDrag(holder);
+                    return true;
+                }
+                if (boundAccount == UserConfig.selectedAccount) {
+                    return false;
+                }
+                // Hold anywhere else to peek at that account.
                 listener.onAccountPreview(boundAccount);
                 return true;
             });

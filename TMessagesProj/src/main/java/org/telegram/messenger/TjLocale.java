@@ -248,7 +248,14 @@ public class TjLocale {
         m.put("TjArchiveInsights", "ארכיון ומעקב");
         m.put("TjDeletedAppearance", "מראה הודעות שנמחקו");
         m.put("TjDeletedAppearanceInfo", "כאן אפשר לבחור כיצד יוצגו בצ׳אטים הודעות שנמחקו והיסטוריית עריכות שנשמרו.");
-        m.put("TjAdvancedSettings", "הגדרות תצוגה וצ׳אטים מתקדמות");
+        m.put("TjAdvancedSettings", "מתקדם");
+        m.put("TjGhostModeDesc", "לקרוא ולהקליד בלי שיראו");
+        m.put("TjGhostModeOnValue", "פעיל");
+        m.put("TjArchiveInsightsDesc", "שמירת הודעות שנמחקו ונערכו במכשיר");
+        m.put("TjMessageFiltersDesc", "הסתרת הודעות שמכילות מילים שתבחר");
+        m.put("TjCustomizationDesc", "סימונים, תוספות, תפריט צד וסנכרון");
+        m.put("TjAdvancedSettingsDesc", "צ׳אטים, תפריטים, רקע וצפייה ישירה");
+        m.put("TjSettingsFooter", "TjGram הוא לקוח לא רשמי של טלגרם. כל מה שנשמר נשאר במכשיר הזה.");
         m.put("TjProtectedForwardFailed", "לא ניתן היה להכין %1$d הודעות מוגנות. שאר ההודעות נשלחו.");
         m.put("TjReorderAccount", "גרירה לשינוי סדר החשבון");
         TRANSLATIONS.put("he", m);

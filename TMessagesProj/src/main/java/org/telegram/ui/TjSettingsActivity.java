@@ -3,6 +3,7 @@ package org.telegram.ui;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.view.View;
+import android.widget.TextView;
 import android.view.ViewGroup;
 import android.widget.FrameLayout;
 
@@ -27,11 +28,11 @@ import org.telegram.messenger.tj.TjGhostController;
 import org.telegram.ui.ActionBar.ActionBar;
 import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.ActionBar.Theme;
-import org.telegram.ui.Cells.HeaderCell;
 import org.telegram.ui.Cells.TextCheckCell;
 import org.telegram.ui.Cells.TextInfoPrivacyCell;
 import org.telegram.ui.Components.LayoutHelper;
 import org.telegram.ui.Components.RecyclerListView;
+import org.telegram.ui.Components.TjSettingsStyle;
 
 import java.util.ArrayList;
 
@@ -551,7 +552,7 @@ public class TjSettingsActivity extends BaseFragment {
         public RecyclerView.ViewHolder onCreateViewHolder(ViewGroup parent, int viewType) {
             View view;
             if (viewType == VIEW_TYPE_HEADER) {
-                view = new HeaderCell(parent.getContext());
+                view = TjSettingsStyle.header(parent.getContext());
             } else if (viewType == VIEW_TYPE_CHECK) {
                 view = new TextCheckCell(parent.getContext());
             } else if (viewType == VIEW_TYPE_SETTING) {
@@ -570,43 +571,35 @@ public class TjSettingsActivity extends BaseFragment {
             Item item = items.get(position);
             applyCardStyle(holder.itemView, position, item.viewType);
             if (item.viewType == VIEW_TYPE_HEADER) {
-                ((HeaderCell) holder.itemView).setText(item.text);
+                ((TextView) holder.itemView).setText(item.text);
             } else if (item.viewType == VIEW_TYPE_SHADOW) {
                 ((TextInfoPrivacyCell) holder.itemView).setText(item.text);
             } else if (item.viewType == VIEW_TYPE_SETTING) {
                 ((TextSettingsCell) holder.itemView).setTextAndValue(
-                        item.text, item.id == ID_FOLDER_TAB_STYLE ? folderTabStyleName() : null, false);
+                        item.text, item.id == ID_FOLDER_TAB_STYLE ? folderTabStyleName() : null,
+                        hasDividerAfter(position));
             } else {
-                boolean divider = position + 1 < items.size() && items.get(position + 1).viewType == VIEW_TYPE_CHECK;
-                ((TextCheckCell) holder.itemView).setTextAndCheck(item.text, isChecked(item.id), divider);
+                ((TextCheckCell) holder.itemView).setTextAndCheck(
+                        item.text, isChecked(item.id), hasDividerAfter(position));
             }
         }
 
+        private boolean hasDividerAfter(int position) {
+            return position + 1 < items.size() && isRow(items.get(position + 1).viewType);
+        }
+
+        private boolean isRow(int type) {
+            return type != VIEW_TYPE_HEADER && type != VIEW_TYPE_SHADOW;
+        }
+
         private void applyCardStyle(View view, int position, int type) {
-            ViewGroup.LayoutParams currentParams = view.getLayoutParams();
-            RecyclerView.LayoutParams params;
-            if (currentParams instanceof RecyclerView.LayoutParams) {
-                params = (RecyclerView.LayoutParams) currentParams;
-            } else {
-                int width = currentParams != null ? currentParams.width : ViewGroup.LayoutParams.MATCH_PARENT;
-                int height = currentParams != null ? currentParams.height : ViewGroup.LayoutParams.WRAP_CONTENT;
-                params = new RecyclerView.LayoutParams(width, height);
-                view.setLayoutParams(params);
-            }
-            if (type == VIEW_TYPE_HEADER || type == VIEW_TYPE_SHADOW) {
-                params.leftMargin = params.rightMargin = 0;
-                view.setBackgroundColor(android.graphics.Color.TRANSPARENT);
+            if (!isRow(type)) {
+                TjSettingsStyle.plain(view);
                 return;
             }
-            params.leftMargin = params.rightMargin = AndroidUtilities.dp(16);
-            boolean top = position == 0 || items.get(position - 1).viewType == VIEW_TYPE_HEADER
-                    || items.get(position - 1).viewType == VIEW_TYPE_SHADOW;
-            boolean bottom = position + 1 == items.size() || items.get(position + 1).viewType == VIEW_TYPE_HEADER
-                    || items.get(position + 1).viewType == VIEW_TYPE_SHADOW;
-            view.setBackground(Theme.createRoundRectDrawable(
-                    top ? AndroidUtilities.dp(14) : 0,
-                    bottom ? AndroidUtilities.dp(14) : 0,
-                    Theme.getColor(Theme.key_windowBackgroundWhite)));
+            boolean first = position == 0 || !isRow(items.get(position - 1).viewType);
+            boolean last = position + 1 == items.size() || !isRow(items.get(position + 1).viewType);
+            TjSettingsStyle.card(view, first, last);
         }
 
         @Override

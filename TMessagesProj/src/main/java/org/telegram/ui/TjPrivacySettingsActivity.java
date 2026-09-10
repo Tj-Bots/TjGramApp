@@ -7,6 +7,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.EditText;
 import android.widget.FrameLayout;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.recyclerview.widget.LinearLayoutManager;
@@ -27,12 +28,12 @@ import org.telegram.ui.ActionBar.ActionBar;
 import org.telegram.ui.ActionBar.AlertDialog;
 import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.ActionBar.Theme;
-import org.telegram.ui.Cells.HeaderCell;
 import org.telegram.ui.Cells.TextCheckCell;
 import org.telegram.ui.Cells.TextInfoPrivacyCell;
 import org.telegram.ui.Cells.TextSettingsCell;
 import org.telegram.ui.Components.LayoutHelper;
 import org.telegram.ui.Components.RecyclerListView;
+import org.telegram.ui.Components.TjSettingsStyle;
 
 import java.util.ArrayList;
 
@@ -617,7 +618,7 @@ public class TjPrivacySettingsActivity extends BaseFragment implements Notificat
         public RecyclerView.ViewHolder onCreateViewHolder(ViewGroup parent, int viewType) {
             View view;
             if (viewType == TYPE_HEADER) {
-                view = new HeaderCell(parent.getContext());
+                view = TjSettingsStyle.header(parent.getContext());
             } else if (viewType == TYPE_CHECK) {
                 view = new TextCheckCell(parent.getContext());
             } else if (viewType == TYPE_INFO) {
@@ -634,11 +635,11 @@ public class TjPrivacySettingsActivity extends BaseFragment implements Notificat
             Item item = items.get(position);
             applyCardStyle(holder.itemView, position, item.type);
             if (item.type == TYPE_HEADER) {
-                ((HeaderCell) holder.itemView).setText(text(item.text));
+                ((TextView) holder.itemView).setText(text(item.text));
             } else if (item.type == TYPE_INFO) {
                 ((TextInfoPrivacyCell) holder.itemView).setText(text(item.text));
             } else if (item.type == TYPE_CHECK) {
-                boolean divider = position + 1 < items.size() && items.get(position + 1).type == TYPE_CHECK;
+                boolean divider = hasDividerAfter(position);
                 String label = text(item.text);
                 if (item.id == GHOST) {
                     int enabled = 0;
@@ -653,35 +654,26 @@ public class TjPrivacySettingsActivity extends BaseFragment implements Notificat
                 ((TextCheckCell) holder.itemView).setTextAndCheck(label, isChecked(item.id), divider);
             } else {
                 ((TextSettingsCell) holder.itemView).setTextAndValue(
-                        text(item.text), item.type == TYPE_VALUE ? valueFor(item.id) : null, false);
+                        text(item.text), item.type == TYPE_VALUE ? valueFor(item.id) : null, hasDividerAfter(position));
             }
         }
 
+        private boolean hasDividerAfter(int position) {
+            return position + 1 < items.size() && isRow(items.get(position + 1).type);
+        }
+
+        private boolean isRow(int type) {
+            return type != TYPE_HEADER && type != TYPE_INFO;
+        }
+
         private void applyCardStyle(View view, int position, int type) {
-            ViewGroup.LayoutParams currentParams = view.getLayoutParams();
-            RecyclerView.LayoutParams params;
-            if (currentParams instanceof RecyclerView.LayoutParams) {
-                params = (RecyclerView.LayoutParams) currentParams;
-            } else {
-                int width = currentParams != null ? currentParams.width : ViewGroup.LayoutParams.MATCH_PARENT;
-                int height = currentParams != null ? currentParams.height : ViewGroup.LayoutParams.WRAP_CONTENT;
-                params = new RecyclerView.LayoutParams(width, height);
-                view.setLayoutParams(params);
-            }
-            if (type == TYPE_HEADER || type == TYPE_INFO) {
-                params.leftMargin = params.rightMargin = 0;
-                view.setBackgroundColor(android.graphics.Color.TRANSPARENT);
+            if (!isRow(type)) {
+                TjSettingsStyle.plain(view);
                 return;
             }
-            params.leftMargin = params.rightMargin = AndroidUtilities.dp(16);
-            boolean top = position == 0 || items.get(position - 1).type == TYPE_HEADER
-                    || items.get(position - 1).type == TYPE_INFO;
-            boolean bottom = position + 1 == items.size() || items.get(position + 1).type == TYPE_HEADER
-                    || items.get(position + 1).type == TYPE_INFO;
-            view.setBackground(Theme.createRoundRectDrawable(
-                    top ? AndroidUtilities.dp(14) : 0,
-                    bottom ? AndroidUtilities.dp(14) : 0,
-                    Theme.getColor(Theme.key_windowBackgroundWhite)));
+            boolean first = position == 0 || !isRow(items.get(position - 1).type);
+            boolean last = position + 1 == items.size() || !isRow(items.get(position + 1).type);
+            TjSettingsStyle.card(view, first, last);
         }
 
         @Override

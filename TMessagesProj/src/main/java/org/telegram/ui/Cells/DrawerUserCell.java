@@ -170,6 +170,17 @@ public class DrawerUserCell extends FrameLayout implements NotificationCenter.No
         checkBox.setVisibility(accountNumber == UserConfig.selectedAccount ? VISIBLE : INVISIBLE);
     }
 
+    /**
+     * True when a touch at these coordinates landed on the avatar. The drawer uses it to tell a
+     * hold meant to move the account apart from a hold meant to peek at it - the two gestures used
+     * to be the same one, and fought each other.
+     */
+    public boolean isOnAvatar(float x, float y) {
+        int slop = AndroidUtilities.dp(8);
+        return x >= imageView.getLeft() - slop && x <= imageView.getRight() + slop
+                && y >= imageView.getTop() - slop && y <= imageView.getBottom() + slop;
+    }
+
     public int getAccountNumber() {
         return accountNumber;
     }

@@ -218,7 +218,14 @@
     <string name="TjArchiveInsights">ארכיון ומעקב</string>
     <string name="TjDeletedAppearance">מראה הודעות שנמחקו</string>
     <string name="TjDeletedAppearanceInfo">כאן אפשר לבחור כיצד יוצגו בצ׳אטים הודעות שנמחקו והיסטוריית עריכות שנשמרו.</string>
-    <string name="TjAdvancedSettings">הגדרות תצוגה וצ׳אטים מתקדמות</string>
+    <string name="TjAdvancedSettings">מתקדם</string>
+    <string name="TjGhostModeDesc">לקרוא ולהקליד בלי שיראו</string>
+    <string name="TjGhostModeOnValue">פעיל</string>
+    <string name="TjArchiveInsightsDesc">שמירת הודעות שנמחקו ונערכו במכשיר</string>
+    <string name="TjMessageFiltersDesc">הסתרת הודעות שמכילות מילים שתבחר</string>
+    <string name="TjCustomizationDesc">סימונים, תוספות, תפריט צד וסנכרון</string>
+    <string name="TjAdvancedSettingsDesc">צ׳אטים, תפריטים, רקע וצפייה ישירה</string>
+    <string name="TjSettingsFooter">TjGram הוא לקוח לא רשמי של טלגרם. כל מה שנשמר נשאר במכשיר הזה.</string>
     <string name="TjProtectedForwardFailed">לא ניתן היה להכין %1$d הודעות מוגנות. שאר ההודעות נשלחו.</string>
     <string name="TjReorderAccount">גרירה לשינוי סדר החשבון</string>
 </resources>
