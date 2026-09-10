@@ -61,7 +61,7 @@ public class TjLocale {
         m.put("TjFolderTabStyle", "\u05dc\u05e9\u05d5\u05e0\u05d9\u05d5\u05ea \u05ea\u05d9\u05e7\u05d9\u05d5\u05ea");
         m.put("TjFolderTabStyleInfo", "\u05d1\u05d7\u05e8 \u05d0\u05dd \u05d4\u05dc\u05e9\u05d5\u05e0\u05d9\u05d5\u05ea \u05d9\u05e6\u05d9\u05d2\u05d5 \u05e1\u05de\u05dc, \u05e9\u05dd, \u05d0\u05d5 \u05d0\u05ea \u05e9\u05e0\u05d9\u05d4\u05dd.");
         m.put("TjFoldersCount", "\u05ea\u05d9\u05e7\u05d9\u05d5\u05ea");
-        m.put("TjForwardWithoutTag", "\u05d4\u05e2\u05d1\u05e8\u05d4 \u05d1\u05dc\u05d9 \u05ea\u05d2 \u05d4\u05d5\u05e2\u05d1\u05e8");
+        m.put("TjForwardWithoutTag", "העבר ללא קרדיט");
         m.put("TjGeneralHeader", "\u05db\u05dc\u05dc\u05d9");
         m.put("TjGhostDontWarnAgain", "\u05d0\u05dc \u05ea\u05e6\u05d9\u05d2 \u05d0\u05ea \u05d6\u05d4 \u05e9\u05d5\u05d1");
         m.put("TjGhostMode", "\u05de\u05e6\u05d1 \u05e8\u05e4\u05d0\u05d9\u05dd");
@@ -241,6 +241,10 @@ public class TjLocale {
         m.put("TjJoinChannelAction", "הצטרפות לערוץ");
         m.put("TjNotNow", "לא עכשיו");
         m.put("TjCategories", "קטגוריות");
+        m.put("TjMenuShortcuts", "שורת קיצורים");
+        m.put("TjMenuShortcutsChoose", "בחירת הקיצורים");
+        m.put("TjMenuShortcutsInfo", "הפעולות שתבחר יוצאות מהרשימה ויושבות כשורת סמלים בתחתית תפריט ההודעה, לפי הסדר שבחרת אותן.");
+        m.put("TjMenuShortcutsLimit", "עד %1$d קיצורים");
         m.put("TjLinks", "קישורים");
         m.put("TjCustomization", "התאמה אישית");
         m.put("TjChannel", "ערוץ");

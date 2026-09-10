@@ -4,7 +4,7 @@
     <string name="TjMyProfile">הפרופיל שלי</string>
     <string name="TjMessageInfo">פרטי הודעה</string>
     <string name="TjCopyMessageLink">העתק קישור להודעה</string>
-    <string name="TjForwardWithoutTag">העברה בלי תג הועבר</string>
+    <string name="TjForwardWithoutTag">העבר ללא קרדיט</string>
     <string name="TjCopyImage">העתק תמונה</string>
     <string name="TjCopyThumbnail">העתק תמונה ממוזערת</string>
     <string name="TjSaveToSaved">שמור בהודעות שמורות</string>
@@ -211,6 +211,10 @@
     <string name="TjJoinChannelAction">הצטרפות לערוץ</string>
     <string name="TjNotNow">לא עכשיו</string>
     <string name="TjCategories">קטגוריות</string>
+    <string name="TjMenuShortcuts">שורת קיצורים</string>
+    <string name="TjMenuShortcutsChoose">בחירת הקיצורים</string>
+    <string name="TjMenuShortcutsInfo">הפעולות שתבחר יוצאות מהרשימה ויושבות כשורת סמלים בתחתית תפריט ההודעה, לפי הסדר שבחרת אותן.</string>
+    <string name="TjMenuShortcutsLimit">עד %1$d קיצורים</string>
     <string name="TjLinks">קישורים</string>
     <string name="TjCustomization">התאמה אישית</string>
     <string name="TjChannel">ערוץ</string>

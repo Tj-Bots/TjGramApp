@@ -310,6 +310,8 @@ public class TjSettingsActivity extends BaseFragment {
     private static final int ID_BATTERY_OPTIMIZATION = 24;
     private static final int ID_ONLINE_INDICATOR = 25;
     private static final int ID_DIRECT_STREAMING = 26;
+    private static final int ID_MENU_SHORTCUTS = 27;
+    private static final int ID_MENU_SHORTCUT_ACTIONS = 28;
 
     private static class Item {
         final int viewType;
@@ -347,6 +349,7 @@ public class TjSettingsActivity extends BaseFragment {
             case ID_BACKGROUND_CONNECTION: return TjConfig.backgroundConnection();
             case ID_ONLINE_INDICATOR: return TjConfig.showOnlineIndicator();
             case ID_DIRECT_STREAMING: return TjConfig.directFileStreaming();
+            case ID_MENU_SHORTCUTS: return TjConfig.menuShortcuts();
         }
         return false;
     }
@@ -376,6 +379,7 @@ public class TjSettingsActivity extends BaseFragment {
             case ID_BACKGROUND_CONNECTION: key = "background_connection"; break;
             case ID_ONLINE_INDICATOR: key = "show_online_indicator"; break;
             case ID_DIRECT_STREAMING: key = "direct_file_streaming"; break;
+            case ID_MENU_SHORTCUTS: key = "menu_shortcuts"; break;
         }
         if (key != null) {
             getPrefs().edit().putBoolean(key, value).apply();
@@ -426,6 +430,10 @@ public class TjSettingsActivity extends BaseFragment {
                 presentFragment(new TjPrivacySettingsActivity(true));
                 return;
             }
+            if (item.id == ID_MENU_SHORTCUT_ACTIONS) {
+                presentFragment(new TjMenuShortcutsActivity());
+                return;
+            }
             if (item.id == ID_BATTERY_OPTIMIZATION) {
                 TjBackgroundConnection.requestIgnoreBatteryOptimizations(getParentActivity());
                 return;
@@ -453,6 +461,10 @@ public class TjSettingsActivity extends BaseFragment {
             }
             if (item.id == ID_DIRECT_STREAMING) {
                 SharedConfig.setDirectFileStreaming(value);
+            }
+            if (item.id == ID_MENU_SHORTCUTS) {
+                updateItems();
+                adapter.notifyDataSetChanged();
             }
             if (item.id == ID_GHOST_READ) {
                 TjGhostController.clearReadExceptions();
@@ -509,6 +521,12 @@ public class TjSettingsActivity extends BaseFragment {
         items.add(new Item(VIEW_TYPE_CHECK, ID_MENU_REPLY_PRIVATELY, TjLocale.getString(R.string.TjReplyPrivately)));
         items.add(new Item(VIEW_TYPE_CHECK, ID_DELETE_FOR_BOTH, TjLocale.getString(R.string.TjDeleteForBoth)));
         items.add(new Item(VIEW_TYPE_SHADOW, 0, TjLocale.getString(R.string.TjMessageMenuInfo)));
+        items.add(new Item(VIEW_TYPE_HEADER, 0, TjLocale.getString(R.string.TjMenuShortcuts)));
+        items.add(new Item(VIEW_TYPE_CHECK, ID_MENU_SHORTCUTS, TjLocale.getString(R.string.TjMenuShortcuts)));
+        if (TjConfig.menuShortcuts()) {
+            items.add(new Item(VIEW_TYPE_SETTING, ID_MENU_SHORTCUT_ACTIONS, TjLocale.getString(R.string.TjMenuShortcutsChoose)));
+        }
+        items.add(new Item(VIEW_TYPE_SHADOW, 0, TjLocale.getString(R.string.TjMenuShortcutsInfo)));
     }
 
     private static String folderTabStyleName() {

@@ -10432,8 +10432,8 @@ public class ChatActivity extends BaseFragment implements
             actionModeViews.add(actionMode.addItemWithWidth(copy, R.drawable.msg_copy, dp(48), LocaleController.getString(R.string.Copy)));
             actionModeViews.add(actionMode.addItemWithWidth(select_range, R.drawable.msg_select, dp(48), "Select range"));
             if (!isSavedMessages && getDialogId() != UserObject.VERIFY) {
-                actionModeViews.add(actionMode.addItemWithWidth(forward, R.drawable.msg_forward, dp(48), LocaleController.getString(R.string.Forward)));
-                actionModeViews.add(actionMode.addItemWithWidth(forward_no_tag, R.drawable.msg_forward, dp(48), TjLocale.getString(R.string.TjForwardWithoutTag)));
+                actionModeViews.add(actionMode.addItemWithWidth(forward, R.drawable.tj_forward_quoted, dp(48), LocaleController.getString(R.string.Forward)));
+                actionModeViews.add(actionMode.addItemWithWidth(forward_no_tag, R.drawable.tj_forward, dp(48), TjLocale.getString(R.string.TjForwardWithoutTag)));
             }
             actionModeViews.add(actionMode.addItemWithWidth(share, R.drawable.msg_shareout, dp(48), LocaleController.getString(R.string.ShareFile)));
             actionModeViews.add(actionMode.addItemWithWidth(delete, R.drawable.msg_delete, dp(48), LocaleController.getString(R.string.Delete)));
@@ -32037,10 +32037,15 @@ public class ChatActivity extends BaseFragment implements
                         popupLayout.addView(new ActionBarPopupWindow.GapView(contentView.getContext(), themeDelegate), LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 8));
                     }
                 }
+                final ArrayList<Integer> tjShortcutIndexes = TjMessageMenu.shortcutIndexes(options);
                 scrimPopupWindowItems = new ActionBarMenuSubItem[items.size()];
                 for (int a = 0, N = items.size(); a < N; a++) {
                     final Integer option = options.get(a);
                     if (option == OPTION_DELETE && showWelcomeMessageRevertOption(selectedObject)) {
+                        continue;
+                    }
+                    if (tjShortcutIndexes.contains(a)) {
+                        // Lifted into the row at the bottom of the menu.
                         continue;
                     }
 
@@ -32251,6 +32256,12 @@ public class ChatActivity extends BaseFragment implements
                             cell.setVisibility(View.GONE);
                         }
                     }
+                }
+                if (!tjShortcutIndexes.isEmpty()) {
+                    popupLayout.addView(new ActionBarPopupWindow.GapView(contentView.getContext(), themeDelegate),
+                            LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 8));
+                    popupLayout.addView(createTjShortcutRow(tjShortcutIndexes, items, options, icons),
+                            LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 46));
                 }
                 if (selectedObject != null && selectedObject.messageOwner != null && selectedObject.messageOwner.video_processing_pending) {
                     popupLayout.addView(new ActionBarPopupWindow.GapView(contentView.getContext(), themeDelegate), LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 8));
@@ -43100,6 +43111,10 @@ public class ChatActivity extends BaseFragment implements
             }
             if (scrimPopupWindowItems != null) {
                 for (int a = 0; a < scrimPopupWindowItems.length; a++) {
+                    if (scrimPopupWindowItems[a] == null) {
+                        // An option that was left out of the list - it is in the shortcut row.
+                        continue;
+                    }
                     scrimPopupWindowItems[a].setColors(getThemedColor(Theme.key_actionBarDefaultSubmenuItem), getThemedColor(Theme.key_actionBarDefaultSubmenuItemIcon));
                     scrimPopupWindowItems[a].setSelectorColor(getThemedColor(Theme.key_dialogButtonSelector));
                 }
@@ -46747,11 +46762,14 @@ public class ChatActivity extends BaseFragment implements
                 if (canForward) {
                     items.add(LocaleController.getString(R.string.Forward));
                     options.add(OPTION_FORWARD);
-                    icons.add(R.drawable.msg_forward);
+                    // The two forwards used to share one arrow, so nothing on screen said which
+                    // of them kept the "forwarded from" credit. The quoted arrow is the one that
+                    // does; the bare arrow is the one that does not.
+                    icons.add(R.drawable.tj_forward_quoted);
                     if (TjSettingsActivity.isForwardWithoutTagEnabled()) {
                         items.add(TjLocale.getString(R.string.TjForwardWithoutTag));
                         options.add(OPTION_FORWARD_NO_TAG);
-                        icons.add(R.drawable.msg_forward);
+                        icons.add(R.drawable.tj_forward);
                     }
                 }
                 if (allowUnpin) {
@@ -47624,6 +47642,41 @@ public class ChatActivity extends BaseFragment implements
             view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS, HapticFeedbackConstants.FLAG_IGNORE_GLOBAL_SETTING);
         } catch (Exception ignored) {}
         return true;
+    }
+
+    /**
+     * The row of icons at the foot of a message's menu. The actions in it were taken out of the
+     * list above, so every one of them is offered exactly once.
+     */
+    private View createTjShortcutRow(ArrayList<Integer> indexes, ArrayList<CharSequence> items,
+                                     ArrayList<Integer> options, ArrayList<Integer> icons) {
+        LinearLayout row = new LinearLayout(getParentActivity());
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        if (LocaleController.isRTL) {
+            // The first shortcut is the one nearest the reader, which is the right-hand end here.
+            row.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+        }
+        for (int i = 0; i < indexes.size(); i++) {
+            final int index = indexes.get(i);
+            final int option = options.get(index);
+            ImageView button = new ImageView(getParentActivity());
+            button.setScaleType(ImageView.ScaleType.CENTER);
+            button.setImageResource(icons.get(index));
+            button.setColorFilter(new PorterDuffColorFilter(
+                    getThemedColor(option == OPTION_DELETE
+                            ? Theme.key_text_RedRegular
+                            : Theme.key_actionBarDefaultSubmenuItemIcon), PorterDuff.Mode.SRC_IN));
+            button.setBackground(Theme.createSelectorDrawable(
+                    getThemedColor(Theme.key_dialogButtonSelector), Theme.RIPPLE_MASK_CIRCLE_20DP));
+            button.setContentDescription(items.get(index));
+            button.setOnClickListener(v -> {
+                if (selectedObject != null) {
+                    processSelectedOption(option);
+                }
+            });
+            row.addView(button, LayoutHelper.createLinear(0, LayoutHelper.MATCH_PARENT, 1f));
+        }
+        return row;
     }
 
     private static View createMenuTextOption(Context context, Theme.ResourcesProvider resourcesProvider, CharSequence text) {

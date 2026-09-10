@@ -11228,7 +11228,7 @@
     <string name="TjMyProfile">My Profile</string>
     <string name="TjMessageInfo">Message Info</string>
     <string name="TjCopyMessageLink">Copy Message Link</string>
-    <string name="TjForwardWithoutTag">Forward without tag</string>
+    <string name="TjForwardWithoutTag">Forward without credit</string>
     <string name="TjCopyImage">Copy Image</string>
     <string name="TjCopyThumbnail">Copy Thumbnail</string>
     <string name="TjSaveToSaved">Save to Saved Messages</string>
@@ -11435,6 +11435,10 @@
     <string name="TjJoinChannelAction">Join channel</string>
     <string name="TjNotNow">Not now</string>
     <string name="TjCategories">Categories</string>
+    <string name="TjMenuShortcuts">Shortcut row</string>
+    <string name="TjMenuShortcutsChoose">Choose shortcuts</string>
+    <string name="TjMenuShortcutsInfo">The actions you pick leave the list and sit as a row of icons at the foot of a message\'s menu, in the order you picked them.</string>
+    <string name="TjMenuShortcutsLimit">Up to %1$d shortcuts</string>
     <string name="TjGhostModeDesc">Read and type without being seen</string>
     <string name="TjGhostModeOnValue">On</string>
     <string name="TjArchiveInsightsDesc">Keep deleted and edited messages on this device</string>

@@ -133,6 +133,13 @@ public final class TjConfig {
     public static boolean showOnlineIndicator() { return get("show_online_indicator", true); }
     /** Keeps the app connected while it is off screen instead of relying on push alone. */
     public static boolean backgroundConnection() { return get("background_connection", true); }
+    /** Whether the message menu ends in a row of shortcut icons. */
+    public static boolean menuShortcuts() { return get("menu_shortcuts", true); }
+    /** The chosen shortcut actions, stored as the option numbers in the order they appear. */
+    public static String menuShortcutActions(String defaultValue) {
+        return prefs().getString("menu_shortcut_actions", defaultValue);
+    }
+
     public static boolean showGhostInDrawer() { return get("show_ghost_in_drawer", true); }
     public static boolean showKillInDrawer() { return get("show_kill_in_drawer", false); }
 
