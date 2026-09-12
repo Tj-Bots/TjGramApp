@@ -904,12 +904,12 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
     private ActionBarMenuSlider.SpeedSlider speedItem;
     private TjPlayerSubmenu audioTrackSubmenu;
     private ActionBarMenuSubItem audioTrackItem;
-    private int selectedAudioTrack = -1;
     private TjPlayerSubmenu subtitleSubmenu;
     private ActionBarMenuSubItem subtitleItem;
     private TjPlayerSubmenu subtitlePositionSubmenu;
     private int subtitlePositionPageIndex = -1;
-    private int selectedSubtitleTrack = -1;
+    private boolean subtitlesEnabled;
+    private boolean subtitleSelectionExplicit;
     private boolean autoSubtitlesApplied;
     private TjSubtitleView subtitleView;
     private ActionBarMenuSubItem loopItem;
@@ -10537,12 +10537,13 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
             // A fresh file starts with nothing chosen and both pages empty, so a video never shows
             // the previous one's tracks while it is still loading.
             clearTrackSubmenus();
+            videoPlayer.selectSubtitleTrack(null);
             if (subtitleView != null) {
                 subtitleView.clear();
             }
             videoPlayer.setSubtitleListener(cues -> {
                 if (subtitleView != null) {
-                    subtitleView.setCues(selectedSubtitleTrack < 0 ? null : cues);
+                    subtitleView.setCues(subtitlesEnabled ? cues : null);
                 }
             });
             // onTracksChanged, not STATE_READY, is when the player actually knows what the file
@@ -23269,7 +23270,7 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
      * touches a track already chosen, so picking one by hand or choosing Off both stand.
      */
     private void autoEnableSubtitles() {
-        if (autoSubtitlesApplied || selectedSubtitleTrack >= 0 || videoPlayer == null) {
+        if (autoSubtitlesApplied || subtitleSelectionExplicit || videoPlayer == null || CastSync.isActive()) {
             return;
         }
         if (!TjSettingsActivity.isSubtitleAutoEnabled()) {
@@ -23288,7 +23289,7 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
         if (chosen < 0) {
             chosen = 0;
         }
-        selectedSubtitleTrack = chosen;
+        subtitlesEnabled = true;
         videoPlayer.selectSubtitleTrack(tracks.get(chosen));
     }
 
@@ -23334,7 +23335,7 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
             final String normalised = trackLanguage.toLowerCase();
             if (normalised.equals(language) || normalised.startsWith(language + "-")
                     || normalised.startsWith(language + "_")
-                    || new java.util.Locale(normalised).getLanguage().equals(new java.util.Locale(language).getLanguage())) {
+                    || sameTrackLanguage(normalised, language)) {
                 return a;
             }
         }
@@ -23343,8 +23344,8 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
 
     /** Empties both pages and hides their rows - what a new file starts from. */
     private void clearTrackSubmenus() {
-        selectedAudioTrack = -1;
-        selectedSubtitleTrack = -1;
+        subtitlesEnabled = false;
+        subtitleSelectionExplicit = false;
         autoSubtitlesApplied = false;
         if (audioTrackSubmenu != null) {
             audioTrackSubmenu.clear();
@@ -23376,20 +23377,18 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
         if (audioTrackSubmenu == null || audioTrackItem == null) {
             return;
         }
-        final ArrayList<VideoPlayer.TjTrack> tracks = tracksOrNull(false);
+        final VideoPlayer sourcePlayer = videoPlayer;
+        final ArrayList<VideoPlayer.TjTrack> tracks = CastSync.isActive() ? null : tracksOrNull(false);
         audioTrackSubmenu.clear();
         if (tracks == null || tracks.size() < 2) {
             audioTrackItem.setVisibility(View.GONE);
-            selectedAudioTrack = -1;
             return;
         }
         audioTrackItem.setVisibility(View.VISIBLE);
         for (int a = 0; a < tracks.size(); a++) {
             final VideoPlayer.TjTrack track = tracks.get(a);
-            final int index = a;
-            audioTrackSubmenu.addRow(track.label, index == (selectedAudioTrack < 0 ? 0 : selectedAudioTrack), () -> {
-                if (videoPlayer != null) {
-                    selectedAudioTrack = index;
+            audioTrackSubmenu.addRow(trackMenuLabel(tracks, a), track.selected, () -> {
+                if (videoPlayer != null && videoPlayer == sourcePlayer && !CastSync.isActive()) {
                     videoPlayer.selectAudioTrack(track);
                     updateAudioTrackSubmenu();
                 }
@@ -23405,18 +23404,26 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
         if (subtitleSubmenu == null || subtitleItem == null) {
             return;
         }
-        final ArrayList<VideoPlayer.TjTrack> tracks = tracksOrNull(true);
+        final VideoPlayer sourcePlayer = videoPlayer;
+        final ArrayList<VideoPlayer.TjTrack> tracks = CastSync.isActive() ? null : tracksOrNull(true);
         subtitleSubmenu.clear();
         if (tracks == null || tracks.isEmpty()) {
             subtitleItem.setVisibility(View.GONE);
-            selectedSubtitleTrack = -1;
+            if (subtitleView != null) {
+                subtitleView.clear();
+            }
             return;
         }
         subtitleItem.setVisibility(View.VISIBLE);
 
-        subtitleSubmenu.addRow(TjLocale.getString(R.string.TjSubtitlesOff), selectedSubtitleTrack < 0, () -> {
-            if (videoPlayer != null) {
-                selectedSubtitleTrack = -1;
+        boolean selected = false;
+        for (VideoPlayer.TjTrack track : tracks) {
+            selected |= track.selected;
+        }
+        subtitleSubmenu.addRow(TjLocale.getString(R.string.TjSubtitlesOff), !subtitlesEnabled || !selected, () -> {
+            if (videoPlayer != null && videoPlayer == sourcePlayer && !CastSync.isActive()) {
+                subtitleSelectionExplicit = true;
+                subtitlesEnabled = false;
                 videoPlayer.selectSubtitleTrack(null);
                 if (subtitleView != null) {
                     subtitleView.clear();
@@ -23426,10 +23433,10 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
         });
         for (int a = 0; a < tracks.size(); a++) {
             final VideoPlayer.TjTrack track = tracks.get(a);
-            final int index = a;
-            subtitleSubmenu.addRow(track.label, index == selectedSubtitleTrack, () -> {
-                if (videoPlayer != null) {
-                    selectedSubtitleTrack = index;
+            subtitleSubmenu.addRow(trackMenuLabel(tracks, a), subtitlesEnabled && track.selected, () -> {
+                if (videoPlayer != null && videoPlayer == sourcePlayer && !CastSync.isActive()) {
+                    subtitleSelectionExplicit = true;
+                    subtitlesEnabled = true;
                     videoPlayer.selectSubtitleTrack(track);
                     updateSubtitleSubmenu();
                 }
@@ -23437,6 +23444,26 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
         }
 
         addSubtitleAppearanceRows();
+    }
+
+    private static boolean sameTrackLanguage(String first, String second) {
+        try {
+            String firstCode = java.util.Locale.forLanguageTag(first.replace('_', '-')).getISO3Language();
+            String secondCode = java.util.Locale.forLanguageTag(second.replace('_', '-')).getISO3Language();
+            return !firstCode.isEmpty() && firstCode.equals(secondCode);
+        } catch (java.util.MissingResourceException e) {
+            return false;
+        }
+    }
+
+    private static String trackMenuLabel(ArrayList<VideoPlayer.TjTrack> tracks, int index) {
+        String label = tracks.get(index).label;
+        for (int i = 0; i < tracks.size(); i++) {
+            if (i != index && label.equals(tracks.get(i).label)) {
+                return label + " · " + (index + 1);
+            }
+        }
+        return label;
     }
 
     private void addSubtitleGap(LinearLayout page) {

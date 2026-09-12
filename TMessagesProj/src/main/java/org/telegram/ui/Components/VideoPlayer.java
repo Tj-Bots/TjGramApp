@@ -308,6 +308,7 @@ public class VideoPlayer implements Player.Listener, VideoListener, AnalyticsLis
     }
 
     public void preparePlayerLoop(Uri videoUri, String videoType, Uri audioUri, String audioType) {
+        clearAudioTrackSelection();
         this.videoQualities = null;
         this.videoQualityToSelect = null;
         this.videoUri = videoUri;
@@ -388,6 +389,7 @@ public class VideoPlayer implements Player.Listener, VideoListener, AnalyticsLis
     }
 
     public void preparePlayer(Uri uri, String type, int priority, long videoByteOffset) {
+        clearAudioTrackSelection();
         this.videoQualities = null;
         this.videoQualityToSelect = null;
         this.videoUri = uri;
@@ -410,6 +412,7 @@ public class VideoPlayer implements Player.Listener, VideoListener, AnalyticsLis
     }
 
     public void preparePlayer(ArrayList<Quality> qualities, Quality select) {
+        clearAudioTrackSelection();
         this.videoQualities = qualities;
         this.videoQualityToSelect = select;
         this.videoUri = null;
@@ -663,71 +666,56 @@ public class VideoPlayer implements Player.Listener, VideoListener, AnalyticsLis
         return selectedQualityIndex;
     }
 
-    /**
-     * Audio and subtitle tracks, for videos that carry more than one. Follows the same
-     * MappedTrackInfo walk that getQualityTrackSelection uses.
-     */
-    public static class TjTrack {
-        public final int rendererIndex;
-        public final int groupIndex;
-        public final int trackIndex;
+    /** A supported media track group, retaining adaptive variants and the player's selection. */
+    public static final class TjTrack {
         public final String label;
         public final String language;
+        public final boolean selected;
+        private final TrackGroup group;
+        private final List<Integer> indices;
 
-        TjTrack(int rendererIndex, int groupIndex, int trackIndex, String label, String language) {
-            this.rendererIndex = rendererIndex;
-            this.groupIndex = groupIndex;
-            this.trackIndex = trackIndex;
-            this.label = label;
-            this.language = language;
+        private TjTrack(Tracks.Group group, List<Integer> indices, int number) {
+            this.group = group.getMediaTrackGroup();
+            this.indices = indices;
+            Format format = group.getTrackFormat(indices.get(0));
+            language = format.language;
+            label = describeTrack(format, number);
+            selected = group.isSelected();
         }
     }
 
-    /** Tracks are named by language where the file gives one; the label is only a fallback. */
-    private static String describeTrack(Format format, int fallbackNumber) {
-        String lang = format.language;
-        if (lang != null && !lang.isEmpty() && !"und".equals(lang)) {
-            try {
-                String display = new java.util.Locale(lang).getDisplayLanguage(LocaleController.getInstance().getCurrentLocale());
-                if (display != null && !display.isEmpty()) {
-                    return display.substring(0, 1).toUpperCase() + display.substring(1);
-                }
-            } catch (Exception ignore) {
-            }
-            return lang;
+    private static String describeTrack(Format format, int number) {
+        String name = "";
+        if (!TextUtils.isEmpty(format.language) && !"und".equals(format.language)) {
+            name = java.util.Locale.forLanguageTag(format.language.replace('_', '-'))
+                    .getDisplayName(LocaleController.getInstance().getCurrentLocale());
         }
-        String label = format.label;
-        if (label != null && !label.isEmpty()) {
-            return label;
+        if (!TextUtils.isEmpty(format.label) && !format.label.equalsIgnoreCase(name)) {
+            name = TextUtils.isEmpty(name) ? format.label : name + " · " + format.label;
         }
-        return "#" + fallbackNumber;
+        return TextUtils.isEmpty(name) ? "#" + number : name;
     }
 
     private ArrayList<TjTrack> getTracksOfType(int trackType) {
-        ArrayList<TjTrack> tracks = new ArrayList<>();
-        try {
-            final MappingTrackSelector.MappedTrackInfo info = trackSelector.getCurrentMappedTrackInfo();
-            if (info == null) {
-                return tracks;
-            }
-            for (int renderIndex = 0; renderIndex < info.getRendererCount(); ++renderIndex) {
-                if (info.getRendererType(renderIndex) != trackType) {
-                    continue;
-                }
-                final TrackGroupArray groups = info.getTrackGroups(renderIndex);
-                for (int groupIndex = 0; groupIndex < groups.length; ++groupIndex) {
-                    final TrackGroup group = groups.get(groupIndex);
-                    for (int trackIndex = 0; trackIndex < group.length; ++trackIndex) {
-                        final Format format = group.getFormat(trackIndex);
-                        tracks.add(new TjTrack(renderIndex, groupIndex, trackIndex,
-                                describeTrack(format, tracks.size() + 1), format.language));
-                    }
-                }
-            }
-        } catch (Exception e) {
-            FileLog.e(e);
+        ArrayList<TjTrack> result = new ArrayList<>();
+        if (player == null || mixedAudio || (trackType == C.TRACK_TYPE_AUDIO && audioDisabled)) {
+            return result;
         }
-        return tracks;
+        for (Tracks.Group group : player.getCurrentTracks().getGroups()) {
+            if (group.getType() != trackType) {
+                continue;
+            }
+            ArrayList<Integer> indices = new ArrayList<>();
+            for (int i = 0; i < group.length; i++) {
+                if (group.isTrackSupported(i)) {
+                    indices.add(i);
+                }
+            }
+            if (!indices.isEmpty()) {
+                result.add(new TjTrack(group, indices, result.size() + 1));
+            }
+        }
+        return result;
     }
 
     public ArrayList<TjTrack> getAudioTracks() {
@@ -739,23 +727,21 @@ public class VideoPlayer implements Player.Listener, VideoListener, AnalyticsLis
     }
 
     private void selectTrack(int trackType, TjTrack track) {
-        try {
-            final MappingTrackSelector.MappedTrackInfo info = trackSelector.getCurrentMappedTrackInfo();
-            TrackSelectionParameters.Builder builder = trackSelector.getParameters().buildUpon();
-            builder.setTrackTypeDisabled(trackType, track == null);
-            if (track != null && info != null) {
-                final TrackGroup group = info.getTrackGroups(track.rendererIndex).get(track.groupIndex);
-                // setOverrideForType, not addOverride: addOverride only replaces the override for
-                // the *same* TrackGroup, and each audio or subtitle track is normally its own
-                // group - so the second pick left the first override in place and the selector
-                // kept honouring it. That is why choosing a language worked exactly once.
-                builder.setOverrideForType(new TrackSelectionOverride(group, track.trackIndex));
-            } else {
-                builder.clearOverridesOfType(trackType);
+        if (track == null) {
+            trackSelector.setParameters(trackSelector.getParameters().buildUpon()
+                    .setTrackTypeDisabled(trackType, true)
+                    .clearOverridesOfType(trackType)
+                    .build());
+            return;
+        }
+        for (TjTrack current : getTracksOfType(trackType)) {
+            if (current.group == track.group) {
+                trackSelector.setParameters(trackSelector.getParameters().buildUpon()
+                        .setTrackTypeDisabled(trackType, false)
+                        .setOverrideForType(new TrackSelectionOverride(current.group, current.indices))
+                        .build());
+                return;
             }
-            trackSelector.setParameters(builder.build());
-        } catch (Exception e) {
-            FileLog.e(e);
         }
     }
 
@@ -763,9 +749,14 @@ public class VideoPlayer implements Player.Listener, VideoListener, AnalyticsLis
         selectTrack(C.TRACK_TYPE_AUDIO, track);
     }
 
-    /** Passing null turns subtitles off. */
+    /** Passing null turns subtitles off, including forced/default tracks. */
     public void selectSubtitleTrack(TjTrack track) {
         selectTrack(C.TRACK_TYPE_TEXT, track);
+    }
+
+    private void clearAudioTrackSelection() {
+        trackSelector.setParameters(trackSelector.getParameters().buildUpon()
+                .clearOverridesOfType(C.TRACK_TYPE_AUDIO).build());
     }
 
     /** Receives the cues the text renderer decodes, so a view can draw them. */
@@ -873,7 +864,7 @@ public class VideoPlayer implements Player.Listener, VideoListener, AnalyticsLis
                 reset = true;
             } else if (hlsManifest != null) {
                 autoIsOriginal = false;
-                trackSelector.setParameters(trackSelector.getParameters().buildUpon().clearOverrides().build());
+                trackSelector.setParameters(trackSelector.getParameters().buildUpon().clearOverridesOfType(C.TRACK_TYPE_VIDEO).build());
                 if (!currentStreamIsHls) {
                     currentStreamIsHls = true;
                     player.setMediaSource(mediaSourceFromUri(hlsManifest, 0, "hls"), false);
@@ -906,7 +897,7 @@ public class VideoPlayer implements Player.Listener, VideoListener, AnalyticsLis
                     player.setMediaSource(mediaSourceFromUri(hlsManifest, 0, "hls"), false);
                     reset = true;
                 }
-                TrackSelectionParameters.Builder selector = trackSelector.getParameters().buildUpon().clearOverrides();
+                TrackSelectionParameters.Builder selector = trackSelector.getParameters().buildUpon().clearOverridesOfType(C.TRACK_TYPE_VIDEO);
                 for (VideoUri uri : quality.uris) {
                     TrackSelectionOverride override = getQualityTrackSelection(uri);
                     if (override == null) continue;
