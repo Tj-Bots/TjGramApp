@@ -11,6 +11,8 @@ public final class ConnectionsManager {
     private final int account;
     private ConnectionsManager(int account) { this.account = account; }
     public static ConnectionsManager getInstance(int account) { return new ConnectionsManager(account); }
+    public static int now = 1000;
+    public int getCurrentTime() { return now; }
     public static final ArrayList<Pending> requests = new ArrayList<>();
     public int sendRequest(TLObject request, Callback callback) {
         Pending pending = new Pending();

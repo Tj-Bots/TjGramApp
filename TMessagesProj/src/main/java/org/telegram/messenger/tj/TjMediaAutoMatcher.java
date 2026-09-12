@@ -24,7 +24,8 @@ public final class TjMediaAutoMatcher {
     private final ArrayList<TjMediaStore.Record> page = new ArrayList<>();
     private final Runnable next = this::step;
     private String language;
-    private int sourceType, accountIndex, position, nextOffset;
+    private int sourceType, accountIndex, position;
+    private TjMediaPageKey nextKey;
     private boolean hasMore, closed;
     private long checked, matched;
 
@@ -42,7 +43,7 @@ public final class TjMediaAutoMatcher {
         }
         for (Map.Entry<Long, Set<Long>> entry : sourceSelection.entrySet()) sources.put(entry.getKey(), new HashSet<>(entry.getValue()));
         if (accounts.isEmpty()) finish(TjMediaMetadata.CREDENTIAL);
-        else loadPage(0);
+        else loadPage(null);
     }
 
     private boolean available(int account) {
@@ -50,20 +51,20 @@ public final class TjMediaAutoMatcher {
                 && owners.get(account) == UserConfig.getInstance(account).getClientUserId();
     }
 
-    private void loadPage(int offset) {
+    private void loadPage(TjMediaPageKey after) {
         if (closed) return;
         if (accountIndex >= accounts.size()) { finish(TjMediaMetadata.OK); return; }
         int account = accounts.get(accountIndex);
-        if (!available(account)) { accountIndex++; loadPage(0); return; }
+        if (!available(account)) { accountIndex++; loadPage(null); return; }
         // Page over all rows: adding metadata must not shift the pagination predicate.
-        TjMediaStore.getInstance().load(account, 0, "", "", offset, sources.get(owners.get(account)), sourceType, 0, records -> {
+        TjMediaStore.getInstance().load(account, 0, "", "", after, sources.get(owners.get(account)), sourceType, 0, records -> {
             if (closed) return;
-            if (!available(account)) { accountIndex++; loadPage(0); return; }
+            if (!available(account)) { accountIndex++; loadPage(null); return; }
             if (records == null) { finish(STORAGE); return; }
             page.clear();
             page.addAll(records);
             position = 0;
-            nextOffset = records.nextOffset;
+            nextKey = records.nextKey;
             hasMore = records.hasMore;
             listener.changed();
             step();
@@ -73,11 +74,11 @@ public final class TjMediaAutoMatcher {
     private void step() {
         if (closed) return;
         int account = accounts.get(accountIndex);
-        if (!available(account)) { accountIndex++; loadPage(0); return; }
+        if (!available(account)) { accountIndex++; loadPage(null); return; }
         while (position < page.size()) {
             TjMediaStore.Record record = page.get(position++);
             checked++;
-            if (record.metadata != null || !video(record.message)) continue;
+            if (record.metadata != null || record.localManual || !video(record.message)) continue;
             TjMediaTitle hint = TjMediaTitle.parse(record.message.getDocumentName(), record.message.messageOwner.message);
             if (hint.title.length() < 2 || hint.title.length() > 250) continue;
             String key = owners.get(account) + "|" + TjMediaTitle.normalizeSearch(hint.title) + "|" + hint.year + "|" + (hint.season >= 0);
@@ -91,8 +92,8 @@ public final class TjMediaAutoMatcher {
             else search(record, hint, key, false, results);
             return;
         }
-        if (hasMore) loadPage(nextOffset);
-        else { accountIndex++; loadPage(0); }
+        if (hasMore) loadPage(nextKey);
+        else { accountIndex++; loadPage(null); }
     }
 
     private void search(TjMediaStore.Record record, TjMediaTitle hint, String key,

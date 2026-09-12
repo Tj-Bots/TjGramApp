@@ -19,6 +19,7 @@ public final class TjMediaMatch {
     }
 
     public static int unique(TjMediaTitle hint, List<Candidate> candidates) {
+        if (hint.episodeConflict) return -1;
         String name = TjMediaTitle.normalizeSearch(hint.title);
         if (name.length() < 2) return -1;
         int match = -1;

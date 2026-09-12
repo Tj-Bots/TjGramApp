@@ -63,8 +63,12 @@ public final class TjMediaCatalog<T> {
     private final java.util.HashSet<String> identities = new java.util.HashSet<>();
 
     public void add(long metadataId, boolean series, Source<T> source) {
-        if (metadataId <= 0 || source == null || !identities.add(source.identity)) return;
-        String key = key(metadataId, series);
+        if (metadataId <= 0) return;
+        add(key(metadataId, series), series, source);
+    }
+
+    public void add(String key, boolean series, Source<T> source) {
+        if (key == null || key.isEmpty() || source == null || !identities.add(source.identity)) return;
         Group<T> group = groups.get(key);
         if (group == null) { group = new Group<>(key, series); groups.put(key, group); }
         group.sources.add(source);
@@ -72,5 +76,6 @@ public final class TjMediaCatalog<T> {
 
     public static String key(long metadataId, boolean series) { return (series ? "tv:" : "movie:") + metadataId; }
     public Group<T> get(long metadataId, boolean series) { return groups.get(key(metadataId, series)); }
+    public Group<T> get(String key) { return groups.get(key); }
     public List<Group<T>> groups() { return new ArrayList<>(groups.values()); }
 }

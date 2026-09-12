@@ -1,182 +1,177 @@
 # TjGram Media Center
 
-Isolated logic/resource checks and Java compilation pass. Device, visual, playback
-and real TMDB verification remain pending user validation after the CI build.
-The user authorized committing and pushing the feature without a local APK build.
-This is not device certification; the acceptance gates below remain open.
+## Current implementation — 2026-09-12
 
-## Behavior and navigation
+Native Android implementation, with local logic/SQL checks and Java compilation.
+This is not a claim of device UI, playback or live-account certification. The
+current delivery is **local commits only**, without an APK build or Git push.
 
-Open **TjGram settings > Media center**. Default scope: current account. All active
-accounts or selected accounts are optional; account IDs are resolved from owner
-user IDs, never assumed from reusable slot numbers. Sources can be private chats,
-groups, channels or selected chats. Ordinary general media remains available
-regardless of whether movie identification succeeds.
+### Navigation and use
 
-Home contains featured, continue-watching, recent, favorite, movie and series
-shelves. Movies/series use one card per identified TMDB title. The view selector
-also exposes history, watched, local index and named lists. Lists are selected
-from an account-scoped directory; each item currently has one named list plus an
-independent favorite flag.
+- Open **Media Center** from the drawer (enabled by default) or TjGram settings.
+  The settings screen also offers an optional Media Center tab in the host app.
+- Inside the center there is one bottom navigation row: Library, Watch, Lists.
+  The host Telegram navigation and its fade overlay are hidden here.
+- Library exposes enabled media types: video, photos, music, voice/round video,
+  files and GIFs. The visibility selection is saved per account owner. Video
+  container files sent as documents use the same recognition as the player.
+- Default scope is the current account. Select all/specific accounts, chat types,
+  explicit chats and cloud/Tj local folders. Explicit empty scopes never mean all.
+- Library pages are chronological. Movie/series catalogs are alphabetical and
+  contain one entry per catalog identity across all selected accounts.
+- Watch has bounded featured/recent/continue/favorite/movie/series shelves.
+  Lists, favorites and playback state currently belong to individual source files.
 
-Remote search uses Telegram's matching; local search normalizes Unicode and
-matches tokens across filename, caption and confirmed title. Source/type filtering
-happens before local pagination. Exact-title retrieval walks all local pages for
-episode/quality selection, independently of the first visible catalog page.
+### Sources and scanning
 
-**Scan selected sources** explicitly indexes older media without downloading files.
-The scan does not retain an ever-growing list of message objects. It limits requests,
-stops automatic paging on error, and stops on screen exit or scope changes. Its
-completion waits for local writes, failed writes are retried before new pages,
-and network pumping pauses when the storage queue lags. Its
-counter is processed entries, not a guaranteed unique total. Stop retains indexed
-records. Restart currently starts at the beginning, updating existing records.
+`TjMediaSources` resolves native folder rules, unions explicitly selected chats,
+deduplicates peers and excludes secret chats. Selections use immutable account
+owner IDs and folder IDs, not names or reusable account slots. Membership is based
+on dialogs currently known to Telegram and expands as dialog data loads.
 
-**Identify movies and series** is another explicit, cancellable operation. It scans
-already-indexed videos from selected sources/accounts that have a TMDB credential.
-Only extracted title hints are sent. Exact normalized title/original-title matches
-must be unique, with a matching year when available. Without episode hints, both
-movie and TV results are checked so same-name ambiguity is not silently resolved.
-Results are cached for repeated episodes; ambiguous files stay manually identifiable.
-Existing manual matches and replaced documents are guarded at the database update.
-Automatic identification is labelled in details and can be reviewed/corrected;
-an exact name match is not a guarantee that the file contains that title. Old
-matches of unknown origin are not falsely classified as manually approved.
+An explicitly started scan captures its own account/chat/folder scope. Changing
+display filters does not silently change that job. `TjMediaScanCoordinator` owns
+the foreground job independently of the screen. Folder membership changes are
+coalesced: new members join, removed members stop future scanning. Previously
+indexed data is not deleted automatically. A caught-up folder job remains
+subscribed for membership changes until stopped.
 
-Details show source caption, file size/name/quality and optional TMDB information.
-Play/resume passes the original account/message and timestamp into Telegram's
-existing player route; source-message opening is a separate action. Resume excludes
-watched and >=98%-completed files. Manual season/episode overrides affect only the
-local catalog; clearing fields returns to filename/caption hints.
-Numbered series offer **Next available episode**, limited to the indexed selected
-sources. It handles season boundaries and gaps without inventing missing episodes
-or automatically starting playback. Episode lists summarize watched/completed/
-in-progress state; version selection includes account, chat, quality, size and progress.
+Moving the app to the background pauses active work; returning resumes the
+requested job. Process death preserves committed checkpoints, not an always-on
+service: start scanning again to resume. Recent-refresh and older-history cursors
+are stored separately. Each page and its cursor are committed atomically under
+an owner/revision/worker-lease guard. A failed write cannot advance the cursor.
 
-## Implementation map
+Scanning fetches message metadata, not all media file bytes. It uses at most three
+network requests, bounded pending batches and a separate preview window. Existing
+content remains usable while indexing. Store updates expose a refresh banner;
+they do not dismiss dialogs or replace the page being read. A user-requested
+refresh/navigation may update the view. Scan status and paging controls are separate.
 
-- TjMediaCenterActivity: native screen, scope controls, dialogs, search debounce,
-  local page aggregation and cancellable explicit scan.
-- TjMediaHomeView / TjMediaCardCell: themed cards/shelves, artwork fallbacks,
-  spoiler concealment, progress, RTL and shelf scroll preservation.
-- TjMediaLibrary: lifecycle/generation-cancelled Telegram media cursors, max three
-  active requests per instance; normal and index-only modes.
-- TjMediaStore: app-private SQLite on a serial worker queue, schema version 7.
-  Identity is owner/dialog/message with a document guard. Data includes serialized
-  media, normalized search, progress/history, favorite/watched/list, confirmed
-  metadata, identification origin and manual season/episode overrides. Document replacement resets stale
-  progress/identification/episode data. Indexed edits, deletion, explicit history
-  clear and logout are observed; cache refresh is not a deletion.
-- TjMediaTitle / TjMediaCatalog: pure Java tentative parsing/search, grouping and
-  next-numbered-episode selection. Ambiguous identification requires manual choice.
-- TjMediaMetadata / TjMediaAutoMatcher / TjMediaMatch / TjConfig: existing OkHttp plus Android Keystore encryption;
-  no default credential or endpoint controlled by TjGram. Only the selected query,
-  media type and language are sent to TMDB. Responses are bounded, redirects and
-  automatic retries disabled, credential-bearing exceptions never logged.
-  Removing a credential prevents new external artwork requests.
-- PhotoViewer / MediaController: progress for indexed ordinary video/audio every five seconds and at
-  release. Message/owner are captured for the player, independently of the visible
-  message, avoiding cross-item writes on transitions. Editing previews/live photos
-  are excluded. Music/voice/round-video hooks also guard the exact player instance.
-  TjMediaPlaybackProgress preserves natural completion through PhotoViewer's rewind
-  and clears it on replay/seek, without changing the manual watched flag.
+### Local catalog, with no TMDB requirement
 
-Manual edits validate the existing message/document/edit/photo identity on the same
-database queue and never reinsert UI snapshots. Source revisions reject stale pages
-and failed-write retries after deletion/clear. Clear stops scanning/matching before
-deleting. Credential reads/writes use immutable owner IDs as their actual storage
-keys. Missing/stale local item state offers a visible retry/source-opening fallback.
+Filename/caption hints identify local movie/series titles. Known season/episode or
+movie-year evidence can create a deterministic local identity. Conflicting episode
+numbers/names and generic filenames stay unresolved, and remain accessible in
+the ordinary library. Mixed channels are never assumed to contain one show.
 
-Grid columns adapt to the actual container width and font scale. Cards expose one
-combined screen-reader description, action labels have 48dp minimum touch height,
-and the settings icon has an accessible name. These source changes are not a
-substitute for device TalkBack and visual testing.
+Full-screen movie/series details contain artwork/thumbnail fallback, play/resume,
+download/cancel, source information and expandable original caption/file details.
+Series expose paged seasons, distinct numbered episodes, source counts, watch-state
+indicators and next **available indexed** episode. Sources retain account, chat,
+known sender, filename, size and per-file resume state. Next-episode navigation
+skips gaps and seasons containing only unknown-numbered sources; it does not
+invent unavailable episodes or autoplay them. The primary play label identifies
+the selected source's season/episode when known.
+
+Manual local title/type/year and numbering corrections work without credentials.
+Changing local identity detaches old external metadata but preserves the file,
+lists and progress. Automatic matching skips manually assigned local titles.
+Time positions are never transferred between different source files or cuts.
+
+TMDB is optional enrichment. Only explicitly requested title queries are sent;
+there is no bundled credential or hidden proxy. Absent credentials/artwork use
+Telegram thumbnails or a neutral spoiler-safe fallback. Local identities remain
+independent of TMDB IDs. We do not infer official episode names, ratings, HDR,
+total seasons or completeness from filenames or partial scans.
+
+### Implementation map
+
+| Component | Responsibility |
+| --- | --- |
+| `TjMediaCenterActivity` | Native navigation, saved scope/types, search, bounded pages and refresh banner |
+| `TjMediaDetailsActivity` / `TjMediaEpisodesView` | Stable full-screen detail, local correction, episode summaries and source selection |
+| `TjMediaHomeView` / row/card cells | Bounded shelves, general media rows and themed artwork cards |
+| `TjMediaLibrary` / `TjMediaScanCoordinator` | Existing Telegram transport, scan lifetime, pacing and owner-scoped resume |
+| `TjMediaStore` / `TjMediaScanState` | App-private schema 9 storage and atomic checkpoint transactions on a serial queue |
+| `TjMediaPageKey` / `TjMediaPageMerge` | Stable chronological windows across unequal account pages, without OFFSET |
+| `TjMediaLocalIdentity` / `TjMediaLocalIndex` | Local naming evidence, per-source relationships and a persistent title directory |
+| `TjMediaCatalogPageKey` | Alphabetical title paging independent of upload count |
+| `TjMediaSearchIndex` | Incremental FTS4 word/prefix index for filename, caption and confirmed/manual title |
+| `TjMediaSources` | Native folder membership plus explicit-chat union |
+| `TjMediaMetadata` / `TjMediaAutoMatcher` | Optional bounded metadata requests; existing OkHttp and encrypted owner credentials |
+
+The store serializes SQLite work off the UI thread. Search backfill processes 256
+rows per batch; local catalog backfill processes 128. Their progress is persisted.
+Local file windows retain at most 400 queried candidates across owners (individual
+queries capped at 200); initial remote preview adds at most 200. Home requests at
+most 120 candidates. Catalog pages have 40 titles, episode pages 20 numbers, source
+pages 50 files. These are window sizes, **not library/history limits**.
+
+The title directory is updated in the same storage flow as per-file relationships.
+Indexed title/source lookups avoid deserializing every upload to group them.
+Deleting the last source removes its directory key; clear/logout cascades through
+the derived catalog. Manual flags/progress are not stored in the rebuildable index.
+
+FTS search matches literal words and prefixes, not arbitrary substrings. Local
+search and Telegram remote search can have different coverage. Partial backfill
+is shown rather than falsely reported as an exhaustive search result.
+
+### Verification
+
+Run from the repository root:
+
+```sh
+bash tests/media-center/run_checks.sh
+bash tests/accounts/run_checks.sh
+GRADLE_USER_HOME=/tmp/tj-gradle-cache ./gradlew :TMessagesProj_App:compileAfatDebugJavaWithJavac
+```
+
+Current checks cover 29 title parsing, 14 credential-free identities, 13 grouping/
+next-episode, 9 matching, 9 playback-state, 46 video-format, 21 page-key, 19,201
+cross-owner merge windows, 84 production pager cases, 9 durable-scan, 14 media-kind,
+12 source-resolution and 11 coordinator lifecycle cases. Protocol/Android boundary
+stubs are explicitly test-only; these do not send Telegram requests.
+
+SQL checks cover migration DDL 1–9, FTS/backfill/rollback, local catalog overrides,
+distinct cross-account title pages, owner/source isolation, cleanup, seek pages,
+stale leases and checkpoint atomicity. Resource checks validate 125 keys across
+English, Hebrew and runtime fallback, including placeholders. Account tests cover
+14 ordering/notification/bot-edit policy cases.
+
+The available Android emulator also ran `android_catalog_sql.py` through an isolated
+in-memory sqlite3 database: directory cleanup, rollback, scope and title boundaries
+passed; integrity check returned `ok`. This is native SQL, **not** SQLiteOpenHelper,
+serialized Telegram-message, Android UI or real-account verification.
+
+See [SCALE_BASELINE.md](SCALE_BASELINE.md) for measured desktop SQL results and their
+limits. [REDESIGN.md](REDESIGN.md) and [SERIES_DESIGN.md](SERIES_DESIGN.md) preserve
+the approved design rationale and distinguish it from implementation evidence.
+
+### Remaining verification and product boundaries
+
+- Native Hebrew/English, light/dark, small screens, large text, rotation, TalkBack,
+  playback/PiP, download recovery and real Telegram scan completeness need device
+  testing. Compilation does not establish these behaviors.
+- No official expected-episode catalog or “complete series” claim. Multi-episode
+  files are flagged as ambiguous, not split into invented playback offsets.
+- Local keys use normalized name/type/year; unrelated same-name/year content or
+  translated aliases may require manual correction. There is no bulk alias/undo UI.
+- Each source currently has one named list plus favorite/watched state. There is
+  no independent title-level list or automatic cross-version playback-position merge.
+- No automatic index quota/pruning. Changes/deletions missed while offline can
+  remain stale until Telegram emits an update or the source is queried again.
+- Derived-index failures are logged; a failed backfill resumes on database reopen.
+  Broad sparse queries and device storage/serialization costs require profiling.
 
 Secret, TTL and auto-deleting media are excluded. Ordinary protected media remains
-app-private and opens through existing Telegram behavior. No Ghost-mode or secure
-window weakening is introduced. Clearing the index never deletes Telegram messages
-or media files. No automatic index-size pruning is implemented.
+app-private and uses Telegram's existing viewing/downloading behavior. No Ghost
+read-receipt bypass or secure-window weakening is introduced. Clearing the media
+index never deletes Telegram messages or media files.
 
-## Verification
+### External sources and attribution
 
-Run from repository root:
+No third-party app source or new runtime dependency was imported. Earlier research
+included Telegram-Stremio (GPL-3.0 server) and Flick (Apache-2.0 Compose app); neither
+was copied into this native Telegram integration.
 
-~~~sh
-bash tests/media-center/run_checks.sh
-env GRADLE_USER_HOME=/tmp/tj-gradle-cache ./gradlew -p tests/media-center/network checkMetadata
-env ANDROID_HOME=/home/avi/Android/Sdk GRADLE_USER_HOME=/tmp/tj-gradle-cache ./gradlew :TMessagesProj_App:compileAfatDebugJavaWithJavac
-~~~
-
-- 24 parsing/search checks: English/Hebrew, caption precedence, numeric titles,
-  Hebrew/Latin episode syntax, quality, Unicode and empty inputs.
-- 13 catalog checks: source identity, owner separation, movie/TV ID collisions,
-  versions, special/unknown season ordering, next episode, season transitions and gaps.
-- 9 automatic matching checks: ambiguity, remakes, years, translated/original names,
-  duplicate responses and episode-based type constraints.
-- 9 playback checkpoint checks: natural end, automatic rewind, release, replay,
-  seek, reset and invalid duration; these exercise the production state helper.
-- 34 pager sequencing checks compile the production TjMediaLibrary against test-only
-  protocol/storage boundaries: request limits/filters, write completion, write retry,
-  deletion revisions, late canceled responses, owner replacement and TTL exclusion.
-  Extended cases cover cross-account identity/deduplication, selected/empty sources,
-  slow-storage backpressure and recovery, queued stale writes and repeated cursors.
-  No Telegram request is made; Android loopers, serialization and real SQLite are
-  not simulated by this harness.
-- SQLite tests extract production schema/predicates and exercise account boundaries,
-  resume rules, literal search, list directories, >200-row pagination, pre-pagination
-  filters, title types, partial history deletion and episode override defaults.
-  Literal migration DDL from versions 1–7 preserves history/list state. These are
-  not Android SQLiteOpenHelper, Java migration backfill or notification-order tests.
-- Resource tests check English/Hebrew/runtime fallback, placeholders, referenced keys
-  and logo XML. Latest run: 97 keys passed.
-- The isolated network harness compiles the production metadata service with small
-  Android/account/credential stubs and in-process OkHttp responses. It covers request
-  fields, parsing, invalid credentials, HTTP/rate-limit errors, oversized/malformed
-  responses, cancellation and owner changes. No live API call is made. The JSON-Java
-  dependency belongs only to this standalone test build, not the application.
-  Latest run: 45 checks passed.
-- Incremental Java/resource compilations passed; existing upstream resource and
-  deprecated-API warnings remain.
-- adb has no connected device, and the local SDK has no emulator executable. No
-  runtime screenshots, playback tests or actual TMDB credential calls are claimed.
-
-Focused deep-review covered Android, concurrency, SQLite and error propagation.
-Five baseline findings were fixed: captured-owner credential storage, stale manual
-edits, scan/clear ordering, completion overwritten by rewind, and silent item-state
-failure. Follow-up concurrency review found no remaining issue in those owner/write/
-revision fixes. See [REVIEW.md](REVIEW.md) for evidence and remaining acceptance gates.
-
-## Remaining verification and product boundaries
-
-Before release: test navigation, large text/RTL/tablet layout, process/screen
-recreation, multi-account switching/logout, scans/retries/cancellation, source
-selection, PiP/player transitions, actual playback/resume, Android migrations and
-notification order on a device. Exercise real TMDB authentication, malformed
-responses, offline and rate limits without logging credentials.
-
-Current boundaries: conservative automatic matching with manual fallback,
-one named list per item, per-file watched/progress rather than title-level state,
-unverified playback tracking on devices, no durable scan checkpoint, no automatic index quota,
-and no startup reconciliation for deletions while offline. Indexed data can be stale
-until Telegram emits an update or a source is searched again. These gaps must not be
-hidden behind a claim that the media center is complete or release-ready.
-
-## External sources and TMDB attribution
-
-No third-party app source or new runtime dependency was imported. Research included
-Telegram-Stremio (GPL-3.0 server architecture) and Flick (Apache-2.0 Compose app);
-neither was copied into this native Telegram integration.
-
-Official docs:
-[authentication](https://developer.themoviedb.org/docs/authentication-application),
+Official TMDB references: [authentication](https://developer.themoviedb.org/docs/authentication-application),
 [movie search](https://developer.themoviedb.org/reference/search-movie),
 [TV search](https://developer.themoviedb.org/reference/search-tv),
 [images](https://developer.themoviedb.org/docs/image-basics),
 [attribution](https://developer.themoviedb.org/docs/faq).
 
-tj_tmdb_logo.xml is a format-only conversion of the official **Alt short (blue)**
+`tj_tmdb_logo.xml` is a format-only conversion of the official Alt short blue
 [SVG](https://www.themoviedb.org/assets/v4/logos/v2/blue_short-8e7b30f73a4020692ccca9c88bafe5dcb6f8a62a4c6bc55cd9ba82bb2cd95f6c.svg)
-from [TMDB logos](https://www.themoviedb.org/about/logos-attribution).
-Geometry, gradient stops and viewport are preserved, with no recoloring/mirroring.
-TMDB owns its mark; no endorsement is implied. About includes the logo, localized
-attribution and the exact required English notice. Device rendering remains untested.
+from [TMDB logos](https://www.themoviedb.org/about/logos-attribution). Geometry,
+gradient and viewport are preserved. TMDB owns its mark; no endorsement is implied.

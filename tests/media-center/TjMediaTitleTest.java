@@ -36,6 +36,11 @@ public class TjMediaTitleTest {
         check(TjMediaTitle.matches("", "שָׁלוֹם", "שלום"));
         check(TjMediaTitle.matches("ФИЛЬМ.mkv", "", "фильм"));
         check(TjMediaTitle.matches("My-Movie_1080p.mkv", "", "my movie"));
+        check(TjMediaTitle.parse("Show.S01E04.mkv", "Show S01E05").episodeConflict);
+        check(TjMediaTitle.parse("Show.S01E04.mkv", "Show S01E05").episode == -1);
+        check(!TjMediaTitle.parse("Show.S01E04.mkv", "Show עונה 1 פרק 4").episodeConflict);
+        check(TjMediaTitle.parse("Show.S01E04E05.mkv", "").episodeConflict);
+        check(TjMediaTitle.parse("Show.S01E04-E05.mkv", "").episodeConflict);
         System.out.println(checks + " media title checks passed");
     }
 }

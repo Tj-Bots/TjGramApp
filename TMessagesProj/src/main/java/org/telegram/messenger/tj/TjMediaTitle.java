@@ -11,19 +11,22 @@ public final class TjMediaTitle {
     private static final Pattern YEAR = Pattern.compile("(?<!\\d)((?:19|20)\\d{2})(?!\\d)");
     private static final Pattern HEBREW_EPISODE = Pattern.compile("עונה\\s*(\\d{1,3})[\\s,._:-]*פרק\\s*(\\d{1,4})(?!\\d)");
     private static final Pattern QUALITY = Pattern.compile("(?i)(?<![\\p{L}\\d])(2160p|1080p|720p|480p|4k)(?![\\p{L}\\d])");
+    private static final Pattern MULTI_EPISODE = Pattern.compile("(?i)s\\d{1,3}[ ._-]*e\\d{1,4}(?:e|[-+]e?)\\d{1,4}");
     private static final Pattern EXTENSION = Pattern.compile("(?i)\\.(mkv|mp4|avi|mov|webm|m4v|ts|mp3|flac|pdf|zip)$");
     public final String title;
     public final int year;
     public final int season;
     public final int episode;
     public final String quality;
+    public final boolean episodeConflict;
 
-    private TjMediaTitle(String title, int year, int season, int episode, String quality) {
+    private TjMediaTitle(String title, int year, int season, int episode, String quality, boolean episodeConflict) {
         this.title = title;
         this.year = year;
         this.season = season;
         this.episode = episode;
         this.quality = quality;
+        this.episodeConflict = episodeConflict;
     }
 
     public static TjMediaTitle parse(String filename, String caption) {
@@ -48,6 +51,21 @@ public final class TjMediaTitle {
                 episode = Integer.parseInt(hebrewEpisode.group(2));
             }
         }
+        boolean conflict = false;
+        // Repeated identical labels are harmless. Conflicting filename/caption
+        // labels or multiple episode labels must not silently pick the first.
+        for (Pattern pattern : new Pattern[]{EPISODE, HEBREW_EPISODE}) {
+            Matcher labels = pattern.matcher(combined);
+            while (labels.find()) {
+                int s = Integer.parseInt(pattern == HEBREW_EPISODE ? labels.group(1)
+                        : labels.group(1) != null ? labels.group(1) : labels.group(3));
+                int e = Integer.parseInt(pattern == HEBREW_EPISODE ? labels.group(2)
+                        : labels.group(2) != null ? labels.group(2) : labels.group(4));
+                if (s != season || e != episode) conflict = true;
+            }
+        }
+        if (MULTI_EPISODE.matcher(combined).find()) conflict = true;
+        if (conflict) { season = -1; episode = -1; }
         Matcher yearMatch = YEAR.matcher(combined);
         int year = 0;
         while (yearMatch.find()) {
@@ -75,7 +93,7 @@ public final class TjMediaTitle {
         if (title.isEmpty()) {
             title = candidate;
         }
-        return new TjMediaTitle(title, year, season, episode, quality);
+        return new TjMediaTitle(title, year, season, episode, quality, conflict);
     }
 
     public static boolean matches(String filename, String caption, String query) {

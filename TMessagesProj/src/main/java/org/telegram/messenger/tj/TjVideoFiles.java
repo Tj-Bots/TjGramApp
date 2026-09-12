@@ -1,10 +1,6 @@
 package org.telegram.messenger.tj;
 
-import android.text.TextUtils;
-
 import org.telegram.tgnet.TLRPC;
-
-import java.util.Locale;
 
 /**
  * Plays a video that was sent as a plain file.
@@ -26,11 +22,6 @@ import java.util.Locale;
  * is playable would replace a working "download and open elsewhere" with a black screen.
  */
 public final class TjVideoFiles {
-
-    /** Containers with an extractor compiled into this build. */
-    private static final String[] PLAYABLE_EXTENSIONS = {
-            "mp4", "m4v", "mov", "mkv", "webm", "ts", "m2ts", "mts", "flv", "avi", "3gp", "3gpp"
-    };
 
     private static final int DEFAULT_WIDTH = 1280;
     private static final int DEFAULT_HEIGHT = 720;
@@ -64,7 +55,7 @@ public final class TjVideoFiles {
                 fileName = attribute.file_name;
             }
         }
-        if (!isPlayableVideo(document.mime_type, fileName)) {
+        if (!TjVideoFormat.isSupportedContainer(document.mime_type, fileName)) {
             return;
         }
         TLRPC.TL_documentAttributeVideo video = new TLRPC.TL_documentAttributeVideo();
@@ -94,38 +85,6 @@ public final class TjVideoFiles {
             }
         }
         return false;
-    }
-
-    private static boolean isPlayableVideo(String mimeType, String fileName) {
-        String extension = extensionOf(fileName);
-        if (extension != null) {
-            for (String playable : PLAYABLE_EXTENSIONS) {
-                if (playable.equals(extension)) {
-                    return true;
-                }
-            }
-            // A known extension that is not in the list is a deliberate no.
-            return false;
-        }
-        // No filename to go on: trust the mime type only for containers we can parse.
-        if (TextUtils.isEmpty(mimeType)) {
-            return false;
-        }
-        String mime = mimeType.toLowerCase(Locale.US);
-        return mime.equals("video/mp4") || mime.equals("video/x-matroska") || mime.equals("video/webm")
-                || mime.equals("video/quicktime") || mime.equals("video/mp2t") || mime.equals("video/avi")
-                || mime.equals("video/x-msvideo") || mime.equals("video/x-flv") || mime.equals("video/3gpp");
-    }
-
-    private static String extensionOf(String fileName) {
-        if (TextUtils.isEmpty(fileName)) {
-            return null;
-        }
-        int dot = fileName.lastIndexOf('.');
-        if (dot < 0 || dot == fileName.length() - 1) {
-            return null;
-        }
-        return fileName.substring(dot + 1).toLowerCase(Locale.US);
     }
 
     /** The bubble needs real dimensions; the thumbnail is the only hint a raw document gives. */

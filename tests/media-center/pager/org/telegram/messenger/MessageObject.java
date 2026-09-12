@@ -8,6 +8,17 @@ public final class MessageObject {
     }
     public long getDialogId() { return getPeerId(messageOwner.peer_id); }
     public int getId() { return messageOwner.id; }
+    public boolean photo, video, gif, voice, round, music;
+    public String filename;
+    public TLRPC.Document document;
+    public boolean isPhoto() { return photo; }
+    public boolean isVideo() { return video; }
+    public boolean isGif() { return gif; }
+    public boolean isVoice() { return voice; }
+    public boolean isRoundVideo() { return round; }
+    public boolean isMusic() { return music; }
+    public TLRPC.Document getDocument() { return document; }
+    public String getDocumentName() { return filename; }
     public static long getPeerId(TLRPC.Peer peer) {
         return peer.user_id != 0 ? peer.user_id : peer.channel_id != 0 ? -peer.channel_id : -peer.chat_id;
     }

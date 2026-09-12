@@ -16,7 +16,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-/** Screen-owned, UI-thread-only pager over Telegram media, without file downloads. */
+/** UI-thread-only pager; index-only scans persist their position independently of views. */
 public final class TjMediaLibrary {
     public interface Listener {
         void onChanged();
@@ -44,6 +44,7 @@ public final class TjMediaLibrary {
     }
 
     private static final int PAGE_SIZE = 40;
+    private static final int VISIBLE_LIMIT = 200;
     private final ArrayList<Entry> entries = new ArrayList<>();
     private final HashSet<String> keys = new HashSet<>();
     private final ArrayList<Stream> streams = new ArrayList<>();
@@ -55,7 +56,30 @@ public final class TjMediaLibrary {
     private final boolean indexOnly;
     private long scannedCount;
     private int pendingWrites;
-    private final java.util.LinkedHashMap<String, Entry> failedWrites = new java.util.LinkedHashMap<>();
+    private final ArrayList<PendingPage> failedWrites = new ArrayList<>();
+
+    /** Keep a network page intact so retries can carry its own durable cursor. */
+    private static final class PendingPage {
+        final Stream stream;
+        final ArrayList<Entry> entries;
+        final long revision;
+        final TjMediaScanState nextPosition;
+
+        PendingPage(Stream stream, ArrayList<Entry> entries, long revision) {
+            this.stream = stream;
+            this.entries = new ArrayList<>(entries);
+            this.revision = revision;
+            this.nextPosition = stream.position == null ? null : stream.position.advance(stream.refreshLane,
+                    new TjMediaScanState.Cursor(stream.cursor.minDate, stream.cursor.maxDate,
+                            stream.offsetId, stream.offsetRate, peerKind(stream.offsetPeer),
+                            peerId(stream.offsetPeer), stream.offsetPeer.access_hash, stream.complete));
+        }
+
+        boolean ownerActive() {
+            UserConfig config = UserConfig.getInstance(stream.account);
+            return config.isClientActivated() && config.getClientUserId() == stream.ownerId;
+        }
+    }
 
     private static final class Stream {
         final int account;
@@ -71,6 +95,12 @@ public final class TjMediaLibrary {
         boolean complete;
         boolean failed;
         boolean queued;
+        boolean writing;
+        boolean refreshLane;
+        boolean nextRefresh = true;
+        TjMediaStore.ScanLease lease;
+        TjMediaScanState position;
+        TjMediaScanState.Cursor cursor;
 
         Stream(int account, int type, long dialogId) {
             this.account = account;
@@ -90,6 +120,8 @@ public final class TjMediaLibrary {
     }
 
     public long scannedCount() { return scannedCount; }
+
+    private boolean durable() { return indexOnly && query.isEmpty(); }
 
     /** Empty per-owner source sets mean all chats; source type: all/private/groups/channels. */
     public void reset(List<Integer> accounts, Map<Long, Set<Long>> sources, int sourceType, String query) {
@@ -148,17 +180,18 @@ public final class TjMediaLibrary {
     public void loadMore() {
         if (closed || pendingWrites > 0) return;
         if (!failedWrites.isEmpty()) {
-            ArrayList<Entry> retry = new ArrayList<>(failedWrites.values());
+            ArrayList<PendingPage> retry = new ArrayList<>(failedWrites);
             failedWrites.clear();
-            for (Entry entry : retry) if (entry.isAccountAvailable()) {
-                if (entry.storeRevision != TjMediaStore.getInstance().revision(entry.account)) invalidateSource(entry.account);
-                else index(entry);
+            for (PendingPage page : retry) if (page.ownerActive()) {
+                if (page.revision != TjMediaStore.getInstance().revision(page.stream.account))
+                    invalidateSource(page.stream.account);
+                else index(page);
             }
             listener.onChanged();
             return;
         }
         for (Stream stream : streams) {
-            if (!stream.loading && !stream.complete) stream.queued = true;
+            if (!stream.loading && !stream.writing && !stream.complete) stream.queued = true;
         }
         pump();
     }
@@ -166,14 +199,13 @@ public final class TjMediaLibrary {
     private void pump() {
         // Bound queued database snapshots when storage is slower than the network.
         if (pendingWrites >= PAGE_SIZE * 3) return;
-        int active = 0;
-        for (Stream stream : streams) if (stream.loading) active++;
         for (Stream stream : streams) {
+            int active = 0;
+            for (Stream candidate : streams) if (candidate.loading) active++;
             if (active >= 3) break;
-            if (!stream.queued || stream.loading) continue;
+            if (!stream.queued || stream.loading || stream.writing) continue;
             stream.queued = false;
             request(stream);
-            if (stream.loading) active++;
         }
     }
 
@@ -194,6 +226,43 @@ public final class TjMediaLibrary {
             return;
         }
         MessagesController controller = MessagesController.getInstance(stream.account);
+        if (durable() && stream.lease == null) {
+            stream.loading = true;
+            int epoch = generation;
+            long revision = TjMediaStore.getInstance().revision(stream.account);
+            TjMediaStore.getInstance().acquireScan(stream.account,
+                    "v1/" + sourceType + "/" + stream.dialogId + "/" + stream.type, lease -> {
+                if (closed || epoch != generation) return;
+                stream.loading = false;
+                if (revision != TjMediaStore.getInstance().revision(stream.account)) {
+                    invalidateSource(stream.account);
+                } else if (lease == null || lease.owner != stream.ownerId) stream.failed = true;
+                else {
+                    try {
+                        int now = ConnectionsManager.getInstance(stream.account).getCurrentTime();
+                        stream.position = lease.position().length == 0 ? TjMediaScanState.initial(now)
+                                : TjMediaScanState.decode(lease.position()).refresh(now);
+                        stream.lease = lease;
+                        stream.queued = true;
+                    } catch (java.io.IOException | IllegalArgumentException e) {
+                        // Do not silently discard an unreadable durable cursor.
+                        stream.failed = true;
+                    }
+                }
+                pump();
+                listener.onChanged();
+            });
+            return;
+        }
+        if (durable()) {
+            stream.refreshLane = !stream.position.recent.complete
+                    && (stream.position.history.complete || stream.nextRefresh);
+            stream.cursor = stream.refreshLane ? stream.position.recent : stream.position.history;
+            if (stream.cursor.complete) { stream.complete = true; return; }
+            stream.offsetId = stream.cursor.offsetId;
+            stream.offsetRate = stream.cursor.offsetRate;
+            stream.offsetPeer = inputPeer(stream.cursor);
+        }
         org.telegram.tgnet.TLObject request;
         if (stream.dialogId == 0) {
             TLRPC.TL_messages_searchGlobal req = new TLRPC.TL_messages_searchGlobal();
@@ -206,6 +275,7 @@ public final class TjMediaLibrary {
             req.offset_id = stream.offsetId;
             req.offset_rate = stream.offsetRate;
             req.offset_peer = stream.offsetPeer;
+            if (durable()) { req.min_date = stream.cursor.minDate; req.max_date = stream.cursor.maxDate; }
             request = req;
         } else {
             TLRPC.TL_messages_search req = new TLRPC.TL_messages_search();
@@ -213,6 +283,7 @@ public final class TjMediaLibrary {
             req.limit = PAGE_SIZE;
             req.filter = filter(stream.type);
             req.offset_id = stream.offsetId;
+            if (durable()) { req.min_date = stream.cursor.minDate; req.max_date = stream.cursor.maxDate; }
             req.peer = controller.getInputPeer(stream.dialogId);
             if (req.peer == null) {
                 stream.failed = true;
@@ -254,12 +325,19 @@ public final class TjMediaLibrary {
                     MessagesStorage.getInstance(stream.account).putUsersAndChats(page.users, page.chats, true, true);
                     if (page.messages.isEmpty()) {
                         stream.complete = true;
+                        if (durable()) index(new PendingPage(stream, new ArrayList<>(), storeRevision));
                     } else {
                         TLRPC.Message last = page.messages.get(page.messages.size() - 1);
                         long lastDialog = MessageObject.getPeerId(last.peer_id);
                         TLRPC.InputPeer nextPeer = controller.getInputPeer(lastDialog);
+                        // searchGlobal requires the last date when next_rate is absent.
+                        // Presence is a TL flag, not a non-zero value; explicit zero is valid.
+                        int nextRate = stream.dialogId == 0
+                                ? page instanceof TLRPC.TL_messages_messagesSlice && (page.flags & 1) != 0
+                                    ? page.next_rate : last.date
+                                : 0;
                         // A repeated cursor cannot make progress; expose retry instead of looping.
-                        if (last.id == stream.offsetId && page.next_rate == stream.offsetRate
+                        if (last.id == stream.offsetId && nextRate == stream.offsetRate
                                 && stream.offsetPeer != null
                                 && MessageObject.getPeerId(last.peer_id) == peerDialog(stream.offsetPeer)) {
                             stream.failed = true;
@@ -267,47 +345,78 @@ public final class TjMediaLibrary {
                             stream.failed = true;
                         } else {
                             stream.offsetId = last.id;
-                            stream.offsetRate = page.next_rate;
+                            stream.offsetRate = nextRate;
                             stream.offsetPeer = nextPeer;
                         }
+                        ArrayList<Entry> pageEntries = new ArrayList<>();
                         for (TLRPC.Message message : page.messages) {
                             TLRPC.MessageMedia media = MessageObject.getMedia(message);
-                            if (!(message instanceof TLRPC.TL_message) || media == null
+                            if (!(message instanceof TLRPC.TL_message) || message.id <= 0 || media == null
                                     || media.ttl_seconds != 0 || message.ttl_period != 0
                                     || DialogObject.isEncryptedDialog(MessageObject.getPeerId(message.peer_id))
                                     || !(media instanceof TLRPC.TL_messageMediaPhoto
                                     || media instanceof TLRPC.TL_messageMediaDocument)) continue;
                             MessageObject object = new MessageObject(stream.account, message, false, !indexOnly);
                             Entry entry = new Entry(stream.account, stream.ownerId, object);
-                            index(entry);
+                            pageEntries.add(entry);
                             scannedCount++;
                             if (!indexOnly) {
                                 if (keys.add(entry.key)) entries.add(entry);
                             }
                         }
+                        index(new PendingPage(stream, pageEntries, storeRevision));
                         entries.sort((a, b) -> {
                             int date = Integer.compare(b.message.messageOwner.date, a.message.messageOwner.date);
                             return date != 0 ? date : a.key.compareTo(b.key);
                         });
+                        // All eligible messages are still indexed. Only the discovery
+                        // preview is bounded; older entries remain reachable via local pages.
+                        while (entries.size() > VISIBLE_LIMIT) keys.remove(entries.remove(entries.size() - 1).key);
                     }
                     pump();
                     listener.onChanged();
                 }));
     }
 
-    private void index(Entry entry) {
+    private void index(PendingPage page) {
+        ArrayList<Entry> batch = page.entries;
+        if (batch.isEmpty() && !durable()) return;
+        ArrayList<MessageObject> messages = new ArrayList<>(batch.size());
+        for (Entry entry : batch) messages.add(entry.message);
         int epoch = generation;
-        pendingWrites++;
-        TjMediaStore.getInstance().index(entry.message, entry.storeRevision, success -> {
+        int weight = Math.max(1, batch.size());
+        pendingWrites += weight;
+        page.stream.writing = true;
+        TjMediaStore.Callback<Boolean> done = success -> {
             if (closed || epoch != generation) return;
-            pendingWrites--;
-            if (entry.storeRevision != TjMediaStore.getInstance().revision(entry.account)) invalidateSource(entry.account);
-            else if (!success && entry.isAccountAvailable()) failedWrites.put(entry.key, entry);
+            pendingWrites -= weight;
+            page.stream.writing = false;
+            if (page.revision != TjMediaStore.getInstance().revision(page.stream.account)) invalidateSource(page.stream.account);
+            else if (!success) {
+                if (page.ownerActive()) failedWrites.add(page);
+                // Do not turn a storage outage into an unbounded failed-page buffer.
+                // In-flight requests may drain, but queued sources wait for user retry.
+                // Clearing queued also lets isLoading() expose the actionable error.
+                for (Stream stream : streams) stream.queued = false;
+            }
             if (pendingWrites == 0) {
                 pump();
                 listener.onChanged();
             }
-        });
+        };
+        if (durable()) {
+            TjMediaStore.getInstance().commitScanPage(page.stream.lease, page.nextPosition.encode(),
+                    messages, page.revision, committed -> {
+                if (closed || epoch != generation) return;
+                if (committed != null) {
+                    page.stream.lease = committed;
+                    page.stream.position = page.nextPosition;
+                    page.stream.nextRefresh = !page.stream.refreshLane;
+                    page.stream.complete = page.nextPosition.history.complete && page.nextPosition.recent.complete;
+                }
+                done.run(committed != null);
+            });
+        } else TjMediaStore.getInstance().indexBatch(messages, page.revision, done);
     }
 
     /** A retry after deletion/clear must fetch again, never replay an old message snapshot. */
@@ -320,17 +429,44 @@ public final class TjMediaLibrary {
             stream.failed = true;
             stream.offsetId = stream.offsetRate = 0;
             stream.offsetPeer = new TLRPC.TL_inputPeerEmpty();
+            stream.lease = null;
+            stream.position = null;
+            stream.writing = false;
         }
         for (int i = entries.size() - 1; i >= 0; i--) if (entries.get(i).account == account) {
             keys.remove(entries.remove(i).key);
         }
-        java.util.Iterator<Entry> failed = failedWrites.values().iterator();
-        while (failed.hasNext()) if (failed.next().account == account) failed.remove();
+        java.util.Iterator<PendingPage> failed = failedWrites.iterator();
+        while (failed.hasNext()) if (failed.next().stream.account == account) failed.remove();
     }
 
     private static long peerDialog(TLRPC.InputPeer peer) {
         if (peer.user_id != 0) return peer.user_id;
         return peer.channel_id != 0 ? -peer.channel_id : -peer.chat_id;
+    }
+
+    private static int peerKind(TLRPC.InputPeer peer) {
+        if (peer instanceof TLRPC.TL_inputPeerSelf) return 1;
+        if (peer.user_id != 0) return 2;
+        if (peer.chat_id != 0) return 3;
+        return peer.channel_id != 0 ? 4 : 0;
+    }
+
+    private static long peerId(TLRPC.InputPeer peer) {
+        return peer.user_id != 0 ? peer.user_id : peer.chat_id != 0 ? peer.chat_id : peer.channel_id;
+    }
+
+    private static TLRPC.InputPeer inputPeer(TjMediaScanState.Cursor cursor) {
+        TLRPC.InputPeer peer;
+        switch (cursor.peerKind) {
+            case 1: peer = new TLRPC.TL_inputPeerSelf(); break;
+            case 2: peer = new TLRPC.TL_inputPeerUser(); peer.user_id = cursor.peerId; break;
+            case 3: peer = new TLRPC.TL_inputPeerChat(); peer.chat_id = cursor.peerId; break;
+            case 4: peer = new TLRPC.TL_inputPeerChannel(); peer.channel_id = cursor.peerId; break;
+            default: peer = new TLRPC.TL_inputPeerEmpty();
+        }
+        peer.access_hash = cursor.accessHash;
+        return peer;
     }
 
     private void cancelRequests() {

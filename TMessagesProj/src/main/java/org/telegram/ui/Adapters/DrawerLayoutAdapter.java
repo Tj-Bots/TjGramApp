@@ -340,6 +340,9 @@ public class DrawerLayoutAdapter extends RecyclerListView.SelectionAdapter {
         }
         items.add(new Item(101, LocaleController.getString(R.string.Filters), R.drawable.msg_folders));
         items.add(new Item(102, TjLocale.getString(R.string.TjChatCounters), R.drawable.msg_stats));
+        if (TjConfig.showMediaInDrawer()) {
+            items.add(new Item(106, TjLocale.getString(R.string.TjMediaCenter), R.drawable.msg_media));
+        }
         items.add(null);
 
         items.add(new Item(8, LocaleController.getString(R.string.Settings), settingsIcon));

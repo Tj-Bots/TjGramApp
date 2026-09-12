@@ -127,8 +127,8 @@ public final class TjMediaLibraryTest {
         guard = 100;
         while (!ConnectionsManager.active().isEmpty() && guard-- > 0)
             ConnectionsManager.respond(ConnectionsManager.active().get(0), page(100, 40), null);
-        check(guard > 0 && store.pending.size() <= 200, "slow storage bounds queued message snapshots");
-        check(store.pending.size() >= 120 && library.isLoading(), "backpressure pauses before remaining streams");
+        check(guard > 0 && store.pendingMessages() <= 200, "slow storage bounds queued message snapshots");
+        check(store.pendingMessages() >= 120 && library.isLoading(), "backpressure pauses before remaining streams");
         check(ConnectionsManager.active().isEmpty(), "backpressure does not start more requests");
         while (!store.pending.isEmpty()) store.complete(true);
         check(ConnectionsManager.active().size() == 3, "network pumping resumes after writes drain");
@@ -152,6 +152,84 @@ public final class TjMediaLibraryTest {
         while (!store.pending.isEmpty()) store.complete(true);
         check(library.hasError() && !library.isLoading(), "repeated server cursor exposes retry instead of looping");
         check(library.snapshot().size() == 1, "repeated cursor does not duplicate cards");
+        library.close();
+
+        // Match TL presence semantics, including an explicitly transmitted zero.
+        for (boolean scan : new boolean[]{false, true}) {
+            for (int variant = 0; variant < 4; variant++) {
+                library = start(scan);
+                TLRPC.messages_Messages response = variant == 0
+                        ? new TLRPC.messages_Messages() : new TLRPC.TL_messages_messagesSlice();
+                response.messages.addAll(page(100, 1).messages);
+                response.flags = variant == 1 || variant == 2 ? 1 : 0;
+                response.next_rate = variant == 2 ? 1234 : variant == 3 ? 999 : 0;
+                ConnectionsManager.respond(ConnectionsManager.active().get(0), response, null);
+                emptyNetwork();
+                store.complete(true);
+                library.loadMore();
+                check(ConnectionsManager.active().size() == 1, "only unfinished stream resumes");
+                request = (TLRPC.TL_messages_searchGlobal) ConnectionsManager.active().get(0).request;
+                int expectedRate = variant == 1 ? 0 : variant == 2 ? 1234 : 100;
+                check(request.offset_rate == expectedRate, "global rate respects TL presence, mode=" + scan + ", variant=" + variant);
+                check(request.offset_id == 100 && request.offset_peer.user_id == 77,
+                        "rate fallback preserves message and peer cursor");
+                library.close();
+            }
+        }
+        library = start(true);
+        ConnectionsManager.respond(ConnectionsManager.active().get(0), page(100, 40), null);
+        emptyNetwork();
+        check(store.pending.size() == 1 && store.pendingMessages() == 40, "whole page uses one storage operation");
+        store.complete(false);
+        check(store.saved == 0 && library.hasError(), "failed page is retriable as a whole");
+        library.loadMore();
+        check(store.pending.size() == 1 && store.pendingMessages() == 40, "retry groups a page instead of individual writes");
+        check(ConnectionsManager.active().isEmpty(), "no next-page network before retry commits");
+        store.complete(true);
+        check(store.saved == 40 && !library.hasError() && !library.isLoading(), "successful page drains counters once");
+        library.close();
+
+        library = start(true);
+        java.util.HashSet<Long> manySources = new java.util.HashSet<>();
+        for (long source = 1; source <= 100; source++) manySources.add(-source);
+        library.reset(Collections.singletonList(0), Collections.singletonMap(10L, manySources), 0, "");
+        ConnectionsManager.respond(ConnectionsManager.active().get(0), page(100, 40), null);
+        int requestsBeforeFailure = ConnectionsManager.requests.size();
+        store.complete(false);
+        emptyNetwork();
+        check(ConnectionsManager.requests.size() == requestsBeforeFailure, "storage outage does not pump hundreds of queued sources");
+        check(library.hasError() && !library.isLoading(), "storage outage is not stuck loading queued streams");
+        library.loadMore();
+        check(store.pendingMessages() == 40 && ConnectionsManager.active().isEmpty(), "only failed page is retried before more sources");
+        store.complete(true);
+        library.loadMore();
+        check(ConnectionsManager.active().size() == 3, "remaining sources resume after successful storage retry");
+        library.close();
+
+        library = start(true);
+        TLRPC.messages_Messages mixed = page(100, 3);
+        mixed.messages.get(1).id = 0;
+        ConnectionsManager.respond(ConnectionsManager.active().get(0), mixed, null);
+        emptyNetwork();
+        check(store.pending.size() == 1 && store.pendingMessages() == 2, "invalid message ID cannot poison valid page entries");
+        store.complete(true);
+        check(!library.hasError() && store.saved == 2, "valid entries commit despite invalid neighboring ID");
+        library.close();
+        library = start(true);
+        ConnectionsManager.respond(ConnectionsManager.active().get(0), page(100, 2), null);
+        ConnectionsManager.respond(ConnectionsManager.active().get(0), page(200, 3), null);
+        emptyNetwork();
+        java.util.List<Integer> firstPage = store.pageIds(0);
+        java.util.List<Integer> secondPage = store.pageIds(1);
+        store.complete(false);
+        store.complete(false);
+        library.loadMore();
+        check(store.pending.size() == 2, "failed small pages remain separate on retry");
+        check(store.pageIds(0).equals(firstPage) && store.pageIds(1).equals(secondPage),
+                "retry preserves each original page identity and order");
+        store.complete(true);
+        store.complete(true);
+        check(store.saved == 5 && !library.hasError(), "independent page retries drain once");
         library.close();
         System.out.println(checks + " production pager sequencing checks passed; no Telegram requests");
     }

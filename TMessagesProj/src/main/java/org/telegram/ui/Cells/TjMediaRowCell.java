@@ -1,0 +1,91 @@
+package org.telegram.ui.Cells;
+
+import android.content.Context;
+import android.view.Gravity;
+import android.view.View;
+import android.widget.FrameLayout;
+import android.widget.LinearLayout;
+import android.widget.TextView;
+import org.telegram.messenger.AndroidUtilities;
+import org.telegram.messenger.FileLoader;
+import org.telegram.messenger.ImageLocation;
+import org.telegram.messenger.LocaleController;
+import org.telegram.messenger.MessageObject;
+import org.telegram.messenger.R;
+import org.telegram.messenger.TjLocale;
+import org.telegram.messenger.tj.TjMediaKind;
+import org.telegram.tgnet.TLRPC;
+import org.telegram.ui.ActionBar.Theme;
+import org.telegram.ui.Components.BackupImageView;
+import org.telegram.ui.Components.LayoutHelper;
+
+/** Recycled, thumbnail-only general library row; no full media download on bind. */
+public final class TjMediaRowCell extends LinearLayout {
+    private final BackupImageView image;
+    private final TextView title, subtitle, fallback;
+
+    public TjMediaRowCell(Context context) {
+        super(context);
+        setOrientation(HORIZONTAL);
+        setGravity(Gravity.CENTER_VERTICAL);
+        setLayoutDirection(LocaleController.isRTL ? LAYOUT_DIRECTION_RTL : LAYOUT_DIRECTION_LTR);
+        setPadding(dp(10), dp(10), dp(10), dp(10));
+        setMinimumHeight(dp(88));
+        androidx.core.view.ViewCompat.setScreenReaderFocusable(this, true);
+        FrameLayout thumbnail = new FrameLayout(context);
+        thumbnail.setBackground(Theme.createRoundRectDrawable(dp(10), Theme.getColor(Theme.key_windowBackgroundGray)));
+        fallback = new TextView(context);
+        fallback.setTextSize(12);
+        fallback.setGravity(Gravity.CENTER);
+        fallback.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlueText));
+        thumbnail.addView(fallback, LayoutHelper.createFrame(-1, -1));
+        image = new BackupImageView(context);
+        image.setRoundRadius(dp(10));
+        thumbnail.addView(image, LayoutHelper.createFrame(-1, -1));
+        thumbnail.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);
+        addView(thumbnail, LayoutHelper.createLinear(68, 62));
+        LinearLayout labels = new LinearLayout(context);
+        labels.setOrientation(VERTICAL);
+        labels.setPadding(dp(12), 0, dp(12), 0);
+        title = text(context, 16, Theme.key_windowBackgroundWhiteBlackText);
+        title.setMaxLines(2);
+        labels.addView(title, LayoutHelper.createLinear(-1, -2));
+        subtitle = text(context, 13, Theme.key_windowBackgroundWhiteGrayText);
+        subtitle.setMaxLines(2);
+        labels.addView(subtitle, LayoutHelper.createLinear(-1, -2, 0, 4, 0, 0));
+        addView(labels, new LinearLayout.LayoutParams(0, -2, 1));
+    }
+
+    private int dp(float value) { return AndroidUtilities.dp(value); }
+    private TextView text(Context context, int size, int color) {
+        TextView view = new TextView(context);
+        view.setTextSize(size); view.setTextColor(Theme.getColor(color));
+        view.setGravity(Gravity.START); view.setTextDirection(TEXT_DIRECTION_FIRST_STRONG);
+        view.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        view.setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO);
+        return view;
+    }
+
+    public void bind(MessageObject message, String name, String source) {
+        title.setText(name);
+        String size = message.getDocument() == null ? "" : " · " + AndroidUtilities.formatFileSize(message.getDocument().size);
+        subtitle.setText(source + size);
+        int kind = TjMediaKind.of(message);
+        int label = kind == TjMediaKind.PHOTO ? R.string.TjMediaPhotos : kind == TjMediaKind.VIDEO ? R.string.TjMediaVideos
+                : kind == TjMediaKind.GIF ? R.string.TjMediaGifs : kind == TjMediaKind.MUSIC ? R.string.TjMediaMusic
+                : kind == TjMediaKind.VOICE ? R.string.TjMediaVoice : R.string.TjMediaFiles;
+        fallback.setText(TjLocale.getString(label));
+        image.getImageReceiver().cancelLoadImage(); image.setImageDrawable(null);
+        image.getImageReceiver().setCurrentAccount(message.currentAccount);
+        if (!message.hasMediaSpoilers()) {
+            TLRPC.PhotoSize thumb = FileLoader.getClosestPhotoSizeWithSize(message.photoThumbs, 90);
+            ImageLocation location = thumb == null ? null : ImageLocation.getForObject(thumb, message.photoThumbsObject);
+            if (location == null && message.getDocument() != null) {
+                thumb = FileLoader.getClosestPhotoSizeWithSize(message.getDocument().thumbs, 90);
+                if (thumb != null) location = ImageLocation.getForDocument(thumb, message.getDocument());
+            }
+            if (location != null) image.setImage(location, "90_90", (android.graphics.drawable.Drawable) null, message);
+        }
+        setContentDescription(name + ", " + TjLocale.getString(label) + ", " + source + size);
+    }
+}

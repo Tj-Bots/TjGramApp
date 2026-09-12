@@ -21,10 +21,8 @@ predicate = re.search(r'if \(mode == 1\) where \+= "([^"]+)"', source).group(1)
 assert db.execute("SELECT mid FROM media WHERE owner=1" + predicate).fetchall() == [(1,)]
 assert db.execute("SELECT position FROM media WHERE owner=2 AND dialog=7 AND mid=1").fetchone() == (8000,)
 assert db.execute("SELECT COUNT(*) FROM media").fetchone() == (6,)
-for token, expected in [("שם", 5), ("movie", 5), ("%", 0), ("absent", 0)]:
-    match = " AND instr(search_text || ' ' || title_text, ?)>0"
-    assert match in source
-    assert db.execute("SELECT COUNT(*) FROM media WHERE owner=1" + match, (token,)).fetchone() == (expected,)
+assert " AND rowid IN (SELECT docid FROM media_fts WHERE media_fts MATCH ?)" in source
+# Prefix-search behavior and trigger synchronization are exercised in test_search_index.py.
 db.execute("UPDATE media SET favorite=1 WHERE owner=1 AND dialog=7 AND mid=1")
 assert db.execute("SELECT favorite FROM media WHERE owner=2 AND dialog=7 AND mid=1").fetchone() == (0,)
 db.execute("UPDATE media SET position=6000 WHERE owner=1 AND dialog=7 AND mid=1 AND document=99")
@@ -43,16 +41,16 @@ for mid in range(100, 351):
     db.execute("INSERT INTO media(owner,dialog,mid,document,data,filename,caption,date,source_type,media_type,metadata,metadata_id,series) "
                "VALUES(3,8,?,9,?,'movie.mkv','',?,3,2,'{}',42,?)", (mid, b"test", mid, int(mid % 2 == 0)))
 db.execute("UPDATE media SET source_type=1, media_type=3 WHERE owner=3 AND mid=100")
-for production in [" AND source_type=?", " AND media_type=?", " AND metadata_id=?"]:
+for production in [" AND source_type=?", " AND ((1 << media_type) & ?) != 0", " AND metadata_id=?"]:
     assert production in source
-assert db.execute("SELECT mid FROM media WHERE owner=3 AND source_type=? AND media_type=? ORDER BY date DESC LIMIT 201",
-                  (1, 3)).fetchall() == [(100,)]
+assert db.execute("SELECT mid FROM media WHERE owner=3 AND source_type=? AND ((1 << media_type) & ?) != 0 ORDER BY date DESC LIMIT 201",
+                  (1, 1 << 3)).fetchall() == [(100,)]
 movie_count = db.execute("SELECT count(*) FROM media WHERE owner=3 AND metadata_id=42 AND series=0").fetchone()[0]
 series_count = db.execute("SELECT count(*) FROM media WHERE owner=3 AND metadata_id=42 AND series=1").fetchone()[0]
 assert (movie_count, series_count) == (125, 126)
 
 # Pagination consumes 200 raw rows plus one lookahead, without counting it twice.
-assert '"201 OFFSET "' in source and "result.nextOffset++" in source
+assert '"201 OFFSET "' not in source and "result.nextKey = new TjMediaPageKey" in source
 first = db.execute("SELECT mid FROM media WHERE owner=3 ORDER BY date DESC, dialog, mid LIMIT 201 OFFSET 0").fetchall()
 second = db.execute("SELECT mid FROM media WHERE owner=3 ORDER BY date DESC, dialog, mid LIMIT 201 OFFSET 200").fetchall()
 assert len(first) == 201 and len(second) == 51
@@ -96,10 +94,11 @@ for condition in re.finditer(r"if \(oldVersion < (\d+)\) \{", source):
         if source[end] == "{": depth += 1
         elif source[end] == "}": depth -= 1
         end += 1
-    statements = re.findall(r'db.execSQL\("((?:ALTER TABLE|CREATE INDEX)[^"\n]+)"\)', source[start:end])
+    statements = re.findall(r'db.execSQL\("((?:ALTER TABLE|CREATE INDEX|CREATE TABLE)[^"\n]+)"\)', source[start:end])
     migrations.append((int(condition.group(1)), statements))
 expected_columns = [row[1:5] for row in db.execute("PRAGMA table_info(media)")]
-for old_version in range(1, 8):
+scan_schema = re.search(r'db.execSQL\("(CREATE TABLE media_scan_progress [^"\n]+)"\)', source).group(1)
+for old_version in range(1, 10):
     previous = schema
     for version, declarations in added.items():
         if version > old_version:
@@ -107,6 +106,15 @@ for old_version in range(1, 8):
                 previous = previous.replace(declaration + ", ", "")
     migrated = sqlite3.connect(":memory:")
     migrated.execute(previous)
+    if old_version >= 9:
+        migrated.execute(scan_schema)
+    migrated.execute("CREATE INDEX media_recent ON media(owner,date DESC)")
+    migrated.execute("CREATE INDEX media_played ON media(owner,played DESC)")
+    if old_version >= 5:
+        migrated.execute("CREATE INDEX media_title ON media(owner,metadata_id,series)")
+    if old_version >= 8:
+        migrated.execute("CREATE INDEX media_recent_page ON media(owner,date DESC,dialog,mid)")
+        migrated.execute("CREATE INDEX media_played_page ON media(owner,played DESC,dialog,mid)")
     migrated.execute("INSERT INTO media(owner,dialog,mid,document,data,filename,caption,date,position,duration,played,favorite,collection) "
                      "VALUES(1,7,1,9,?,'example.mkv','caption',100,1234,10000,999,1,'Keep me')", (b"test",))
     for version, statements in migrations:
@@ -114,5 +122,8 @@ for old_version in range(1, 8):
             for statement in statements: migrated.execute(statement)
     assert sorted(row[1:5] for row in migrated.execute("PRAGMA table_info(media)")) == sorted(expected_columns)
     assert migrated.execute("SELECT position,duration,played,favorite,collection FROM media").fetchone() == (1234,10000,999,1,'Keep me')
+    indexes = {row[1] for row in migrated.execute("PRAGMA index_list(media)")}
+    assert {"media_recent_page", "media_played_page"}.issubset(indexes)
+    assert len(list(migrated.execute("PRAGMA table_info(media_scan_progress)"))) == 5
     migrated.close()
-print("Migration DDL preserves schema and user state from versions 1–7")
+print("Migration DDL preserves schema and user state from versions 1–9")

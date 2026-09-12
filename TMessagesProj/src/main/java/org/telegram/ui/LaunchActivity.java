@@ -6766,6 +6766,7 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
         pipActivityHandler.onPause();
         NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.stopAllHeavyOperations, 4096);
         ApplicationLoader.mainInterfacePaused = true;
+        org.telegram.messenger.tj.TjMediaScanCoordinator.getInstance().setForeground(false);
         int account = currentAccount;
         Utilities.stageQueue.postRunnable(() -> {
             ApplicationLoader.mainInterfacePausedStageQueue = true;
@@ -7011,6 +7012,7 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
         NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.startAllHeavyOperations, 4096);
         MediaController.getInstance().setFeedbackView(feedbackView = actionBarLayout.getView(), true);
         ApplicationLoader.mainInterfacePaused = false;
+        org.telegram.messenger.tj.TjMediaScanCoordinator.getInstance().setForeground(true);
         MessagesController.getInstance(currentAccount).sortDialogs(null);
         showLanguageAlert(false);
         Utilities.stageQueue.postRunnable(() -> {
@@ -8540,6 +8542,12 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
                     drawerLayoutContainer.closeDrawer(false);
                     presentFragment(new TjSettingsHomeActivity());
                     break;
+                case 106:
+                    drawerLayoutContainer.closeDrawer(false);
+                    TjMediaCenterActivity mediaCenter = new TjMediaCenterActivity();
+                    mediaCenter.setCurrentAccount(currentAccount);
+                    presentFragment(mediaCenter);
+                    break;
             }
         });
         final ItemTouchHelper sideMenuTouchHelper = new ItemTouchHelper(new ItemTouchHelper.SimpleCallback(ItemTouchHelper.UP | ItemTouchHelper.DOWN, 0) {
@@ -9199,6 +9207,10 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
             }
         }
         return true;
+    }
+
+    public void refreshTjMediaNavigation() {
+        if (drawerLayoutAdapter != null) drawerLayoutAdapter.notifyDataSetChanged();
     }
 
     public void rebuildAllFragments(boolean last) {

@@ -28,6 +28,7 @@ import org.telegram.messenger.UserObject;
 import org.telegram.messenger.tj.TjMediaLibrary;
 import org.telegram.messenger.tj.TjConfig;
 import org.telegram.messenger.tj.TjMediaStore;
+import org.telegram.messenger.tj.TjMediaPageKey;
 import org.telegram.messenger.tj.TjMediaMetadata;
 import org.telegram.messenger.tj.TjMediaTitle;
 import org.telegram.messenger.tj.TjMediaCatalog;
@@ -51,15 +52,20 @@ import java.util.HashSet;
 import java.util.Set;
 
 /** General-media entry point; movie recognition must never hide ordinary files. */
-public class TjMediaCenterActivity extends BaseFragment {
+public class TjMediaCenterActivity extends BaseFragment implements MainTabsActivity.TabFragmentDelegate {
+    private Runnable mainTabBackAction;
+    public void setMainTabBackAction(Runnable action) { mainTabBackAction = action; }
+
+    @Override public void onParentScrollToTop() {
+        if (libraryView == 9 && home != null) home.smoothScrollTo(0, 0);
+        else if (grid != null) grid.smoothScrollToPosition(0);
+    }
     private final ArrayList<Integer> accounts = new ArrayList<>();
     private final ArrayList<TjMediaLibrary.Entry> visible = new ArrayList<>();
     private TjMediaLibrary library;
     private TjMediaLibrary scanner;
     private TjMediaAutoMatcher autoMatcher;
-    private final Runnable scanNext = () -> {
-        if (scanner != null && !scanner.isLoading() && !scanner.hasError() && scanner.hasMore()) scanner.loadMore();
-    };
+    private final Runnable scanChanged = this::onScanChanged;
     private Adapter adapter;
     private EditTextBoldCursor search;
     private TextView status;
@@ -67,27 +73,43 @@ public class TjMediaCenterActivity extends BaseFragment {
     private TextView typeButton;
     private TextView sourceButton;
     private final HashMap<Long, Set<Long>> sources = new HashMap<>();
+    private final HashMap<Long, Set<Long>> explicitSources = new HashMap<>();
+    private final HashMap<Long, Set<Long>> sourceFolders = new HashMap<>();
     private int sourceType;
     private int accountMode;
     private boolean preferencesLoaded;
     private long screenOwner;
     private TextView viewButton;
-    private int libraryView = 9;
+    private int libraryView = 0;
+    private int enabledTypes = org.telegram.messenger.tj.TjMediaKind.ALL_MASK;
+    private LinearLayout mainTabs, typeTabs;
+    private android.widget.HorizontalScrollView typeStrip;
     private TjMediaHomeView home;
     private RecyclerListView grid;
     private final Runnable homeRefresh = this::refreshHome;
     private final Runnable searchAction = this::reload;
+    private boolean pendingStoreUpdate;
     private final Runnable storeChanged = () -> {
         if (fragmentView != null) {
-            AndroidUtilities.cancelRunOnUIThread(searchAction);
-            AndroidUtilities.runOnUIThread(searchAction, 200);
+            // A database write is not a user navigation action: leave dialogs, search
+            // requests and the list under the user's finger untouched.
+            pendingStoreUpdate = true;
+            updateNewItemsButton();
         }
     };
+    private TextView newItemsButton;
     private String collection = "";
     private int localGeneration;
     private int localPending;
     private boolean localError;
-    private final HashMap<Integer, Integer> localOffsets = new HashMap<>();
+    private boolean localBackwards;
+    private org.telegram.messenger.tj.TjMediaCatalogPageKey catalogNext, catalogPrevious;
+    private boolean catalogMore = true, catalogHasPrevious;
+    private final HashMap<Integer, TjMediaPageKey> localCursors = new HashMap<>();
+    private final HashMap<Integer, TjMediaPageKey> localPrevious = new HashMap<>(), localEnds = new HashMap<>();
+    private boolean showRemotePreview = true, discoveryRequested;
+    private TextView previousButton;
+    private TextView scanStatus;
     private final HashMap<String, TjMediaStore.Record> localRecords = new HashMap<>();
     private final ArrayList<TjMediaLibrary.Entry> localEntries = new ArrayList<>();
     private final TjMediaMetadata metadataClient = new TjMediaMetadata();
@@ -104,7 +126,10 @@ public class TjMediaCenterActivity extends BaseFragment {
         actionBar.createMenu().addItem(1, R.drawable.msg_settings).setContentDescription(LocaleController.getString(R.string.Settings));
         actionBar.setActionBarMenuOnItemClick(new ActionBar.ActionBarMenuOnItemClick() {
             @Override public void onItemClick(int id) {
-                if (id == -1) finishFragment();
+                if (id == -1) {
+                    if (mainTabBackAction != null) mainTabBackAction.run();
+                    else finishFragment();
+                }
                 else if (id == 1) mediaSettings();
             }
         });
@@ -112,6 +137,14 @@ public class TjMediaCenterActivity extends BaseFragment {
         root.setOrientation(LinearLayout.VERTICAL);
         root.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
         fragmentView = root;
+        if (mainTabBackAction != null) {
+            androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(root, (view, insets) -> {
+                androidx.core.graphics.Insets system = AndroidUtilities.getDefaultWindowInsets(insets, false);
+                root.setPadding(system.left, system.top + ActionBar.getCurrentActionBarHeight(), system.right,
+                        system.bottom);
+                return insets;
+            });
+        }
         search = new EditTextBoldCursor(context);
         search.setSingleLine(true);
         search.setTextSize(16);
@@ -120,40 +153,64 @@ public class TjMediaCenterActivity extends BaseFragment {
         search.setHint(text(R.string.TjMediaSearch));
         search.setText(searchQuery);
         search.setPadding(AndroidUtilities.dp(16), 0, AndroidUtilities.dp(16), 0);
-        root.addView(search, LayoutHelper.createLinear(-1, 56));
-        LinearLayout controls = new LinearLayout(context);
         accountButton = label(context);
-        typeButton = label(context);
-        controls.addView(accountButton, LayoutHelper.createLinear(-2, 48));
-        controls.addView(typeButton, LayoutHelper.createLinear(-2, 48));
-        android.widget.HorizontalScrollView filterStrip = new android.widget.HorizontalScrollView(context);
-        filterStrip.setHorizontalScrollBarEnabled(false);
-        filterStrip.addView(controls);
-        root.addView(filterStrip, LayoutHelper.createLinear(-1, 48));
-        sourceButton = label(context);
-        sourceButton.setOnClickListener(v -> chooseSources());
-        controls.addView(sourceButton, LayoutHelper.createLinear(-2, 48));
-        viewButton = label(context);
-        viewButton.setOnClickListener(v -> new AlertDialog.Builder(getParentActivity()).setTitle(text(R.string.TjMediaView))
-                .setItems(viewNames(), (dialog, which) -> {
-                    if (which == 5) {
-                        chooseCollection(new ArrayList<>(accounts), null, value -> { collection = value; libraryView = 5; reload(); });
-                    } else { libraryView = which; reload(); }
-                }).show());
-        controls.addView(viewButton, LayoutHelper.createLinear(-2, 48));
+        accountButton.setGravity(LocaleController.isRTL ? Gravity.RIGHT : Gravity.LEFT);
         accountButton.setOnClickListener(v -> chooseAccounts());
-        typeButton.setOnClickListener(v -> new AlertDialog.Builder(getParentActivity())
-                .setTitle(text(R.string.TjMediaType)).setItems(typeNames(), (dialog, which) -> {
-                    mediaType = which;
-                    reload();
-                }).show());
+        LinearLayout scopeRow = new LinearLayout(context);
+        scopeRow.setLayoutDirection(LocaleController.isRTL ? View.LAYOUT_DIRECTION_RTL : View.LAYOUT_DIRECTION_LTR);
+        scopeRow.addView(accountButton, new LinearLayout.LayoutParams(0, -2, 1));
+        scanStatus = label(context);
+        scanStatus.setTextSize(12); scanStatus.setMaxWidth(AndroidUtilities.dp(170));
+        scanStatus.setMaxLines(2); scanStatus.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        scanStatus.setVisibility(View.GONE);
+        scanStatus.setOnClickListener(v -> {
+            if (autoMatcher != null) { stopMatching(); refresh(); }
+            else if (scanner != null && scanner.hasError() && !scanner.isLoading()) scanner.loadMore();
+            else { stopScan(); refresh(); }
+        });
+        scopeRow.addView(scanStatus, LayoutHelper.createLinear(-2, -2));
+        root.addView(scopeRow, LayoutHelper.createLinear(-1, -2));
+        mainTabs = new LinearLayout(context);
+        mainTabs.setLayoutDirection(LocaleController.isRTL ? View.LAYOUT_DIRECTION_RTL : View.LAYOUT_DIRECTION_LTR);
+        for (int page : new int[]{0, 9, 3}) {
+            TextView tab = label(context);
+            tab.setTag(page);
+            android.graphics.drawable.Drawable icon = context.getDrawable(page == 0 ? R.drawable.msg_media
+                    : page == 9 ? R.drawable.msg_played : R.drawable.msg_saved).mutate();
+            icon.setBounds(0, 0, AndroidUtilities.dp(22), AndroidUtilities.dp(22));
+            tab.setCompoundDrawables(null, icon, null, null);
+            tab.setCompoundDrawablePadding(AndroidUtilities.dp(4));
+            tab.setText(text(page == 0 ? R.string.TjMediaLibraryTab : page == 9 ? R.string.TjMediaWatchTab : R.string.TjMediaListsTab));
+            tab.setOnClickListener(v -> { libraryView = page; mediaType = 0; reload(); });
+            mainTabs.addView(tab, new LinearLayout.LayoutParams(0, -2, 1));
+        }
+        mainTabs.setPadding(AndroidUtilities.dp(4), AndroidUtilities.dp(4), AndroidUtilities.dp(4), AndroidUtilities.dp(4));
+        mainTabs.setBackground(Theme.createRoundRectDrawable(AndroidUtilities.dp(32), Theme.getColor(Theme.key_windowBackgroundGray)));
+        LinearLayout searchRow = new LinearLayout(context);
+        searchRow.setLayoutDirection(LocaleController.isRTL ? View.LAYOUT_DIRECTION_RTL : View.LAYOUT_DIRECTION_LTR);
+        searchRow.addView(search, new LinearLayout.LayoutParams(0, AndroidUtilities.dp(52), 1));
+        TextView filter = label(context);
+        filter.setText(text(R.string.TjMediaFilters));
+        filter.setOnClickListener(v -> chooseFilters());
+        searchRow.addView(filter, LayoutHelper.createLinear(-2, -1));
+        root.addView(searchRow, LayoutHelper.createLinear(-1, -2));
+        typeTabs = new LinearLayout(context);
+        typeTabs.setLayoutDirection(LocaleController.isRTL ? View.LAYOUT_DIRECTION_RTL : View.LAYOUT_DIRECTION_LTR);
+        typeStrip = new android.widget.HorizontalScrollView(context);
+        typeStrip.setHorizontalScrollBarEnabled(false);
+        typeStrip.addView(typeTabs);
+        root.addView(typeStrip, LayoutHelper.createLinear(-1, -2));
+        // These labels are also used in the filter sheet, not permanent toolbar rows.
+        typeButton = label(context);
+        sourceButton = label(context);
+        viewButton = label(context);
         RecyclerListView list = new RecyclerListView(context) {
             @Override protected void onSizeChanged(int w, int h, int oldw, int oldh) {
                 super.onSizeChanged(w, h, oldw, oldh);
                 if (getLayoutManager() instanceof GridLayoutManager && w > 0) {
                     float cardWidth = 180 * Math.max(1f, getResources().getConfiguration().fontScale);
-                    ((GridLayoutManager) getLayoutManager()).setSpanCount(Math.max(1,
-                            (int) ((w - getPaddingLeft() - getPaddingRight()) / AndroidUtilities.density / cardWidth)));
+                    ((GridLayoutManager) getLayoutManager()).setSpanCount(libraryView == 7 || libraryView == 8 ? Math.max(1,
+                            (int) ((w - getPaddingLeft() - getPaddingRight()) / AndroidUtilities.density / cardWidth)) : 1);
                 }
             }
         };
@@ -181,30 +238,53 @@ public class TjMediaCenterActivity extends BaseFragment {
         status = label(context);
         status.setMinHeight(AndroidUtilities.dp(56));
         status.setOnClickListener(v -> {
-            if (autoMatcher != null) { stopMatching(); refresh(); return; }
-            if (scanner != null) {
-                if (scanner.hasError() && !scanner.isLoading()) { scanner.loadMore(); refresh(); }
-                else { stopScan(); refresh(); }
-                return;
-            }
             if (libraryView == 9 && localError && localPending == 0) {
                 refreshHome();
                 refresh();
                 return;
             }
             if (libraryView != 0 && libraryView != 9) {
-                if (localPending == 0) loadLocal();
+                if (localPending == 0) loadLocal(localError && localBackwards);
+            } else if (libraryView == 0 && !localCursors.isEmpty()) {
+                loadLocal(localError && localBackwards);
             } else if (library != null && !library.isLoading()) {
+                discoveryRequested = libraryView == 0;
                 library.loadMore();
                 refresh();
             }
         });
-        root.addView(status, LayoutHelper.createLinear(-1, -2));
+        LinearLayout pages = new LinearLayout(context);
+        pages.setLayoutDirection(LocaleController.isRTL ? View.LAYOUT_DIRECTION_RTL : View.LAYOUT_DIRECTION_LTR);
+        pages.addView(status, new LinearLayout.LayoutParams(0, -2, 1));
+        previousButton = label(context);
+        previousButton.setText(text(R.string.TjMediaNewerPage));
+        previousButton.setOnClickListener(v -> loadLocal(true));
+        previousButton.setVisibility(View.GONE);
+        pages.addView(previousButton, new LinearLayout.LayoutParams(0, -2, 1));
+        root.addView(pages, LayoutHelper.createLinear(-1, -2));
+        newItemsButton = label(context);
+        newItemsButton.setText(text(R.string.TjMediaRefreshAvailable));
+        newItemsButton.setVisibility(View.GONE);
+        newItemsButton.setOnClickListener(v -> {
+            pendingStoreUpdate = false;
+            updateNewItemsButton();
+            reload();
+        });
+        root.addView(newItemsButton, LayoutHelper.createLinear(-1, -2));
+        root.addView(mainTabs, LayoutHelper.createLinear(-1, -2, 12, 6, 12, 12));
         loadPreferences();
         TjMediaStore.getInstance().addListener(storeChanged);
+        org.telegram.messenger.tj.TjMediaScanCoordinator.getInstance().addListener(scanChanged);
+        scanner = org.telegram.messenger.tj.TjMediaScanCoordinator.getInstance().scanner();
         library = new TjMediaLibrary(() -> {
+            if (discoveryRequested && !library.isLoading()) {
+                discoveryRequested = false;
+                localCursors.clear(); localCursors.putAll(localEnds);
+                if (localCursors.isEmpty()) for (int account : accounts) localCursors.put(account, null);
+                loadLocal();
+            }
             refresh();
-            if (libraryView == 9) {
+            if (libraryView == 9 && visible.isEmpty() && localPending == 0) {
                 AndroidUtilities.cancelRunOnUIThread(homeRefresh);
                 AndroidUtilities.runOnUIThread(homeRefresh, 200);
             }
@@ -223,6 +303,22 @@ public class TjMediaCenterActivity extends BaseFragment {
     }
 
     private static String text(int id) { return TjLocale.getString(id); }
+
+    private void updateNewItemsButton() {
+        if (newItemsButton != null) newItemsButton.setVisibility(pendingStoreUpdate ? View.VISIBLE : View.GONE);
+    }
+
+    private void onScanChanged() {
+        scanner = org.telegram.messenger.tj.TjMediaScanCoordinator.getInstance().scanner();
+        if (scanStatus == null) return;
+        pendingStoreUpdate = true;
+        updateNewItemsButton();
+        scanStatus.setVisibility(scanner != null || org.telegram.messenger.tj.TjMediaScanCoordinator.getInstance().isRequested() ? View.VISIBLE : View.GONE);
+        scanStatus.setText(scanner == null ? text(R.string.TjMediaWatchingFolders)
+                : scanner.hasError() && !scanner.isLoading() ? text(R.string.TjMediaRetry)
+                : String.format(java.util.Locale.getDefault(), text(R.string.TjMediaScanProgress), scanner.scannedCount()));
+        scanStatus.setEnabled(true);
+    }
 
     private TextView label(Context context) {
         TextView view = new TextView(context);
@@ -244,14 +340,82 @@ public class TjMediaCenterActivity extends BaseFragment {
     private CharSequence[] typeNames() {
         return new CharSequence[]{text(R.string.TjMediaAll), text(R.string.TjMediaPhotos),
                 text(R.string.TjMediaVideos), text(R.string.TjMediaFiles),
-                text(R.string.TjMediaMusic), text(R.string.TjMediaVoice)};
+                text(R.string.TjMediaMusic), text(R.string.TjMediaVoice), text(R.string.TjMediaGifs)};
+    }
+
+    private int typeSelection() {
+        return mediaType == 0 ? -enabledTypes : mediaType;
+    }
+
+    private void chooseFilters() {
+        showDialog(new org.telegram.ui.ActionBar.BottomSheet.Builder(getParentActivity())
+                .setTitle(text(R.string.TjMediaFilters))
+                .setItems(new CharSequence[]{text(R.string.TjMediaAccounts), text(R.string.TjMediaSources),
+                        text(R.string.TjMediaType), text(R.string.TjMediaView)}, (dialog, which) -> {
+                    if (which == 0) chooseAccounts();
+                    else if (which == 1) chooseSources();
+                    else if (which == 2) chooseMediaTypes();
+                    else showDialog(new AlertDialog.Builder(getParentActivity()).setTitle(text(R.string.TjMediaView))
+                            .setItems(viewNames(), (d, view) -> {
+                                if (view == 5) chooseCollection(new ArrayList<>(accounts), null,
+                                        value -> { collection = value; libraryView = 5; reload(); });
+                                else { libraryView = view; reload(); }
+                            }).create());
+                }).create());
+    }
+
+    private void chooseMediaTypes() {
+        ArrayList<String> names = new ArrayList<>();
+        CharSequence[] labels = typeNames();
+        boolean[] selected = new boolean[labels.length - 1];
+        for (int i = 1; i < labels.length; i++) {
+            names.add(labels[i].toString()); selected[i - 1] = (enabledTypes & (1 << i)) != 0;
+        }
+        chooseMany(text(R.string.TjMediaType), names, selected, () -> {
+            int mask = 0;
+            for (int i = 0; i < selected.length; i++) if (selected[i]) mask |= 1 << (i + 1);
+            if (mask == 0) {
+                showDialog(new AlertDialog.Builder(getParentActivity())
+                        .setMessage(text(R.string.TjMediaSelectType))
+                        .setPositiveButton(LocaleController.getString(R.string.OK), null).create());
+                return;
+            }
+            enabledTypes = mask;
+            if ((enabledTypes & (1 << mediaType)) == 0) mediaType = 0;
+            savePreferences(); reload();
+        });
+    }
+
+    private void bindTabs() {
+        int page = libraryView == 9 || libraryView == 7 || libraryView == 8 ? 9
+                : libraryView == 0 || libraryView == 6 ? 0 : 3;
+        for (int i = 0; i < mainTabs.getChildCount(); i++) {
+            TextView tab = (TextView) mainTabs.getChildAt(i);
+            boolean selected = ((Integer) tab.getTag()) == page;
+            tab.setSelected(selected);
+            tab.setTextColor(Theme.getColor(selected ? Theme.key_windowBackgroundWhiteBlueText : Theme.key_windowBackgroundWhiteGrayText));
+            tab.setTypeface(selected ? AndroidUtilities.bold() : android.graphics.Typeface.DEFAULT);
+            int color = Theme.getColor(selected ? Theme.key_windowBackgroundWhiteBlueText : Theme.key_windowBackgroundWhiteGrayText);
+            for (android.graphics.drawable.Drawable icon : tab.getCompoundDrawables()) if (icon != null)
+                icon.setColorFilter(new android.graphics.PorterDuffColorFilter(color, android.graphics.PorterDuff.Mode.SRC_IN));
+            tab.setBackground(Theme.createRoundRectDrawable(AndroidUtilities.dp(28), selected
+                    ? Theme.getColor(Theme.key_actionBarDefaultSelector) : android.graphics.Color.TRANSPARENT));
+        }
+        typeStrip.setVisibility(page == 0 ? View.VISIBLE : View.GONE);
+        typeTabs.removeAllViews();
+        CharSequence[] names = typeNames();
+        for (int type : new int[]{0, 2, 1, 3, 4, 5, 6}) {
+            if (type != 0 && (enabledTypes & (1 << type)) == 0) continue;
+            TextView tab = label(getContext()); tab.setText(names[type]); tab.setSelected(mediaType == type);
+            tab.setTextColor(Theme.getColor(mediaType == type ? Theme.key_windowBackgroundWhiteBlueText : Theme.key_windowBackgroundWhiteGrayText));
+            tab.setOnClickListener(v -> { mediaType = type; reload(); });
+            typeTabs.addView(tab, LayoutHelper.createLinear(-2, -2));
+        }
     }
 
     private void reload() {
         metadataClient.cancel();
-        dismissCurrentDialog();
         stopMatching();
-        stopScan();
         if (screenOwner != UserConfig.getInstance(currentAccount).getClientUserId()) {
             if (library != null) library.close();
             finishFragment();
@@ -260,24 +424,38 @@ public class TjMediaCenterActivity extends BaseFragment {
         preferencesLoaded = false;
         accounts.clear();
         sources.clear();
+        explicitSources.clear();
+        sourceFolders.clear();
         loadPreferences();
+        bindTabs();
         AndroidUtilities.cancelRunOnUIThread(homeRefresh);
         localGeneration++;
         localPending = 0;
         localError = false;
-        localOffsets.clear();
+        localBackwards = false;
+        catalogNext = catalogPrevious = null;
+        catalogMore = true; catalogHasPrevious = false;
+        localCursors.clear();
+        localPrevious.clear(); localEnds.clear();
+        showRemotePreview = true; discoveryRequested = false;
         localEntries.clear();
         localRecords.clear();
         if (library == null) return;
         grid.setVisibility(libraryView == 9 ? View.GONE : View.VISIBLE);
         home.setVisibility(libraryView == 9 ? View.VISIBLE : View.GONE);
+        ((GridLayoutManager) grid.getLayoutManager()).setSpanCount(libraryView == 7 || libraryView == 8
+                ? Math.max(1, (int) (AndroidUtilities.displaySize.x / AndroidUtilities.density / 180)) : 1);
         if (libraryView == 0 || libraryView == 9) {
             library.reset(accounts, sources, sourceType, search.getText().toString());
             if (libraryView == 9) refreshHome();
+            else {
+                for (int account : accounts) localCursors.put(account, null);
+                loadLocal();
+            }
         }
         else {
             library.close();
-            for (int account : accounts) localOffsets.put(account, 0);
+            for (int account : accounts) localCursors.put(account, null);
             loadLocal();
         }
     }
@@ -294,7 +472,7 @@ public class TjMediaCenterActivity extends BaseFragment {
             AndroidUtilities.runOnUIThread(homeRefresh, 200);
             return;
         }
-        localOffsets.clear();
+        localCursors.clear();
         ArrayList<TjMediaLibrary.Entry> nextEntries = new ArrayList<>();
         HashMap<String, TjMediaStore.Record> nextRecords = new HashMap<>();
         int generation = localGeneration;
@@ -302,8 +480,10 @@ public class TjMediaCenterActivity extends BaseFragment {
         localError = false;
         for (int account : accounts) {
             long owner = UserConfig.getInstance(account).getClientUserId();
-            for (int mode : new int[]{0, 1, 3, 7, 8}) TjMediaStore.getInstance().load(account, mode,
-                    search.getText().toString(), "", 0, sources.get(owner), sourceType, mediaType, records -> {
+            for (int mode : new int[]{0, 1, 3, 7, 8}) TjMediaStore.getInstance().loadPreview(account, mode,
+                    search.getText().toString(), sources.get(owner), sourceType,
+                    (enabledTypes & (1 << org.telegram.messenger.tj.TjMediaKind.VIDEO)) == 0 ? -enabledTypes : org.telegram.messenger.tj.TjMediaKind.VIDEO,
+                    Math.max(1, 120 / Math.max(1, accounts.size() * 5)), records -> {
                         if (generation != localGeneration) return;
                         localPending--;
                         if (records == null) localError = true;
@@ -326,29 +506,73 @@ public class TjMediaCenterActivity extends BaseFragment {
         if (accounts.isEmpty()) refresh();
     }
 
-    private void loadLocal() {
+    private void loadLocal() { loadLocal(false); }
+
+    private void loadLocal(boolean backwards) {
+        if (localPending > 0) return;
+        localBackwards = backwards;
+        if (libraryView == 7 || libraryView == 8) { loadCatalog(backwards); return; }
         int generation = localGeneration;
+        HashMap<Integer, TjMediaPageKey> boundaries = new HashMap<>(backwards ? localPrevious : localCursors);
+        if (boundaries.isEmpty()) { refresh(); return; }
         localError = false;
-        ArrayList<Integer> pending = new ArrayList<>(localOffsets.keySet());
-        localPending = pending.size();
-        for (int account : pending) {
-            int offset = localOffsets.get(account);
+        localPending = boundaries.size();
+        ArrayList<TjMediaLibrary.Entry> nextEntries = new ArrayList<>();
+        HashMap<String, TjMediaStore.Record> nextRecords = new HashMap<>();
+        HashMap<Integer, TjMediaPageKey> older = new HashMap<>(), newer = new HashMap<>(), ends = new HashMap<>();
+        HashMap<Integer, TjMediaStore.Page> pages = new HashMap<>();
+        boolean firstPage = !backwards && boundaries.values().stream().allMatch(java.util.Objects::isNull);
+        for (int account : boundaries.keySet()) {
+            TjMediaPageKey after = boundaries.get(account);
             long owner = UserConfig.getInstance(account).getClientUserId();
-            TjMediaStore.getInstance().load(account, libraryView == 6 || libraryView == 9 ? 0 : libraryView,
-                    search.getText().toString(), collection, offset, sources.get(owner), sourceType, mediaType, records -> {
+            TjMediaStore.getInstance().loadWindow(account, libraryView == 6 || libraryView == 9 ? 0 : libraryView,
+                    search.getText().toString(), collection, after, sources.get(owner), sourceType, typeSelection(),
+                    Math.max(1, 400 / boundaries.size()), records -> {
                         if (generation != localGeneration) return;
                         localPending--;
                         if (records == null) localError = true;
                         else {
-                            if (!records.hasMore) localOffsets.remove(account);
-                            else localOffsets.put(account, records.nextOffset);
+                            pages.put(account, records);
                             for (TjMediaStore.Record record : records) {
                                 TjMediaLibrary.Entry entry = new TjMediaLibrary.Entry(account, owner, record.message);
-                                if (localRecords.put(entry.key, record) == null) localEntries.add(entry);
+                                if (nextRecords.put(entry.key, record) == null) nextEntries.add(entry);
                             }
-                            localEntries.sort((a, b) -> libraryView == 1 || libraryView == 2
-                                    ? Long.compare(localRecords.get(b.key).playedAt, localRecords.get(a.key).playedAt)
-                                    : Integer.compare(b.message.messageOwner.date, a.message.messageOwner.date));
+                        }
+                        if (localPending == 0 && !localError) {
+                            org.telegram.messenger.tj.TjMediaPageMerge merge = new org.telegram.messenger.tj.TjMediaPageMerge(backwards);
+                            for (TjMediaStore.Page page : pages.values()) {
+                                merge.add(backwards ? page.previousKey : page.nextKey, backwards ? page.hasPrevious : page.hasMore);
+                            }
+                            boolean moreInDirection = merge.hasMore();
+                            TjMediaPageKey edge = merge.edge();
+                            nextEntries.removeIf(entry -> !merge.includes(entryBoundary(entry, nextRecords)));
+                            nextEntries.sort((a, b) -> TjMediaPageKey.compare(entryBoundary(a, nextRecords), entryBoundary(b, nextRecords)));
+                            // Only consume the shared chronological prefix. Unshown candidates
+                            // are queried again, rather than silently skipped by per-owner cursors.
+                            TjMediaPageKey first = nextEntries.isEmpty() ? edge : entryBoundary(nextEntries.get(0), nextRecords);
+                            TjMediaPageKey last = nextEntries.isEmpty() ? edge : entryBoundary(nextEntries.get(nextEntries.size() - 1), nextRecords);
+                            for (int selectedAccount : accounts) {
+                                long selectedOwner = UserConfig.getInstance(selectedAccount).getClientUserId();
+                                TjMediaPageKey oldEdge = backwards ? last : edge;
+                                TjMediaPageKey newEdge = backwards ? edge : first;
+                                if (oldEdge != null) {
+                                    TjMediaPageKey key = TjMediaPageKey.forAccount(selectedOwner, oldEdge, false);
+                                    ends.put(selectedAccount, key);
+                                    if (backwards || moreInDirection) older.put(selectedAccount, key);
+                                }
+                                if (newEdge != null && (backwards ? moreInDirection : !firstPage))
+                                    newer.put(selectedAccount, TjMediaPageKey.forAccount(selectedOwner, newEdge, true));
+                            }
+                            HashSet<String> retained = new HashSet<>();
+                            for (TjMediaLibrary.Entry entry : nextEntries) retained.add(entry.key);
+                            nextRecords.keySet().retainAll(retained);
+                            localEntries.clear(); localEntries.addAll(nextEntries);
+                            localRecords.clear(); localRecords.putAll(nextRecords);
+                            localCursors.clear(); localCursors.putAll(older);
+                            localPrevious.clear(); localPrevious.putAll(newer);
+                            localEnds.clear(); localEnds.putAll(ends);
+                            showRemotePreview = firstPage;
+                            grid.scrollToPosition(0);
                         }
                         refresh();
                     });
@@ -356,10 +580,55 @@ public class TjMediaCenterActivity extends BaseFragment {
         refresh();
     }
 
+    private void loadCatalog(boolean backwards) {
+        if (backwards ? !catalogHasPrevious : !catalogMore) { refresh(); return; }
+        int generation = localGeneration;
+        localPending = 1; localError = false;
+        TjMediaStore.getInstance().loadCatalog(new ArrayList<>(accounts), libraryView == 8,
+                search.getText().toString(), backwards ? catalogPrevious : catalogNext, sources, sourceType, typeSelection(), records -> {
+                    if (generation != localGeneration) return;
+                    localPending = 0;
+                    localError = records == null;
+                    if (records != null) {
+                        localEntries.clear(); localRecords.clear();
+                        for (TjMediaStore.Record record : records) {
+                            int account = record.message.currentAccount;
+                            TjMediaLibrary.Entry entry = new TjMediaLibrary.Entry(account, UserConfig.getInstance(account).getClientUserId(), record.message);
+                            localEntries.add(entry); localRecords.put(entry.key, record);
+                        }
+                        catalogNext = records.nextKey; catalogPrevious = records.previousKey;
+                        catalogMore = records.hasMore; catalogHasPrevious = records.hasPrevious;
+                        showRemotePreview = false; grid.scrollToPosition(0);
+                    }
+                    refresh();
+                });
+        refresh();
+    }
+
+    private TjMediaPageKey entryBoundary(TjMediaLibrary.Entry entry, HashMap<String, TjMediaStore.Record> records) {
+        boolean byPlayed = libraryView == 1 || libraryView == 2;
+        TjMediaStore.Record record = records.get(entry.key);
+        return new TjMediaPageKey(entry.ownerId, byPlayed,
+                byPlayed && record != null ? record.playedAt : entry.message.messageOwner.date,
+                entry.message.getDialogId(), entry.message.getId());
+    }
+
     private void refresh() {
         if (adapter == null || library == null) return;
+        if (getVisibleDialog() != null && getVisibleDialog().isShowing()) {
+            pendingStoreUpdate = true;
+            updateNewItemsButton();
+            return;
+        }
         visible.clear();
-        for (TjMediaLibrary.Entry entry : libraryView == 0 ? library.snapshot() : localEntries) {
+        ArrayList<TjMediaLibrary.Entry> candidates = new ArrayList<>(localEntries);
+        if (libraryView == 0 && showRemotePreview) {
+            HashSet<String> keys = new HashSet<>();
+            for (TjMediaLibrary.Entry entry : candidates) keys.add(entry.key);
+            for (TjMediaLibrary.Entry entry : library.snapshot()) if (keys.add(entry.key)) candidates.add(entry);
+            candidates.sort((a, b) -> Integer.compare(b.message.messageOwner.date, a.message.messageOwner.date));
+        }
+        for (TjMediaLibrary.Entry entry : candidates) {
             if (!entry.isAccountAvailable()) continue;
             MessageObject m = entry.message;
             long did = m.getDialogId();
@@ -372,18 +641,14 @@ public class TjMediaCenterActivity extends BaseFragment {
                 if (sourceType != 0 && sourceType != cached.sourceType) continue;
             } else if (sourceType == 1 && did < 0 || sourceType == 2 && (did > 0 || channel)
                     || sourceType == 3 && !channel) continue;
-            if (mediaType == 0 || mediaType == 1 && m.isPhoto()
-                    || mediaType == 2 && (m.isVideo() || m.isGif())
-                    || mediaType == 3 && m.getDocument() != null && !m.isVideo() && !m.isMusic() && !m.isVoice() && !m.isRoundVideo() && !m.isGif()
-                    || mediaType == 4 && m.isMusic()
-                    || mediaType == 5 && (m.isVoice() || m.isRoundVideo())) visible.add(entry);
+            if (org.telegram.messenger.tj.TjMediaKind.matches(typeSelection(), org.telegram.messenger.tj.TjMediaKind.of(m))) visible.add(entry);
         }
         catalog = new TjMediaCatalog<>();
         if (libraryView == 7 || libraryView == 8) {
             for (TjMediaLibrary.Entry entry : visible) {
                 TjMediaStore.Record record = localRecords.get(entry.key);
-                if (record == null || record.metadata == null) continue;
-                catalog.add(record.metadata.id, record.metadata.series,
+                if (record == null || record.catalogKey().isEmpty()) continue;
+                catalog.add(record.catalogKey(), record.isSeries(),
                         new TjMediaCatalog.Source<>(entry.key, entry, record.season(), record.episode()));
             }
             visible.clear();
@@ -391,35 +656,50 @@ public class TjMediaCenterActivity extends BaseFragment {
         }
         adapter.notifyDataSetChanged();
         if (libraryView == 9 && home != null) home.bind(visible, localRecords, library.isLoading() || localPending > 0);
-        accountButton.setText(text(R.string.TjMediaAccounts) + " · " + accounts.size());
+        accountButton.setText((accounts.size() == 1
+                ? UserObject.getUserName(UserConfig.getInstance(accounts.get(0)).getCurrentUser())
+                : text(R.string.TjMediaAccounts) + " · " + accounts.size()) + " ▾");
         typeButton.setText(typeNames()[mediaType]);
         viewButton.setText(viewNames()[libraryView] + (libraryView == 5 ? " · " + collection : ""));
         int selectedSources = 0;
-        for (Set<Long> selected : sources.values()) selectedSources += selected.size();
-        sourceButton.setText(sourceNames()[sourceType] + (selectedSources == 0 ? "" : " · " + selectedSources));
+        for (Set<Long> selected : sources.values()) for (long id : selected) if (id != 0) selectedSources++;
+        int folderCount = 0;
+        for (Set<Long> selected : sourceFolders.values()) folderCount += selected.size();
+        sourceButton.setText(folderCount > 0 ? text(R.string.TjMediaSelectFolders) + " · " + folderCount
+                : !sources.isEmpty() ? text(R.string.TjMediaSelectChats) + " · " + selectedSources : sourceNames()[sourceType]);
         boolean loading = libraryView == 0 || libraryView == 9 ? library.isLoading() || localPending > 0 : localPending > 0;
         boolean error = libraryView == 0 || libraryView == 9 ? library.hasError() || localError : localError;
-        boolean more = libraryView == 0 || libraryView == 9 ? library.hasMore() : !localOffsets.isEmpty();
+        boolean more = libraryView == 0 || libraryView == 9 ? library.hasMore() || !localCursors.isEmpty() : !localCursors.isEmpty();
+        boolean titlePage = libraryView == 7 || libraryView == 8;
+        if (titlePage) more = catalogMore;
+        previousButton.setVisibility(libraryView != 9 && (titlePage ? catalogHasPrevious : !localPrevious.isEmpty()) ? View.VISIBLE : View.GONE);
+        previousButton.setEnabled(localPending == 0);
         status.setText(text(loading ? R.string.TjMediaLoading
                 : error ? R.string.TjMediaRetry
                 : more ? R.string.TjMediaMore
                 : visible.isEmpty() ? R.string.TjMediaEmpty : R.string.TjMediaEnd));
         status.setEnabled(!loading && (more || error));
+        if (!search.getText().toString().trim().isEmpty() && !TjMediaStore.getInstance().isSearchReady()) {
+            status.setText(status.getText() + " · " + text(R.string.TjMediaSearchUpdating));
+        }
+        if ((libraryView == 7 || libraryView == 8 || libraryView == 9) && !TjMediaStore.getInstance().isLocalCatalogReady())
+            status.setText(status.getText() + " · " + text(R.string.TjMediaLocalCatalogUpdating));
+        scanStatus.setVisibility(scanner != null || autoMatcher != null || org.telegram.messenger.tj.TjMediaScanCoordinator.getInstance().isRequested() ? View.VISIBLE : View.GONE);
         if (scanner != null) {
-            status.setText(scanner.hasError() && !scanner.isLoading() ? text(R.string.TjMediaRetry)
+            scanStatus.setText(scanner.hasError() && !scanner.isLoading() ? text(R.string.TjMediaRetry)
                     : String.format(java.util.Locale.getDefault(), text(R.string.TjMediaScanProgress), scanner.scannedCount()));
-            status.setEnabled(true);
+            scanStatus.setEnabled(true);
+        } else if (org.telegram.messenger.tj.TjMediaScanCoordinator.getInstance().isRequested()) {
+            scanStatus.setText(text(R.string.TjMediaWatchingFolders));
         }
         if (autoMatcher != null) updateMatchStatus();
     }
 
     private void chooseAccounts() {
         if (getParentActivity() == null) return;
-        ArrayList<Integer> active = new ArrayList<>();
+        ArrayList<Integer> active = org.telegram.messenger.tj.TjAccountOrder.activeAccounts();
         ArrayList<String> names = new ArrayList<>();
-        for (int i = 0; i < UserConfig.MAX_ACCOUNT_COUNT; i++) {
-            if (!UserConfig.getInstance(i).isClientActivated()) continue;
-            active.add(i);
+        for (int i : active) {
             names.add(UserObject.getUserName(UserConfig.getInstance(i).getCurrentUser()));
         }
         new AlertDialog.Builder(getParentActivity()).setTitle(text(R.string.TjMediaAccounts))
@@ -454,20 +734,21 @@ public class TjMediaCenterActivity extends BaseFragment {
 
     private void chooseSources() {
         CharSequence[] options = new CharSequence[]{sourceNames()[0], sourceNames()[1], sourceNames()[2],
-                sourceNames()[3], text(R.string.TjMediaSelectChats)};
+                sourceNames()[3], text(R.string.TjMediaSelectChats), text(R.string.TjMediaSelectFolders)};
         new AlertDialog.Builder(getParentActivity()).setTitle(text(R.string.TjMediaSources))
                 .setItems(options, (dialog, which) -> {
                     if (which < 4) {
                         sourceType = which;
                         sources.clear();
+                        explicitSources.clear(); sourceFolders.clear();
                         savePreferences();
                         reload();
                     } else {
                         ArrayList<String> names = new ArrayList<>();
                         for (int account : accounts) names.add(UserObject.getUserName(UserConfig.getInstance(account).getCurrentUser()));
-                        if (accounts.size() == 1) chooseChats(accounts.get(0));
+                        if (accounts.size() == 1) chooseSourceAccount(accounts.get(0), which == 5);
                         else new AlertDialog.Builder(getParentActivity()).setTitle(text(R.string.TjMediaAccounts))
-                                .setItems(names.toArray(new CharSequence[0]), (d, index) -> chooseChats(accounts.get(index))).show();
+                                .setItems(names.toArray(new CharSequence[0]), (d, index) -> chooseSourceAccount(accounts.get(index), which == 5)).show();
                     }
                 }).show();
     }
@@ -475,7 +756,7 @@ public class TjMediaCenterActivity extends BaseFragment {
     private void chooseChats(int account) {
         MessagesController controller = MessagesController.getInstance(account);
         long owner = UserConfig.getInstance(account).getClientUserId();
-        Set<Long> current = sources.get(owner);
+        Set<Long> current = explicitSources.get(owner);
         ArrayList<Long> ids = new ArrayList<>();
         ArrayList<String> names = new ArrayList<>();
         for (int i = 0; i < controller.dialogs_dict.size(); i++) {
@@ -486,21 +767,61 @@ public class TjMediaCenterActivity extends BaseFragment {
             names.add(id > 0 ? UserObject.getUserName(controller.getUser(id)) : chat == null ? Long.toString(id) : chat.title);
         }
         // Preserve selected peers not currently present in the loaded dialog list.
-        if (current != null) for (long id : current) if (!ids.contains(id)) {
+        if (current != null) for (long id : current) if (id != 0 && !ids.contains(id)) {
             ids.add(id);
             names.add(Long.toString(id));
         }
         boolean[] selected = new boolean[ids.size()];
-        for (int i = 0; i < ids.size(); i++) selected[i] = current == null || current.contains(ids.get(i));
+        for (int i = 0; i < ids.size(); i++) selected[i] = current != null && current.contains(ids.get(i));
         chooseMany(text(R.string.TjMediaSelectChats), names, selected, () -> {
             HashSet<Long> chosen = new HashSet<>();
             for (int i = 0; i < selected.length; i++) if (selected[i]) chosen.add(ids.get(i));
             // An explicit empty set uses a sentinel, never silently broadens to all chats.
             if (chosen.isEmpty()) chosen.add(0L);
-            sources.put(owner, chosen);
+            ensureExplicitScope();
+            explicitSources.put(owner, chosen);
             sourceType = 0;
             savePreferences();
             reload();
+        });
+    }
+
+    private void chooseSourceAccount(int account, boolean folders) {
+        if (folders) chooseFolders(account); else chooseChats(account);
+    }
+
+    private void ensureExplicitScope() {
+        for (int account : accounts) {
+            long owner = UserConfig.getInstance(account).getClientUserId();
+            if (!explicitSources.containsKey(owner)) {
+                HashSet<Long> empty = new HashSet<>(); empty.add(0L);
+                explicitSources.put(owner, empty);
+            }
+        }
+    }
+
+    private void chooseFolders(int account) {
+        long owner = UserConfig.getInstance(account).getClientUserId();
+        ArrayList<Long> ids = new ArrayList<>();
+        ArrayList<String> names = new ArrayList<>();
+        for (MessagesController.DialogFilter folder : MessagesController.getInstance(account).dialogFilters) {
+            if (folder.isDefault()) continue;
+            ids.add((long) folder.id); names.add(folder.name);
+        }
+        Set<Long> current = sourceFolders.get(owner);
+        // Keep unavailable selections visible and removable without changing their IDs.
+        if (current != null) for (long id : current) if (!ids.contains(id)) {
+            ids.add(id); names.add(text(R.string.TjMediaUnavailableFolder) + " · " + id);
+        }
+        boolean[] selected = new boolean[ids.size()];
+        for (int i = 0; i < ids.size(); i++) selected[i] = current != null && current.contains(ids.get(i));
+        chooseMany(text(R.string.TjMediaSelectFolders), names, selected, () -> {
+            HashSet<Long> chosen = new HashSet<>();
+            for (int i = 0; i < selected.length; i++) if (selected[i]) chosen.add(ids.get(i));
+            ensureExplicitScope();
+            sourceFolders.put(owner, chosen);
+            sourceType = 0;
+            savePreferences(); reload();
         });
     }
 
@@ -565,6 +886,10 @@ public class TjMediaCenterActivity extends BaseFragment {
         if (preferencesLoaded) return;
         preferencesLoaded = true;
         SharedPreferences preferences = TjConfig.mediaLibrary(currentAccount);
+        enabledTypes = preferences == null ? org.telegram.messenger.tj.TjMediaKind.ALL_MASK
+                : preferences.getInt("enabled_media_types", org.telegram.messenger.tj.TjMediaKind.ALL_MASK)
+                    & org.telegram.messenger.tj.TjMediaKind.ALL_MASK;
+        if (enabledTypes == 0) enabledTypes = org.telegram.messenger.tj.TjMediaKind.ALL_MASK;
         accountMode = preferences == null ? 0 : preferences.getInt("accounts_mode", 0);
         Set<String> owners = preferences == null ? new HashSet<>() : preferences.getStringSet("accounts", new HashSet<>());
         for (int i = 0; i < UserConfig.MAX_ACCOUNT_COUNT; i++) {
@@ -576,10 +901,16 @@ public class TjMediaCenterActivity extends BaseFragment {
             if (!saved.isEmpty()) {
                 HashSet<Long> peers = new HashSet<>();
                 for (String id : saved) try { peers.add(Long.parseLong(id)); } catch (NumberFormatException ignored) { }
-                sources.put(owner, peers);
+                explicitSources.put(owner, peers);
             }
+            Set<String> folderIds = preferences == null ? new HashSet<>()
+                    : preferences.getStringSet("source_folders_" + owner, new HashSet<>());
+            HashSet<Long> folders = new HashSet<>();
+            for (String id : folderIds) try { folders.add(Long.parseLong(id)); } catch (NumberFormatException ignored) { }
+            if (!folders.isEmpty()) sourceFolders.put(owner, folders);
         }
         if (accounts.isEmpty() && UserConfig.getInstance(currentAccount).isClientActivated()) accounts.add(currentAccount);
+        sources.putAll(org.telegram.messenger.tj.TjMediaSources.resolve(accounts, explicitSources, sourceFolders));
         sourceType = preferences == null ? 0 : Math.max(0, Math.min(3, preferences.getInt("source_type", 0)));
     }
 
@@ -589,12 +920,18 @@ public class TjMediaCenterActivity extends BaseFragment {
         HashSet<String> owners = new HashSet<>();
         for (int account : accounts) owners.add(Long.toString(UserConfig.getInstance(account).getClientUserId()));
         SharedPreferences.Editor editor = preferences.edit().putInt("accounts_mode", accountMode)
+                .putInt("enabled_media_types", enabledTypes)
                 .putStringSet("accounts", owners).putInt("source_type", sourceType);
-        for (String key : preferences.getAll().keySet()) if (key.startsWith("sources_")) editor.remove(key);
-        for (java.util.Map.Entry<Long, Set<Long>> source : sources.entrySet()) {
+        for (String key : preferences.getAll().keySet()) if (key.startsWith("sources_") || key.startsWith("source_folders_")) editor.remove(key);
+        for (java.util.Map.Entry<Long, Set<Long>> source : explicitSources.entrySet()) {
             HashSet<String> peers = new HashSet<>();
             for (long id : source.getValue()) peers.add(Long.toString(id));
             editor.putStringSet("sources_" + source.getKey(), peers);
+        }
+        for (java.util.Map.Entry<Long, Set<Long>> folder : sourceFolders.entrySet()) {
+            HashSet<String> ids = new HashSet<>();
+            for (long id : folder.getValue()) ids.add(Long.toString(id));
+            editor.putStringSet("source_folders_" + folder.getKey(), ids);
         }
         editor.apply();
     }
@@ -711,6 +1048,11 @@ public class TjMediaCenterActivity extends BaseFragment {
             if (generation != localGeneration || getParentActivity() == null) return;
             if (record == null) { showStateError(entry, () -> showDetails(entry)); return; }
             localRecords.put(entry.key, record);
+            if (org.telegram.messenger.tj.TjMediaKind.of(entry.message) == org.telegram.messenger.tj.TjMediaKind.VIDEO) {
+                presentFragment(new TjMediaDetailsActivity(entry, record,
+                        () -> identify(entry), accounts, sources, sourceType));
+                return;
+            }
             Context context = getParentActivity();
             LinearLayout body = new LinearLayout(context);
             body.setOrientation(LinearLayout.VERTICAL);
@@ -890,9 +1232,10 @@ public class TjMediaCenterActivity extends BaseFragment {
     }
 
     private void updateMatchStatus() {
-        if (autoMatcher == null || status == null) return;
-        status.setText(String.format(java.util.Locale.getDefault(), text(R.string.TjMediaAutoMatchProgress), autoMatcher.checked(), autoMatcher.matched()));
-        status.setEnabled(true);
+        if (autoMatcher == null || scanStatus == null) return;
+        scanStatus.setVisibility(View.VISIBLE);
+        scanStatus.setText(String.format(java.util.Locale.getDefault(), text(R.string.TjMediaAutoMatchProgress), autoMatcher.checked(), autoMatcher.matched()));
+        scanStatus.setEnabled(true);
     }
 
     private String metadataLanguage() {
@@ -907,56 +1250,37 @@ public class TjMediaCenterActivity extends BaseFragment {
         autoMatcher = new TjMediaAutoMatcher(new TjMediaAutoMatcher.Listener() {
             @Override public void changed() {
                 updateMatchStatus();
-                AndroidUtilities.cancelRunOnUIThread(homeRefresh);
-                AndroidUtilities.runOnUIThread(homeRefresh, 200);
+                pendingStoreUpdate = true;
+                updateNewItemsButton();
             }
             @Override public void finished(int error) {
                 if (autoMatcher == null) return;
                 long matched = autoMatcher.matched();
                 autoMatcher = null;
-                refreshHome();
+                pendingStoreUpdate = true;
+                updateNewItemsButton();
                 if (getParentActivity() == null) return;
                 String message = error == TjMediaMetadata.OK
                         ? String.format(java.util.Locale.getDefault(), text(R.string.TjMediaAutoMatchComplete), matched)
                         : text(error == TjMediaAutoMatcher.STORAGE ? R.string.TjMediaSaveError
                         : error == TjMediaMetadata.CREDENTIAL ? R.string.TjMediaKeyError
                         : error == TjMediaMetadata.RATE_LIMIT ? R.string.TjMediaRateLimit : R.string.TjMediaLookupError);
-                showDialog(new AlertDialog.Builder(getParentActivity()).setMessage(message)
-                        .setPositiveButton(LocaleController.getString(R.string.OK), null).create());
+                scanStatus.setVisibility(View.VISIBLE);
+                scanStatus.setText(message);
+                scanStatus.setEnabled(false);
             }
         });
         autoMatcher.start(new ArrayList<>(accounts), new HashMap<>(sources), sourceType, metadataLanguage());
     }
 
     private void stopScan() {
-        AndroidUtilities.cancelRunOnUIThread(scanNext);
-        if (scanner != null) { scanner.close(); scanner = null; }
+        org.telegram.messenger.tj.TjMediaScanCoordinator.getInstance().stop();
+        scanner = null;
     }
 
     private void startScan() {
-        stopScan();
-        libraryView = 9;
-        reload();
-        library.close();
-        scanner = new TjMediaLibrary(() -> {
-            if (scanner == null) return;
-            refresh();
-            AndroidUtilities.cancelRunOnUIThread(homeRefresh);
-            AndroidUtilities.runOnUIThread(homeRefresh, 200);
-            if (!scanner.isLoading() && !scanner.hasError()) {
-                if (scanner.hasMore()) {
-                    AndroidUtilities.cancelRunOnUIThread(scanNext);
-                    AndroidUtilities.runOnUIThread(scanNext, 500);
-                } else {
-                    stopScan();
-                    refresh();
-                    if (getParentActivity() != null) showDialog(new AlertDialog.Builder(getParentActivity())
-                            .setMessage(text(R.string.TjMediaScanComplete))
-                            .setPositiveButton(LocaleController.getString(R.string.OK), null).create());
-                }
-            }
-        }, true);
-        scanner.reset(new ArrayList<>(accounts), new HashMap<>(sources), sourceType, "");
+        org.telegram.messenger.tj.TjMediaScanCoordinator.getInstance()
+                .start(new ArrayList<>(accounts), explicitSources, sourceFolders, sourceType);
     }
 
     private void chooseGroupSources(TjMediaCatalog.Group<TjMediaLibrary.Entry> group) {
@@ -1013,8 +1337,8 @@ public class TjMediaCenterActivity extends BaseFragment {
         for (int account : new ArrayList<>(accounts)) {
             long owner = UserConfig.getInstance(account).getClientUserId();
             class PageLoader {
-                void load(int offset) {
-                    TjMediaStore.getInstance().loadTitle(account, title.id, title.series, offset, sources.get(owner), sourceType, page -> {
+                void load(TjMediaPageKey after) {
+                    TjMediaStore.getInstance().loadTitle(account, title.id, title.series, after, sources.get(owner), sourceType, page -> {
                         if (cancelled[0] || generation != localGeneration) { loading.dismiss(); return; }
                         if (page == null) { failed[0] = true; complete.run(); return; }
                         for (TjMediaStore.Record item : page) {
@@ -1023,12 +1347,12 @@ public class TjMediaCenterActivity extends BaseFragment {
                             localRecords.put(entry.key, item);
                             all.add(title.id, title.series, new TjMediaCatalog.Source<>(entry.key, entry, item.season(), item.episode()));
                         }
-                        if (page.hasMore) load(page.nextOffset);
+                        if (page.hasMore) load(page.nextKey);
                         else complete.run();
                     });
                 }
             }
-            new PageLoader().load(0);
+            new PageLoader().load(null);
         }
         if (accounts.isEmpty()) { pending[0] = 1; complete.run(); }
     }
@@ -1122,7 +1446,9 @@ public class TjMediaCenterActivity extends BaseFragment {
         String attribution = text(R.string.TjMediaAttribution);
         String required = "This product uses the TMDB API but is not endorsed or certified by TMDB.";
         notice.setText(attribution + (attribution.equals(required) ? "" : "\n\n" + required)
-                + "\n\n" + text(R.string.TjMediaIndexInfo));
+                + "\n\n" + text(R.string.TjMediaIndexInfo)
+                + "\n\n" + text(R.string.TjMediaSearchInfo)
+                + "\n\n" + text(R.string.TjMediaFolderScopeInfo));
         body.addView(notice, LayoutHelper.createLinear(-1, -2));
         android.widget.ScrollView scroll = new android.widget.ScrollView(context);
         scroll.addView(body);
@@ -1194,7 +1520,7 @@ public class TjMediaCenterActivity extends BaseFragment {
 
     @Override public void onFragmentDestroy() {
         stopMatching();
-        stopScan();
+        org.telegram.messenger.tj.TjMediaScanCoordinator.getInstance().removeListener(scanChanged);
         TjMediaStore.getInstance().removeListener(storeChanged);
         AndroidUtilities.cancelRunOnUIThread(homeRefresh);
         metadataClient.cancel();
@@ -1206,14 +1532,19 @@ public class TjMediaCenterActivity extends BaseFragment {
 
     @Override public void onPause() {
         stopMatching();
-        stopScan();
         super.onPause();
     }
 
     private class Adapter extends RecyclerListView.SelectionAdapter {
         @Override public int getItemCount() { return visible.size(); }
+        @Override public int getItemViewType(int position) { return libraryView == 7 || libraryView == 8 ? 1 : 0; }
         @Override public boolean isEnabled(RecyclerView.ViewHolder holder) { return true; }
         @Override public RecyclerView.ViewHolder onCreateViewHolder(ViewGroup parent, int type) {
+            if (type == 0) {
+                org.telegram.ui.Cells.TjMediaRowCell cell = new org.telegram.ui.Cells.TjMediaRowCell(parent.getContext());
+                cell.setLayoutParams(new RecyclerView.LayoutParams(-1, -2));
+                return new RecyclerListView.Holder(cell);
+            }
             TjMediaCardCell cell = new TjMediaCardCell(parent.getContext());
             cell.setLayoutParams(new RecyclerView.LayoutParams(-1, -2));
             return new RecyclerListView.Holder(cell);
@@ -1229,7 +1560,11 @@ public class TjMediaCenterActivity extends BaseFragment {
             TLRPC.Chat chat = id < 0 ? controller.getChat(-id) : null;
             String source = id > 0 ? UserObject.getUserName(controller.getUser(id)) : chat == null ? Long.toString(id) : chat.title;
             TjMediaStore.Record record = localRecords.get(entry.key);
-            if (record != null && record.metadata != null) title = record.metadata.name;
+            if (record != null) title = record.title();
+            if (holder.itemView instanceof org.telegram.ui.Cells.TjMediaRowCell) {
+                ((org.telegram.ui.Cells.TjMediaRowCell) holder.itemView).bind(message, title, source);
+                return;
+            }
             ((TjMediaCardCell) holder.itemView).bind(message, title,
                     UserObject.getUserName(UserConfig.getInstance(entry.account).getCurrentUser()) + " · " + source,
                     record == null ? 0 : record.position, record == null ? 0 : record.duration,

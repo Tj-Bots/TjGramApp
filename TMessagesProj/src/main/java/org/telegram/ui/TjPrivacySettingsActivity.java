@@ -88,6 +88,8 @@ public class TjPrivacySettingsActivity extends BaseFragment implements Notificat
     private static final int SHOW_GHOST_IN_DRAWER = 63;
     private static final int SHOW_KILL_IN_DRAWER = 64;
     private static final int KEEP_ALIVE = 65;
+    private static final int SHOW_MEDIA_IN_DRAWER = 66;
+    private static final int SHOW_MEDIA_TAB = 67;
     private static final int SYNC_ENABLED = 70;
     private static final int SYNC_SECURE = 71;
     private static final int SYNC_SERVER = 72;
@@ -261,6 +263,8 @@ public class TjPrivacySettingsActivity extends BaseFragment implements Notificat
         items.add(new Item(TYPE_INFO, 0, R.string.TjLocalPremiumInfo));
         items.add(new Item(TYPE_CHECK, SHOW_GHOST_IN_DRAWER, R.string.TjShowGhostInDrawer));
         items.add(new Item(TYPE_CHECK, SHOW_KILL_IN_DRAWER, R.string.TjShowKillInDrawer));
+        items.add(new Item(TYPE_CHECK, SHOW_MEDIA_IN_DRAWER, R.string.TjMediaShowInDrawer));
+        items.add(new Item(TYPE_CHECK, SHOW_MEDIA_TAB, R.string.TjMediaShowBottomTab));
         items.add(new Item(TYPE_CHECK, KEEP_ALIVE, R.string.TjKeepAlive));
         items.add(new Item(TYPE_INFO, 0, R.string.TjKeepAliveInfo));
         items.add(new Item(TYPE_CHECK, CRASH_REPORTS, R.string.TjCrashReports));
@@ -284,6 +288,10 @@ public class TjPrivacySettingsActivity extends BaseFragment implements Notificat
             // The master switch only enables or disables Ghost Mode. Keep the five essential
             // choices untouched so enabling it again restores the user's exact previous preset.
             setChecked(item.id, value);
+            if (item.id == SHOW_MEDIA_IN_DRAWER || item.id == SHOW_MEDIA_TAB) {
+                NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.tjMediaNavigationChanged);
+                if (getParentActivity() instanceof LaunchActivity) ((LaunchActivity) getParentActivity()).refreshTjMediaNavigation();
+            }
             ((TextCheckCell) view).setChecked(value);
             if (value && (item.id == GHOST || item.id == FORCE_OFFLINE)) {
                 TjGhostController.sendOfflineStatusForActiveAccounts();
@@ -415,6 +423,8 @@ public class TjPrivacySettingsActivity extends BaseFragment implements Notificat
             case HIDE_SPONSORED: return TjConfig.hideSponsoredMessages();
             case CRASH_REPORTS: return TjConfig.crashReportsEnabled();
             case SHOW_GHOST_IN_DRAWER: return TjConfig.showGhostInDrawer();
+            case SHOW_MEDIA_IN_DRAWER: return TjConfig.showMediaInDrawer();
+            case SHOW_MEDIA_TAB: return TjConfig.showMediaTab();
             case SHOW_KILL_IN_DRAWER: return TjConfig.showKillInDrawer();
             case KEEP_ALIVE: return MessagesController.getGlobalNotificationsSettings()
                     .getBoolean("pushService", true);
@@ -458,6 +468,8 @@ public class TjPrivacySettingsActivity extends BaseFragment implements Notificat
             case HIDE_SPONSORED: key = "hide_sponsored_messages"; break;
             case CRASH_REPORTS: key = "crash_reports_enabled"; break;
             case SHOW_GHOST_IN_DRAWER: key = "show_ghost_in_drawer"; break;
+            case SHOW_MEDIA_IN_DRAWER: key = "show_media_in_drawer"; break;
+            case SHOW_MEDIA_TAB: key = "show_media_tab"; break;
             case SHOW_KILL_IN_DRAWER: key = "show_kill_in_drawer"; break;
             case KEEP_ALIVE:
                 MessagesController.getGlobalNotificationsSettings().edit()

@@ -47,13 +47,18 @@ public final class TjMediaHomeView extends ScrollView {
     }
 
     public void bind(List<TjMediaLibrary.Entry> entries, Map<String, TjMediaStore.Record> records, boolean loading) {
+        ArrayList<TjMediaLibrary.Entry> videos = new ArrayList<>();
+        for (TjMediaLibrary.Entry entry : entries) {
+            if (org.telegram.messenger.tj.TjMediaKind.of(entry.message) == org.telegram.messenger.tj.TjMediaKind.VIDEO) videos.add(entry);
+        }
+        entries = videos;
         int scroll = getScrollY();
         for (Map.Entry<Integer, RecyclerListView> shelf : shelves.entrySet()) {
             shelfPositions.put(shelf.getKey(), shelf.getValue().getLayoutManager().onSaveInstanceState());
         }
         shelves.clear();
         content.removeAllViews();
-        TextView heading = heading(TjLocale.getString(R.string.TjMediaYourLibrary));
+        TextView heading = heading(TjLocale.getString(R.string.TjMediaWatchTab));
         heading.setTextSize(27);
         content.addView(heading);
         if (entries.isEmpty()) {
@@ -69,8 +74,8 @@ public final class TjMediaHomeView extends ScrollView {
             if (record == null) continue;
             if (record.position > 0 && record.duration > 0 && record.position < record.duration * .98 && !record.watched) resume.add(entry);
             if (record.favorite) favorites.add(entry);
-            if (record.metadata != null && titles.add(TjMediaCatalog.key(record.metadata.id, record.metadata.series))) {
-                (record.metadata.series ? series : movies).add(entry);
+            if (!record.catalogKey().isEmpty() && titles.add(record.catalogKey())) {
+                (record.isSeries() ? series : movies).add(entry);
             }
         }
         resume.sort((a, b) -> Long.compare(records.get(b.key).playedAt, records.get(a.key).playedAt));
@@ -131,7 +136,7 @@ public final class TjMediaHomeView extends ScrollView {
     }
 
     private void bindCard(TjMediaCardCell cell, TjMediaLibrary.Entry entry, TjMediaStore.Record record) {
-        String name = record != null && record.metadata != null ? record.metadata.name : entry.message.getDocumentName();
+        String name = record != null ? record.title() : entry.message.getDocumentName();
         if (name == null || name.isEmpty()) name = TjMediaStore.displayCaption(entry.message);
         if (name == null || name.isEmpty()) name = TjLocale.getString(R.string.TjMediaCenter);
         cell.bind(entry.message, name, UserObject.getUserName(UserConfig.getInstance(entry.account).getCurrentUser()),

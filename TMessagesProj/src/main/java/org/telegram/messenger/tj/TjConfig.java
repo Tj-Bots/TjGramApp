@@ -279,6 +279,8 @@ public final class TjConfig {
     }
 
     public static boolean showGhostInDrawer() { return get("show_ghost_in_drawer", true); }
+    public static boolean showMediaInDrawer() { return get("show_media_in_drawer", true); }
+    public static boolean showMediaTab() { return get("show_media_tab", false); }
     public static boolean showKillInDrawer() { return get("show_kill_in_drawer", false); }
 
     public static String deletedMark() { return prefs().getString("deleted_mark", "🗑️"); }
