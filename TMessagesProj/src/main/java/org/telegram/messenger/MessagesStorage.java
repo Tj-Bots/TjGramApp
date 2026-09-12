@@ -36,6 +36,7 @@ import org.telegram.SQLite.SQLiteException;
 import org.telegram.SQLite.SQLitePreparedStatement;
 import org.telegram.messenger.support.LongSparseIntArray;
 import org.telegram.messenger.tj.TjConfig;
+import org.telegram.messenger.tj.TjLocalFolders;
 import org.telegram.messenger.tj.TjReactionReadState;
 import org.telegram.messenger.tj.TjDeletionPolicy;
 import org.telegram.messenger.tj.TjMessageArchive;
@@ -3167,6 +3168,10 @@ public class MessagesStorage extends BaseController {
     }
 
     private void saveDialogFilterInternal(MessagesController.DialogFilter filter, boolean atBegin, boolean peers) {
+        if (TjLocalFolders.isLocal(filter.id)) {
+            TjLocalFolders.save(currentAccount, filter);
+            return;
+        }
         SQLitePreparedStatement state = null;
         try {
             if (!dialogFilters.contains(filter)) {
@@ -3643,10 +3648,15 @@ public class MessagesStorage extends BaseController {
     }
 
     public void deleteDialogFilter(MessagesController.DialogFilter filter) {
+        if (TjLocalFolders.isLocal(filter.id)) return;
         storageQueue.postRunnable(() -> deleteDialogFilterInternal(filter));
     }
 
     public void saveDialogFilter(MessagesController.DialogFilter filter, boolean atBegin, boolean peers) {
+        if (TjLocalFolders.isLocal(filter.id)) {
+            TjLocalFolders.save(currentAccount, filter);
+            return;
+        }
         storageQueue.postRunnable(() -> {
             saveDialogFilterInternal(filter, atBegin, peers);
             calcUnreadCounters(false);
@@ -3686,7 +3696,9 @@ public class MessagesStorage extends BaseController {
     }
 
     public void saveDialogFiltersOrder() {
+        TjLocalFolders.saveOrder(currentAccount);
         ArrayList<MessagesController.DialogFilter> filtersFinal = new ArrayList<>(getMessagesController().dialogFilters);
+        filtersFinal.removeIf(filter -> TjLocalFolders.isLocal(filter.id));
         storageQueue.postRunnable(() -> {
             dialogFilters.clear();
             dialogFiltersMap.clear();

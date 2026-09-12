@@ -57,6 +57,7 @@ import org.telegram.SQLite.SQLiteException;
 import org.telegram.SQLite.SQLitePreparedStatement;
 import org.telegram.messenger.browser.Browser;
 import org.telegram.messenger.tj.TjConfig;
+import org.telegram.messenger.tj.TjLocalFolders;
 import org.telegram.messenger.tj.TjDeletionPolicy;
 import org.telegram.messenger.tj.TjGhostController;
 import org.telegram.messenger.tj.TjReactionReadState;
@@ -881,9 +882,10 @@ public class MessagesController extends BaseController implements NotificationCe
 
     public void lockFiltersInternal() {
         boolean changed = false;
-        if (!getUserConfig().isPremium() && dialogFilters.size() - 1 > dialogFiltersLimitDefault) {
-            int n = dialogFilters.size() - 1 - dialogFiltersLimitDefault;
+        if (!getUserConfig().isPremium() && TjLocalFolders.cloudCount(currentAccount) - 1 > dialogFiltersLimitDefault) {
+            int n = TjLocalFolders.cloudCount(currentAccount) - 1 - dialogFiltersLimitDefault;
             ArrayList<DialogFilter> filtersSortedById = new ArrayList<>(dialogFilters);
+            filtersSortedById.removeIf(filter -> TjLocalFolders.isLocal(filter.id));
             Collections.reverse(filtersSortedById);
             for (int i = 0; i < filtersSortedById.size(); i++) {
                 if (i < n) {
@@ -2247,6 +2249,7 @@ public class MessagesController extends BaseController implements NotificationCe
                     putUsers(users, true);
                     putChats(chats, true);
                     dialogFiltersLoaded = true;
+                    TjLocalFolders.attach(currentAccount);
                     getNotificationCenter().postNotificationName(NotificationCenter.dialogFiltersUpdated);
                     if (remote == 0) {
                         loadRemoteFilters(false);
@@ -2642,6 +2645,11 @@ public class MessagesController extends BaseController implements NotificationCe
     }
 
     public void removeFilter(DialogFilter filter) {
+        if (TjLocalFolders.isLocal(filter.id)) {
+            TjLocalFolders.setEnabled(currentAccount, filter.id, false);
+            TjLocalFolders.refresh(currentAccount);
+            return;
+        }
         dialogFilters.remove(filter);
         dialogFiltersById.remove(filter.id);
         getNotificationCenter().postNotificationName(NotificationCenter.dialogFiltersUpdated);
@@ -7002,6 +7010,7 @@ public class MessagesController extends BaseController implements NotificationCe
             return;
         }
         TLRPC.Chat oldChat = chats.get(chat.id);
+        final boolean wasManaged = TjLocalFolders.isManaged(oldChat);
         if (oldChat == chat) {
             return;
         }
@@ -7173,6 +7182,14 @@ public class MessagesController extends BaseController implements NotificationCe
             AndroidUtilities.runOnUIThread(() -> {
                 sortDialogs(null);
                 getNotificationCenter().postNotificationName(NotificationCenter.communitySwitchedCollapsed, chat.id, chat.collapsed_in_dialogs);
+                getNotificationCenter().postNotificationName(NotificationCenter.dialogsNeedReload);
+            });
+        }
+
+        if (!fromCache && wasManaged != TjLocalFolders.isManaged(chats.get(chat.id))
+                && TjLocalFolders.enabled(currentAccount, TjLocalFolders.MANAGING)) {
+            AndroidUtilities.runOnUIThread(() -> {
+                sortDialogs(null);
                 getNotificationCenter().postNotificationName(NotificationCenter.dialogsNeedReload);
             });
         }
@@ -22421,6 +22438,7 @@ public class MessagesController extends BaseController implements NotificationCe
         if (chatsDict == null && ApplicationLoader.mainInterfacePaused) {
             return;
         }
+        TjLocalFolders.updateCounters(currentAccount);
         dialogsServerOnly.clear();
         dialogsCanAddUsers.clear();
         dialogsMyGroups.clear();

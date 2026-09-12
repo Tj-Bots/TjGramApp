@@ -3819,7 +3819,11 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                                 showDoneItem(true);
                             })
                             .add(R.drawable.msg_edit, defaultTab ? LocaleController.getString(R.string.FilterEditAll) : LocaleController.getString(R.string.FilterEdit), () -> {
-                                presentFragment(defaultTab ? new FiltersSetupActivity() : new FilterCreateActivity(dialogFilter));
+                                if (dialogFilter != null && org.telegram.messenger.tj.TjLocalFolders.isLocal(dialogFilter.id)) {
+                                    org.telegram.ui.Components.TjLocalFoldersUi.edit(DialogsActivity.this, dialogFilter);
+                                } else {
+                                    presentFragment(defaultTab ? new FiltersSetupActivity() : new FilterCreateActivity(dialogFilter));
+                                }
                             })
                             .addIf(dialogFilter != null && !dialogs.isEmpty(), muteAll ? R.drawable.msg_mute : R.drawable.msg_unmute, muteAll ? LocaleController.getString(R.string.FilterMuteAll) : LocaleController.getString(R.string.FilterUnmuteAll), () -> {
                                 int count = 0;
@@ -3835,7 +3839,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                             .addIf(hasUnread, R.drawable.msg_markread, LocaleController.getString(R.string.MarkAllAsRead), () -> {
                                 markDialogsAsRead(dialogs);
                             })
-                            .addIf(hasShare, R.drawable.msg_share, FilterCreateActivity.withNew(filter != null && filter.isMyChatlist() ? -1 : 0, LocaleController.getString(R.string.LinkActionShare), true), () -> {
+                            .addIf(hasShare && (dialogFilter == null || !org.telegram.messenger.tj.TjLocalFolders.isLocal(dialogFilter.id)), R.drawable.msg_share, FilterCreateActivity.withNew(filter != null && filter.isMyChatlist() ? -1 : 0, LocaleController.getString(R.string.LinkActionShare), true), () -> {
                                 if (shareEmpty[0]) {
                                     presentFragment(new FilterChatlistActivity(finalFilter, null));
                                 } else {
@@ -7077,9 +7081,22 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         }
     }
 
+    private void maybeOfferLocalFolders() {
+        AndroidUtilities.runOnUIThread(() -> {
+            if (!isPaused() && !onlySelect && initialDialogsType == DIALOGS_TYPE_DEFAULT
+                    && folderId == 0 && communityId == 0 && !isInPreviewMode()
+                    && getUserConfig().isClientActivated() && getMessagesController().dialogFiltersLoaded
+                    && (visibleDialog == null || !visibleDialog.isShowing())
+                    && !org.telegram.messenger.tj.TjLocalFolders.offered(currentAccount)) {
+                org.telegram.ui.Components.TjLocalFoldersUi.showPicker(this);
+            }
+        }, 1000);
+    }
+
     @Override
     public void onResume() {
         super.onResume();
+        maybeOfferLocalFolders();
         updateDrawerSwipeAllowed();
         // Ghost mode is toggled from the drawer, so refresh the badge when we come back.
         updateTitleForTab(filterTabsView == null || filterTabsView.getVisibility() != View.VISIBLE || filterTabsView.isFirstTabSelected(), null);
@@ -10925,6 +10942,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             }
         } else if (id == NotificationCenter.dialogFiltersUpdated) {
             updateFilterTabs(true, true);
+            maybeOfferLocalFolders();
             // also covers the ghost badge, which rides on the title
             updateTitleForTab(filterTabsView == null || filterTabsView.getVisibility() != View.VISIBLE || filterTabsView.isFirstTabSelected(), null);
         } else if (id == NotificationCenter.filterSettingsUpdated) {

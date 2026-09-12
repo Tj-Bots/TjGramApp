@@ -334,7 +334,7 @@ public class FilterCreateActivity extends BaseFragment {
             }
         }
         items.add(ItemInner.asShadow(LocaleController.getString(R.string.FilterIncludeInfo)));
-        if (!filter.isChatlist()) {
+        if (!filter.isChatlist() && !org.telegram.messenger.tj.TjLocalFolders.isLocal(filter.id)) {
             items.add(ItemInner.asHeader(LocaleController.getString(R.string.FilterExclude)));
             items.add(ItemInner.asButton(R.drawable.msg2_chats_add, LocaleController.getString(R.string.FilterRemoveChats), false).whenClicked(v -> selectChatsFor(false)));
             if ((newFilterFlags & MessagesController.DIALOG_FILTER_FLAG_EXCLUDE_MUTED) != 0) {
@@ -364,13 +364,15 @@ public class FilterCreateActivity extends BaseFragment {
             items.add(ItemInner.asShadow(LocaleController.getString(R.string.FilterExcludeInfo)));
         }
 
-        if (getMessagesController().folderTags || !getUserConfig().isPremium()) {
+        if (!org.telegram.messenger.tj.TjLocalFolders.isLocal(filter.id) && (getMessagesController().folderTags || !getUserConfig().isPremium())) {
             items.add(new ItemInner(VIEW_TYPE_HEADER_COLOR_PREVIEW, false));
             items.add(new ItemInner(VIEW_TYPE_COLOR, false));
             items.add(ItemInner.asShadow(LocaleController.getString(R.string.FolderTagColorInfo)));
         }
 
-        if (invites.isEmpty()) {
+        if (org.telegram.messenger.tj.TjLocalFolders.isLocal(filter.id)) {
+            items.add(ItemInner.asShadow(TjLocale.getString(R.string.TjLocalFoldersInfo)));
+        } else if (invites.isEmpty()) {
             items.add(ItemInner.asHeader(LocaleController.getString(R.string.FilterShareFolder), true));
             items.add(ItemInner.asButton(R.drawable.msg2_link2, LocaleController.getString(R.string.FilterShareFolderButton), false));
             items.add(ItemInner.asShadow(LocaleController.getString(R.string.FilterInviteLinksHintNew)));
@@ -875,7 +877,7 @@ public class FilterCreateActivity extends BaseFragment {
     private void selectChatsFor(boolean include) {
         ArrayList<Long> arrayList = include ? newAlwaysShow : newNeverShow;
         UsersSelectActivity fragment = new UsersSelectActivity(include, arrayList, newFilterFlags);
-        fragment.noChatTypes = filter.isChatlist();
+        fragment.noChatTypes = filter.isChatlist() || org.telegram.messenger.tj.TjLocalFolders.isLocal(filter.id);
         fragment.setDelegate((ids, flags) -> {
             newFilterFlags = flags;
             if (include) {

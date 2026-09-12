@@ -31,9 +31,10 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import org.telegram.messenger.AndroidUtilities;
-import org.telegram.messenger.ChatObject;
 import org.telegram.messenger.Emoji;
 import org.telegram.messenger.TjLocale;
+import org.telegram.messenger.tj.TjLocalFolders;
+import org.telegram.ui.Components.TjLocalFoldersUi;
 import org.telegram.messenger.FileLog;
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.MessageObject;
@@ -62,7 +63,6 @@ import org.telegram.ui.Components.CubicBezierInterpolator;
 import org.telegram.ui.Components.FolderBottomSheet;
 import org.telegram.ui.Components.ItemOptions;
 import org.telegram.ui.Components.LayoutHelper;
-import org.telegram.ui.Components.TjFolderIcons;
 import org.telegram.ui.Components.ListView.AdapterWithDiffUtils;
 import org.telegram.ui.Components.LoadingDrawable;
 import org.telegram.ui.Components.Premium.LimitReachedBottomSheet;
@@ -487,7 +487,7 @@ public class FiltersSetupActivity extends BaseFragment implements NotificationCe
             textView.setEmojiCacheType(filter.title_noanimate ? AnimatedEmojiDrawable.CACHE_TYPE_NOANIMATE_FOLDER : AnimatedEmojiDrawable.CACHE_TYPE_MESSAGES);
             textView.setText(title);
 
-            valueTextView.setText(info);
+            valueTextView.setText(TjLocalFolders.isLocal(filter.id) ? TjLocalFolders.description(filter.id) : info);
             needDivider = divider;
 
             if (filter.isDefault()) {
@@ -552,59 +552,6 @@ public class FiltersSetupActivity extends BaseFragment implements NotificationCe
     private int filtersSectionStart = -1, filtersSectionEnd = -1;
     private int folderTagsPosition;
 
-    /**
-     * A "Managing" folder offered alongside Telegram's own suggestions: every group and channel
-     * you administer.
-     *
-     * It is built here rather than fetched, so it goes through the same SuggestedFilterCell and
-     * the same add-button that turns a TL_dialogFilterSuggested into a real folder - no new UI.
-     * Membership is ChatObject.hasAdminRights, which is creator plus any admin right;
-     * dialogsMyGroups / dialogsMyChannels look similar but are built from narrower right
-     * combinations in MessagesController and would miss some admin roles.
-     *
-     * Returns null when there is nothing to manage, or when a folder by this name already exists.
-     */
-    private TLRPC.TL_dialogFilterSuggested buildManagingSuggestion() {
-        final String title = TjLocale.getString(R.string.TjFolderManaging);
-        final ArrayList<MessagesController.DialogFilter> existing = getMessagesController().getDialogFilters();
-        for (int i = 0; i < existing.size(); ++i) {
-            if (title.equals(existing.get(i).name)) {
-                return null;
-            }
-        }
-
-        final ArrayList<TLRPC.InputPeer> peers = new ArrayList<>();
-        final ArrayList<TLRPC.Dialog> dialogs = getMessagesController().getDialogs(0);
-        for (int i = 0; i < dialogs.size(); ++i) {
-            final TLRPC.Dialog dialog = dialogs.get(i);
-            if (dialog == null || dialog instanceof DialogsActivity.DialogsHeader || dialog.id >= 0) {
-                continue;
-            }
-            final TLRPC.Chat chat = getMessagesController().getChat(-dialog.id);
-            if (!ChatObject.hasAdminRights(chat)) {
-                continue;
-            }
-            final TLRPC.InputPeer peer = getMessagesController().getInputPeer(dialog.id);
-            if (peer != null) {
-                peers.add(peer);
-            }
-        }
-        if (peers.isEmpty()) {
-            return null;
-        }
-
-        final TLRPC.TL_dialogFilter filter = new TLRPC.TL_dialogFilter();
-        filter.title = new TLRPC.TL_textWithEntities();
-        filter.title.text = title;
-        filter.emoticon = TjFolderIcons.MANAGING;
-        filter.include_peers.addAll(peers);
-
-        final TLRPC.TL_dialogFilterSuggested suggested = new TLRPC.TL_dialogFilterSuggested();
-        suggested.filter = filter;
-        suggested.description = LocaleController.formatPluralString("Chats", peers.size());
-        return suggested;
-    }
-
     private void updateRows(boolean animated) {
         showTagsRow = -1;
 
@@ -622,14 +569,25 @@ public class FiltersSetupActivity extends BaseFragment implements NotificationCe
 
         ArrayList<TLRPC.TL_dialogFilterSuggested> suggestedFilters = getMessagesController().suggestedFilters;
         ArrayList<MessagesController.DialogFilter> dialogFilters = getMessagesController().getDialogFilters();
-        final TLRPC.TL_dialogFilterSuggested managingFilter = buildManagingSuggestion();
         items.add(ItemInner.asHint());
-        if ((!suggestedFilters.isEmpty() || managingFilter != null) && dialogFilters.size() < 10) {
+        int localStart = items.size();
+        items.add(ItemInner.asHeader(TjLocale.getString(R.string.TjLocalFolders)));
+        for (int id : TjLocalFolders.IDS) {
+            if (TjLocalFolders.enabled(currentAccount, id)) continue;
+            TLRPC.TL_dialogFilterSuggested suggested = new TLRPC.TL_dialogFilterSuggested();
+            suggested.filter = new TLRPC.TL_dialogFilter();
+            suggested.filter.id = id;
+            suggested.filter.title = new TLRPC.TL_textWithEntities();
+            suggested.filter.title.text = TjLocalFolders.title(id);
+            suggested.description = TjLocalFolders.description(id);
+            items.add(ItemInner.asSuggested(suggested));
+        }
+        if (listView != null) listView.forcedSections.add(AndroidUtilities.pack(localStart, items.size() - 1));
+        items.add(ItemInner.asShadow(TjLocale.getString(R.string.TjLocalFoldersInfo)));
+        if (!suggestedFilters.isEmpty() && TjLocalFolders.cloudCount(currentAccount) - 1 <
+                (getUserConfig().isPremium() ? getMessagesController().dialogFiltersLimitPremium : getMessagesController().dialogFiltersLimitDefault)) {
             int start = items.size();
             items.add(ItemInner.asHeader(LocaleController.getString(R.string.FilterRecommended)));
-            if (managingFilter != null) {
-                items.add(ItemInner.asSuggested(managingFilter));
-            }
             for (int i = 0; i < suggestedFilters.size(); ++i) {
                 items.add(ItemInner.asSuggested(suggestedFilters.get(i)));
             }
@@ -648,11 +606,11 @@ public class FiltersSetupActivity extends BaseFragment implements NotificationCe
             }
             filtersSectionEnd = items.size();
 
-            if (listView != null) listView.forcedSections.add(AndroidUtilities.pack(filtersSectionStart, filtersSectionEnd - 1 + (dialogFilters.size() < getMessagesController().dialogFiltersLimitPremium ? 1 : 0)));
+            if (listView != null) listView.forcedSections.add(AndroidUtilities.pack(filtersSectionStart, filtersSectionEnd - 1 + (TjLocalFolders.cloudCount(currentAccount) < getMessagesController().dialogFiltersLimitPremium ? 1 : 0)));
         } else {
             filtersSectionStart = filtersSectionEnd = -1;
         }
-        if (dialogFilters.size() < getMessagesController().dialogFiltersLimitPremium) {
+        if (TjLocalFolders.cloudCount(currentAccount) < getMessagesController().dialogFiltersLimitPremium) {
             items.add(ItemInner.asButton(LocaleController.getString(R.string.CreateNewFilter)));
         }
         items.add(ItemInner.asShadow(null));
@@ -702,12 +660,19 @@ public class FiltersSetupActivity extends BaseFragment implements NotificationCe
             public void onItemClick(int id) {
                 if (id == -1) {
                     finishFragment();
+                } else if (id == 100) {
+                    TjLocalFoldersUi.showPicker(FiltersSetupActivity.this);
+                } else if (id == 101) {
+                    TjLocalFoldersUi.reset(FiltersSetupActivity.this);
                 }
             }
         });
         if (parentLayout != null && parentLayout.isRightLayout()) {
             actionBar.setBackButtonImage(R.drawable.ic_ab_close);
         }
+        org.telegram.ui.ActionBar.ActionBarMenuItem localMenu = actionBar.createMenu().addItem(99, R.drawable.ic_ab_other);
+        localMenu.addSubItem(100, TjLocale.getString(R.string.TjLocalFolders));
+        localMenu.addSubItem(101, TjLocale.getString(R.string.TjLocalFoldersReset));
 
         fragmentView = new FrameLayout(context);
         FrameLayout frameLayout = (FrameLayout) fragmentView;
@@ -769,6 +734,10 @@ public class FiltersSetupActivity extends BaseFragment implements NotificationCe
                 if (filter == null || filter.isDefault()) {
                     return;
                 }
+                if (TjLocalFolders.isLocal(filter.id)) {
+                    TjLocalFoldersUi.edit(this, filter);
+                    return;
+                }
                 if (filter.locked) {
                     showDialog(new LimitReachedBottomSheet(this, context, LimitReachedBottomSheet.TYPE_FOLDERS, currentAccount, null));
                 } else {
@@ -792,7 +761,7 @@ public class FiltersSetupActivity extends BaseFragment implements NotificationCe
     }
 
     public void createFolder(INavigationLayout navigationLayout) {
-        final int count = getMessagesController().getDialogFilters().size();
+        final int count = TjLocalFolders.cloudCount(currentAccount);
         if (
             count - 1 >= getMessagesController().dialogFiltersLimitDefault && !getUserConfig().isPremium() ||
             count >= getMessagesController().dialogFiltersLimitPremium
@@ -972,6 +941,10 @@ public class FiltersSetupActivity extends BaseFragment implements NotificationCe
                         MessagesController.DialogFilter filter = cell.getCurrentFilter();
                         ItemOptions options = ItemOptions.makeOptions(FiltersSetupActivity.this, cell);
                         options.add(R.drawable.msg_edit, LocaleController.getString(R.string.FilterEditItem), () -> {
+                            if (TjLocalFolders.isLocal(filter.id)) {
+                                TjLocalFoldersUi.edit(FiltersSetupActivity.this, filter);
+                                return;
+                            }
                             if (filter.locked) {
                                 showDialog(new LimitReachedBottomSheet(FiltersSetupActivity.this, mContext, LimitReachedBottomSheet.TYPE_FOLDERS, currentAccount, null));
                             } else {
@@ -1041,6 +1014,11 @@ public class FiltersSetupActivity extends BaseFragment implements NotificationCe
                     SuggestedFilterCell suggestedFilterCell = new SuggestedFilterCell(mContext);
                     suggestedFilterCell.setAddOnClickListener(v -> {
                         TLRPC.TL_dialogFilterSuggested suggested = suggestedFilterCell.getSuggestedFilter();
+                        if (TjLocalFolders.isLocal(suggested.filter.id)) {
+                            TjLocalFolders.setEnabled(currentAccount, suggested.filter.id, true);
+                            TjLocalFolders.refresh(currentAccount);
+                            return;
+                        }
                         MessagesController.DialogFilter filter = new MessagesController.DialogFilter();
                         filter.name = suggested.filter.title.text;
                         filter.entities = suggested.filter.title.entities;

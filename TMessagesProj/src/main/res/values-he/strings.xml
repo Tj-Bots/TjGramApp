@@ -91,6 +91,17 @@
     <string name="TjSubtitleStyleBox">רקע מלא</string>
     <string name="TjSubtitlePosition">מיקום</string>
     <string name="TjFolderManaging">ניהול</string>
+    <string name="TjLocalFolders">תיקיות מקומיות של TjGram</string>
+    <string name="TjLocalFoldersInfo">בחר תיקיות לחשבון הזה. הן נשמרות רק במכשיר הזה, בנפרד מתיקיות הענן שלך. אפשר לשנות את הבחירה בכל עת בהגדרות התיקיות.</string>
+    <string name="TjLocalFoldersReset">אפס תיקיות מקומיות</string>
+    <string name="TjLocalFoldersResetInfo">לאפס את בחירת התיקיות המקומיות, הסדר והמועדפים בחשבון הזה? הצ׳אטים ותיקיות הענן לא יימחקו. לאחר האיפוס אפשר לבחור תיקיות מחדש.</string>
+    <string name="TjLocalFolderInfo">תיקייה מקומית שמתעדכנת אוטומטית</string>
+    <string name="TjLocalManagingInfo">קבוצות וערוצים שבבעלותך או בניהולך. מתעדכן לפי ההרשאות הידועות לאפליקציה.</string>
+    <string name="TjLocalFavoritesInfo">תיקייה מקומית עם צ׳אטים שתבחר בעריכת התיקייה</string>
+    <string name="TjLocalPrivate">צ׳אטים פרטיים</string>
+    <string name="TjLocalUnread">לא נקראו</string>
+    <string name="TjLocalUnmuted">לא מושתקים</string>
+    <string name="TjLocalFavorites">מועדפים</string>
     <string name="TjSubtitleAuto">הפעל כתוביות אוטומטית</string>
     <string name="TjSubtitleAutoInfo">בוחר רצועת כתוביות בשפה שלך כשיש כזו בוידאו, ואחרת באנגלית.</string>
     <string name="TjReplyPrivately">השב בפרטי</string>

@@ -28,7 +28,7 @@ public class TjFolderIcons {
 
     /** Reserved for the main "All chats" folder. */
     public static final String ALL_CHATS = "\uD83D\uDCAC";
-    /** The crown, used by the Managing folder suggestion - a peer-list folder with no flags. */
+    /** The crown, used by the dynamic local Managing folder. */
     public static final String MANAGING = "\uD83D\uDC51";
 
     static {
@@ -133,6 +133,8 @@ public class TjFolderIcons {
         if (!TextUtils.isEmpty(saved)) {
             return saved;
         }
+        if (filter.id == org.telegram.messenger.tj.TjLocalFolders.MANAGING) return MANAGING;
+        if (filter.id == org.telegram.messenger.tj.TjLocalFolders.FAVORITES) return "⭐";
         return getEmoticonFromFlags(filter.flags);
     }
 

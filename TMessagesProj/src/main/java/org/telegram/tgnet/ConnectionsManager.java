@@ -44,6 +44,7 @@ import org.telegram.messenger.StatsController;
 import org.telegram.messenger.UserConfig;
 import org.telegram.messenger.Utilities;
 import org.telegram.messenger.tj.TjGhostController;
+import org.telegram.messenger.tj.TjLocalFolders;
 import org.telegram.messenger.tj.TjSyncController;
 import org.telegram.tgnet.tl.TL_account;
 import org.telegram.ui.Components.VideoPlayer;
@@ -397,6 +398,17 @@ public class ConnectionsManager extends BaseController {
     }
 
     private void sendRequestInternal(TLObject object, RequestDelegate onComplete, RequestDelegateTimestamp onCompleteTimestamp, QuickAckDelegate onQuickAck, WriteToSocketDelegate onWriteToSocket, int flags, int datacenterId, int connectionType, boolean immediate, int requestToken) {
+        // Local folder edits use the normal UI completion path but never reach Telegram.
+        if (object instanceof TLRPC.TL_messages_updateDialogFiltersOrder) {
+            ((TLRPC.TL_messages_updateDialogFiltersOrder) object).order.removeIf(TjLocalFolders::isLocal);
+        }
+        if (object instanceof TLRPC.TL_messages_updateDialogFilter
+                && TjLocalFolders.isLocal(((TLRPC.TL_messages_updateDialogFilter) object).id)) {
+            TLObject result = new TLRPC.TL_boolTrue();
+            if (onComplete != null) onComplete.run(result, null);
+            else if (onCompleteTimestamp != null) onCompleteTimestamp.run(result, null, getCurrentTimeMillis());
+            return;
+        }
         TjGhostController.applySendPolicy(object);
         if (TjGhostController.shouldDropTyping(currentAccount, object)) {
             return;

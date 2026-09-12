@@ -11315,6 +11315,17 @@
     <string name="TjSubtitleStyleBox">Background box</string>
     <string name="TjSubtitlePosition">Position</string>
     <string name="TjFolderManaging">Managing</string>
+    <string name="TjLocalFolders">TjGram local folders</string>
+    <string name="TjLocalFoldersInfo">Choose folders for this account. They stay on this device, separate from your cloud folders. You can change your selection in folder settings at any time.</string>
+    <string name="TjLocalFoldersReset">Reset local folders</string>
+    <string name="TjLocalFoldersResetInfo">Reset local folder selection, order and favorites for this account? Chats and cloud folders will not be deleted. You can choose local folders again after resetting.</string>
+    <string name="TjLocalFolderInfo">Local folder, updated automatically</string>
+    <string name="TjLocalManagingInfo">Groups and channels you own or administer. Updates using the permissions currently known to the app.</string>
+    <string name="TjLocalFavoritesInfo">Local folder with chats you choose in the folder editor</string>
+    <string name="TjLocalPrivate">Private chats</string>
+    <string name="TjLocalUnread">Unread</string>
+    <string name="TjLocalUnmuted">Unmuted</string>
+    <string name="TjLocalFavorites">Favorites</string>
     <string name="TjSubtitleAuto">Turn subtitles on automatically</string>
     <string name="TjSubtitleAutoInfo">Picks a subtitle track in your language when a video has one, otherwise English.</string>
     <string name="TjReplyPrivately">Reply privately</string>

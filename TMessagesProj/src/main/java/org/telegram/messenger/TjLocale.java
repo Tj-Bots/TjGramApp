@@ -55,6 +55,17 @@ public class TjLocale {
         m.put("TjFilterMembersOnly", "\u05d7\u05d1\u05e8\u05d9\u05dd \u05d1\u05dc\u05d1\u05d3");
         m.put("TjFolderIcon", "\u05e1\u05de\u05dc \u05d4\u05ea\u05d9\u05e7\u05d9\u05d9\u05d4");
         m.put("TjFolderManaging", "\u05e0\u05d9\u05d4\u05d5\u05dc");
+        m.put("TjLocalFolders", "תיקיות מקומיות של TjGram");
+        m.put("TjLocalFoldersInfo", "בחר תיקיות לחשבון הזה. הן נשמרות רק במכשיר הזה, בנפרד מתיקיות הענן שלך. אפשר לשנות את הבחירה בכל עת בהגדרות התיקיות.");
+        m.put("TjLocalFoldersReset", "אפס תיקיות מקומיות");
+        m.put("TjLocalFoldersResetInfo", "לאפס את בחירת התיקיות המקומיות, הסדר והמועדפים בחשבון הזה? הצ׳אטים ותיקיות הענן לא יימחקו. לאחר האיפוס אפשר לבחור תיקיות מחדש.");
+        m.put("TjLocalFolderInfo", "תיקייה מקומית שמתעדכנת אוטומטית");
+        m.put("TjLocalManagingInfo", "קבוצות וערוצים שבבעלותך או בניהולך. מתעדכן לפי ההרשאות הידועות לאפליקציה.");
+        m.put("TjLocalFavoritesInfo", "תיקייה מקומית עם צ׳אטים שתבחר בעריכת התיקייה");
+        m.put("TjLocalPrivate", "צ׳אטים פרטיים");
+        m.put("TjLocalUnread", "לא נקראו");
+        m.put("TjLocalUnmuted", "לא מושתקים");
+        m.put("TjLocalFavorites", "מועדפים");
         m.put("TjFolderTabIconAndName", "\u05e1\u05de\u05dc \u05d5\u05e9\u05dd");
         m.put("TjFolderTabIconOnly", "\u05e1\u05de\u05dc \u05d1\u05dc\u05d1\u05d3");
         m.put("TjFolderTabNameOnly", "\u05e9\u05dd \u05d1\u05dc\u05d1\u05d3");
