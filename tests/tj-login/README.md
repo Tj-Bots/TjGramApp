@@ -27,6 +27,12 @@ they do not prove that a server accepted a login or that the rendered QR can be 
 
 ## Device checks (require an authorized test account / bot)
 
+- Empty phone form: use the SIM country first, then the cellular-network country, and the
+  existing Telegram nearest-DC fallback when local detection is unavailable. Verify country,
+  calling code and number hint agree in Hebrew and English. With no detection, leave it editable.
+- While the nearest-DC request is pending, pick a country or type a phone number: the response
+  must not replace it. Check restored input and a shared calling code (for example US/Canada).
+
 - In Hebrew and English, open QR and bot login directly from the two buttons below the phone
   controls. There must be no intermediate method picker. The existing passkey subtitle link
   must open only the limitation explanation. Phone-number change and account-deletion screens

@@ -36,7 +36,7 @@ public class TjLocale {
         m.put("TjLoginQr", "התחברות באמצעות QR");
         m.put("TjLoginBot", "התחברות לחשבון בוט");
         m.put("TjLoginPasskey", "מפתח גישה");
-        m.put("TjLoginPasskeyInfo", "מפתח גישה אינו זמין ב־TjGram. אפשר להתחבר בטלפון או באמצעות QR.");
+        m.put("TjLoginPasskeyInfo", "מפתח גישה זמין רק באפליקציה הרשמית של טלגרם. כאן אפשר להתחבר בטלפון או באמצעות QR.");
         m.put("TjLoginBotInfo", "הדבק בשדה למטה את טוקן הבוט שקיבלת דרך BotFather. יש להשתמש רק בבוט שבשליטתך.\n\nהטוקן מאפשר גישה לבוט — אין לשתף אותו.\n\nהיסטוריית שיחות קודמת אינה נטענת כמו בחשבון רגיל. הודעות שיתקבלו כאן יישמרו במכשיר, ללא סנכרון אנשי קשר.");
         m.put("TjLoginBotToken", "טוקן הבוט");
         m.put("TjLoginConnect", "התחבר");

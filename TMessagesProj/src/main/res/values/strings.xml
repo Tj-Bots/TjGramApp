@@ -5,7 +5,7 @@
     <string name="TjLoginQr">Log in with QR code</string>
     <string name="TjLoginBot">Log in as a bot</string>
     <string name="TjLoginPasskey">Passkey</string>
-    <string name="TjLoginPasskeyInfo">Passkeys are unavailable in TjGram. Log in using your phone number or QR code.</string>
+    <string name="TjLoginPasskeyInfo">Passkeys are only available in the official Telegram app. Here, log in using your phone number or QR code.</string>
     <string name="TjLoginBotInfo">Paste the bot token you received from BotFather into the field below. Only use a bot you control.\n\nThe token grants access to your bot. Do not share it.\n\nPrevious chat history is not loaded like a regular account. Messages received here are stored on this device, without contact sync.</string>
     <string name="TjLoginBotToken">Bot token</string>
     <string name="TjLoginConnect">Connect</string>

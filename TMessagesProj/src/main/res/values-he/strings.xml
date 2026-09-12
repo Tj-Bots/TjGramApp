@@ -5,7 +5,7 @@
     <string name="TjLoginQr">התחברות באמצעות QR</string>
     <string name="TjLoginBot">התחברות לחשבון בוט</string>
     <string name="TjLoginPasskey">מפתח גישה</string>
-    <string name="TjLoginPasskeyInfo">מפתח גישה אינו זמין ב־TjGram. אפשר להתחבר בטלפון או באמצעות QR.</string>
+    <string name="TjLoginPasskeyInfo">מפתח גישה זמין רק באפליקציה הרשמית של טלגרם. כאן אפשר להתחבר בטלפון או באמצעות QR.</string>
     <string name="TjLoginBotInfo">הדבק בשדה למטה את טוקן הבוט שקיבלת דרך BotFather. יש להשתמש רק בבוט שבשליטתך.\n\nהטוקן מאפשר גישה לבוט — אין לשתף אותו.\n\nהיסטוריית שיחות קודמת אינה נטענת כמו בחשבון רגיל. הודעות שיתקבלו כאן יישמרו במכשיר, ללא סנכרון אנשי קשר.</string>
     <string name="TjLoginBotToken">טוקן הבוט</string>
     <string name="TjLoginConnect">התחבר</string>

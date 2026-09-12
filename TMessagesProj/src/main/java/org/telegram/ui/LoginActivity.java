@@ -2552,8 +2552,6 @@ public class LoginActivity extends BaseFragment implements NotificationCenter.No
                 addView(bottomSpacer, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT));
             }
 
-            HashMap<String, String> languageMap = new HashMap<>();
-
             try {
                 BufferedReader reader = new BufferedReader(new InputStreamReader(getResources().getAssets().open("countries.txt")));
                 String line;
@@ -2581,7 +2579,6 @@ public class LoginActivity extends BaseFragment implements NotificationCenter.No
                     if (args.length > 3) {
                         phoneFormatMap.put(args[0], Collections.singletonList(args[3]));
                     }
-                    languageMap.put(args[1], args[2]);
                 }
                 reader.close();
             } catch (Exception e) {
@@ -2595,24 +2592,23 @@ public class LoginActivity extends BaseFragment implements NotificationCenter.No
             try {
                 TelephonyManager telephonyManager = (TelephonyManager) ApplicationLoader.applicationContext.getSystemService(Context.TELEPHONY_SERVICE);
                 if (telephonyManager != null) {
-                    country = null;//telephonyManager.getSimCountryIso().toUpperCase();
+                    country = telephonyManager.getSimCountryIso();
+                    if (TextUtils.isEmpty(country)) {
+                        country = telephonyManager.getNetworkCountryIso();
+                    }
                 }
             } catch (Exception e) {
                 FileLog.e(e);
             }
 
-            if (country != null) {
-                setCountry(languageMap, country.toUpperCase());
-            } else {
+            if (!setDetectedCountry(country)) {
                 TLRPC.TL_help_getNearestDc req = new TLRPC.TL_help_getNearestDc();
                 getAccountInstance().getConnectionsManager().sendRequest(req, (response, error) -> AndroidUtilities.runOnUIThread(() -> {
-                    if (response == null) {
+                    if (!(response instanceof TLRPC.TL_nearestDc) || isFinished) {
                         return;
                     }
                     TLRPC.TL_nearestDc res = (TLRPC.TL_nearestDc) response;
-                    if (codeField.length() == 0) {
-                        setCountry(languageMap, res.country.toUpperCase());
-                    }
+                    setDetectedCountry(res.country);
                 }), ConnectionsManager.RequestFlagWithoutLogin | ConnectionsManager.RequestFlagFailOnServerErrors);
             }
             if (codeField.length() == 0) {
@@ -2871,21 +2867,20 @@ public class LoginActivity extends BaseFragment implements NotificationCenter.No
             countryOutlineView.animateSelection(cs != null ? 1f : 0f);
         }
 
-        private void setCountry(HashMap<String, String> languageMap, String country) {
-            String name = languageMap.get(country);
-            if (name != null && countriesArray != null) {
-                CountrySelectActivity.Country countryWithCode = null;
-                for (int i = 0; i < countriesArray.size(); i++) {
-                    if (countriesArray.get(i) != null && countriesArray.get(i).name.equals(country)) {
-                        countryWithCode = countriesArray.get(i);
-                        break;
+        private boolean setDetectedCountry(String country) {
+            // A delayed network result must never replace user input or a selected country.
+            if (currentCountry != null || codeField.length() != 0 || phoneField.length() != 0) {
+                return true;
+            }
+            if (!TextUtils.isEmpty(country)) {
+                for (CountrySelectActivity.Country candidate : countriesArray) {
+                    if (candidate != null && country.equalsIgnoreCase(candidate.shortname)) {
+                        selectCountry(candidate);
+                        return true;
                     }
                 }
-                if (countryWithCode != null) {
-                    codeField.setText(countryWithCode.code);
-                    countryState = COUNTRY_STATE_NOT_SET_OR_VALID;
-                }
             }
+            return false;
         }
 
         @Override
