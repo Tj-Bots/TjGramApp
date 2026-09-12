@@ -59,6 +59,7 @@ import org.telegram.messenger.browser.Browser;
 import org.telegram.messenger.tj.TjConfig;
 import org.telegram.messenger.tj.TjDeletionPolicy;
 import org.telegram.messenger.tj.TjGhostController;
+import org.telegram.messenger.tj.TjReactionReadState;
 import org.telegram.messenger.tj.TjLastSeenEstimator;
 import org.telegram.messenger.support.LongSparseIntArray;
 import org.telegram.messenger.support.LongSparseLongArray;
@@ -13611,6 +13612,11 @@ public class MessagesController extends BaseController implements NotificationCe
                 for (int a = 0; a < new_dialogs_dict.size(); a++) {
                     long key = new_dialogs_dict.keyAt(a);
                     TLRPC.Dialog value = new_dialogs_dict.valueAt(a);
+                    if (!fromCache) {
+                        value.unread_reactions_count = TjGhostController.filterUnreadReactionsCount(
+                                currentAccount, value.id, 0, value.unread_reactions_count);
+                        getMessagesStorage().updateUnreadReactionsCount(value.id, 0, value.unread_reactions_count);
+                    }
                     TLRPC.Dialog currentDialog = dialogs_dict.get(key);
                     if (migrate && currentDialog != null) {
                         currentDialog.folder_id = value.folder_id;
@@ -14210,8 +14216,7 @@ public class MessagesController extends BaseController implements NotificationCe
                                 getNotificationCenter().postNotificationName(NotificationCenter.updateMentionsCount, currentDialog.id, 0L, currentDialog.unread_mentions_count);
                             }
                         }
-                        int syncedUnreadReactions = TjGhostController.filterUnreadReactionsCount(
-                                currentAccount, currentDialog.id, 0, value.unread_reactions_count);
+                        int syncedUnreadReactions = value.unread_reactions_count;
                         if (currentDialog.unread_reactions_count != syncedUnreadReactions) {
                             currentDialog.unread_reactions_count = syncedUnreadReactions;
                             getNotificationCenter().postNotificationName(NotificationCenter.dialogsUnreadReactionsCounterChanged, currentDialog.id, 0L, currentDialog.unread_reactions_count, null);
@@ -19611,6 +19616,10 @@ public class MessagesController extends BaseController implements NotificationCe
             } else if (baseUpdate instanceof TL_update.TL_updateMessageReactions) {
                 TL_update.TL_updateMessageReactions update = (TL_update.TL_updateMessageReactions) baseUpdate;
                 long dialogId = MessageObject.getPeerId(update.peer);
+                final long reactionTopicId = isMonoForum(dialogId) && ChatObject.canManageMonoForum(currentAccount, dialogId)
+                        ? DialogObject.getPeerDialogId(update.saved_peer_id) : update.top_msg_id;
+                TjReactionReadState.filter(currentAccount, dialogId, reactionTopicId,
+                        update.msg_id, update.reactions, true);
 
                 if (update.reactions != null && update.reactions.recent_reactions != null) {
                     for (TLRPC.MessagePeerReaction reaction : update.reactions.recent_reactions) {

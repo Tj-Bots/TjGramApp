@@ -36,6 +36,7 @@ import org.telegram.SQLite.SQLiteException;
 import org.telegram.SQLite.SQLitePreparedStatement;
 import org.telegram.messenger.support.LongSparseIntArray;
 import org.telegram.messenger.tj.TjConfig;
+import org.telegram.messenger.tj.TjReactionReadState;
 import org.telegram.messenger.tj.TjDeletionPolicy;
 import org.telegram.messenger.tj.TjMessageArchive;
 import org.telegram.messenger.utils.EphemeralMessagesHelper;
@@ -18866,6 +18867,8 @@ public class MessagesStorage extends BaseController {
                         message.readAttachPath(data, getUserConfig().clientUserId);
                         data.reuse();
                         if (message.reactions != null && message.reactions.recent_reactions != null) {
+                            TjReactionReadState.remember(currentAccount, dialogId, topicId,
+                                    messageId, message.reactions);
                             for (int i = 0; i < message.reactions.recent_reactions.size(); i++) {
                                 message.reactions.recent_reactions.get(i).unread = false;
                             }

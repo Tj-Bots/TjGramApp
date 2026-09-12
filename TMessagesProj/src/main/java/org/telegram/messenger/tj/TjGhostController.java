@@ -155,7 +155,7 @@ public final class TjGhostController {
         if (count > 0 && TjConfig.ghostReactionsReadLocally(account, dialogId, topicId)) {
             return 0;
         }
-        return count;
+        return TjReactionReadState.filterCount(account, dialogId, topicId, count);
     }
 
     public static boolean shouldDropRead(int account, TLObject request) {

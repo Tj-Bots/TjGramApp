@@ -51,6 +51,7 @@ import androidx.core.graphics.ColorUtils;
 
 import org.telegram.PhoneFormat.PhoneFormat;
 import org.telegram.messenger.browser.Browser;
+import org.telegram.messenger.tj.TjReactionReadState;
 import org.telegram.messenger.ringtone.RingtoneDataStore;
 import org.telegram.messenger.utils.tlutils.AmountUtils;
 import org.telegram.messenger.utils.tlutils.TLKeyboardHelper;
@@ -730,6 +731,8 @@ public class MessageObject {
         if (messageOwner.reactions == null || messageOwner.reactions.recent_reactions == null) {
             return;
         }
+        TjReactionReadState.remember(currentAccount, getDialogId(),
+                getTopicId(currentAccount, messageOwner), getId(), messageOwner.reactions);
         boolean changed = false;
         for (int i = 0; i < messageOwner.reactions.recent_reactions.size(); i++) {
             if (messageOwner.reactions.recent_reactions.get(i).unread) {
@@ -1921,6 +1924,8 @@ public class MessageObject {
 
         currentAccount = accountNum;
         messageOwner = message;
+        TjReactionReadState.filter(currentAccount, getDialogId(message),
+                getTopicId(currentAccount, message), message.id, message.reactions, false);
         replyMessageObject = replyToMessage;
         eventId = eid;
         wasUnread = !messageOwner.out && messageOwner.unread;

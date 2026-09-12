@@ -38,6 +38,12 @@ public final class TjConfig {
         return ApplicationLoader.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
     }
 
+    static SharedPreferences reactionReads(int account) {
+        long ownerId = UserConfig.getInstance(account).getClientUserId();
+        return ownerId == 0 ? null : ApplicationLoader.applicationContext.getSharedPreferences(
+                "tj_reaction_reads_" + ownerId, Context.MODE_PRIVATE);
+    }
+
     private static boolean get(String key, boolean defaultValue) {
         return prefs().getBoolean(key, defaultValue);
     }
