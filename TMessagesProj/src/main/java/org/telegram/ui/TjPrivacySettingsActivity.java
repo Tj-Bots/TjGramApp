@@ -105,6 +105,13 @@ public class TjPrivacySettingsActivity extends BaseFragment implements Notificat
     private final ArrayList<Item> items = new ArrayList<>();
     private ListAdapter adapter;
     private final int page;
+    private int initialFocusId;
+
+    public static TjPrivacySettingsActivity forLocalPremium() {
+        TjPrivacySettingsActivity fragment = new TjPrivacySettingsActivity(PAGE_CUSTOMIZATION);
+        fragment.initialFocusId = LOCAL_PREMIUM;
+        return fragment;
+    }
 
     public TjPrivacySettingsActivity() {
         this(PAGE_ARCHIVE);
@@ -188,6 +195,14 @@ public class TjPrivacySettingsActivity extends BaseFragment implements Notificat
         frame.addView(list, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
         list.setOnItemClickListener((view, position) -> onItemClick(items.get(position), view));
         list.setOnItemLongClickListener((view, position) -> onItemLongClick(items.get(position)));
+        if (initialFocusId != 0) {
+            for (int i = 0; i < items.size(); i++) {
+                if (items.get(i).id == initialFocusId) {
+                    ((LinearLayoutManager) list.getLayoutManager()).scrollToPositionWithOffset(Math.max(0, i - 1), 0);
+                    break;
+                }
+            }
+        }
         return fragmentView;
     }
 

@@ -10,6 +10,10 @@ public final class TjCommunity {
 
     public static final String CHANNEL_USERNAME = "@TjGramApp";
     public static final String CHANNEL_URL = "https://t.me/TjGramApp";
+    public static final String FAQ_USERNAME = "@TjGramFAQ";
+    public static final String FAQ_URL = "https://t.me/TjGramFAQ/25";
+    public static final String CONTACT_USERNAME = "@avi_user";
+    public static final String CONTACT_URL = "https://t.me/avi_user";
     public static final String DISCUSSION_USERNAME = "@TjGramAppChat";
     public static final String DISCUSSION_URL = "https://t.me/TjGramAppChat";
 

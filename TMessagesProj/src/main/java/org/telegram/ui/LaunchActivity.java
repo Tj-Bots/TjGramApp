@@ -1586,6 +1586,7 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
         int push_enc_id = 0;
         int push_msg_id = 0;
         int open_settings = 0;
+        org.telegram.messenger.tj.TjSettingsLinks.Section tjSettingsSection = null;
         int open_widget_edit = -1;
         int open_widget_edit_type = -1;
         int open_new_dialog = 0;
@@ -2307,7 +2308,11 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
                                 }
                                 case "tg": {
                                     String url = data.toString();
-                                    if (url.startsWith("tg:premium_offer") || url.startsWith("tg://premium_offer")) {
+                                    org.telegram.messenger.tj.TjSettingsLinks.Section tjSection =
+                                            org.telegram.messenger.tj.TjSettingsLinks.parse(url);
+                                    if (tjSection != null) {
+                                        tjSettingsSection = tjSection;
+                                    } else if (url.startsWith("tg:premium_offer") || url.startsWith("tg://premium_offer")) {
                                         String finalUrl = url;
                                         AndroidUtilities.runOnUIThread(() -> {
                                         if (!actionBarLayout.getFragmentStack().isEmpty()) {
@@ -2874,7 +2879,7 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
                                     message = " " + message;
                                 }
                                 runLinkRequest(intentAccount[0], username, group, sticker, emoji, botUser, botChat, botChannel, botChatAdminParams, message, contactToken, folderSlug, text, hasUrl, messageId, channelId, threadId, commentId, game, auth, lang, unsupportedUrl, code, login, wallPaper, inputInvoiceSlug, uniqueGiftSlug, theme, voicechat, videochat, livestream, 0, videoTimestamp, setAsAttachBot, attachMenuBotToOpen, attachMenuBotChoose, botAppMaybe, startApp, progress, forceNotInternalForApps, storyId, liveStory, storyAlbumId, giftCollectionId, auctionSlug, stargiftPreviewSlug, isBoost, chatLinkSlug, botCompact, botFullscreen, openedTelegram, openProfile, forceRequest, referrer, taskId, openDirect, optionId);
-                            } else {
+                            } else if (tjSettingsSection == null) {
                                 try (Cursor cursor = getContentResolver().query(intent.getData(), null, null, null, null)) {
                                     if (cursor != null) {
                                         if (cursor.moveToFirst()) {
@@ -3142,6 +3147,14 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
                     dids.add(MessagesStorage.TopicKey.of(dialogId, 0));
                     didSelectDialogs(null, dids, null, false, true, 0, 0, null);
                 }
+            } else if (tjSettingsSection != null) {
+                BaseFragment fragment = TjSettingsLinkNavigator.create(tjSettingsSection, currentAccount);
+                AndroidUtilities.runOnUIThread(() -> presentFragment(fragment, false, false));
+                if (AndroidUtilities.isTablet()) {
+                    actionBarLayout.rebuildFragments(INavigationLayout.REBUILD_FLAG_REBUILD_LAST);
+                    rightActionBarLayout.rebuildFragments(INavigationLayout.REBUILD_FLAG_REBUILD_LAST);
+                }
+                pushOpened = true;
             } else if (open_settings == 7 || open_settings == 8 || open_settings == 9) {
                 CharSequence bulletinText = null;
                 boolean can = BuildVars.DEBUG_PRIVATE_VERSION; // TODO: check source

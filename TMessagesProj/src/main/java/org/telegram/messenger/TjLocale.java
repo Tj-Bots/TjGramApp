@@ -441,6 +441,8 @@ public class TjLocale {
         m.put("TjSettingsFooter", "TjGram הוא לקוח לא רשמי של טלגרם. כל מה שנשמר נשאר במכשיר הזה.");
         m.put("TjProtectedForwardFailed", "לא ניתן היה להכין %1$d הודעות מוגנות. שאר ההודעות נשלחו.");
         m.put("TjReorderAccount", "גרירה לשינוי סדר החשבון");
+        m.put("TjFAQ", "מדריכים ושאלות נפוצות");
+        m.put("TjContact", "יצירת קשר");
         TRANSLATIONS.put("he", m);
 
         m = new HashMap<>();
@@ -599,6 +601,8 @@ public class TjLocale {
         m.put("TjSubtitlesOff", "\u0412\u044b\u043a\u043b\u044e\u0447\u0435\u043d\u044b");
         m.put("TjTotalChats", "\u0412\u0441\u0435\u0433\u043e \u0447\u0430\u0442\u043e\u0432");
         m.put("TjUnreadChats", "\u041d\u0435\u043f\u0440\u043e\u0447\u0438\u0442\u0430\u043d\u043d\u044b\u0435 \u0447\u0430\u0442\u044b");
+        m.put("TjFAQ", "Руководства и FAQ");
+        m.put("TjContact", "Связаться с нами");
         TRANSLATIONS.put("ru", m);
 
         m = new HashMap<>();

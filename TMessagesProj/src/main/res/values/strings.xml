@@ -11498,6 +11498,8 @@
     <string name="TjAdvancedSettingsDesc">Chats, menus, background and direct viewing</string>
     <string name="TjSettingsFooter">TjGram is an unofficial Telegram client. Everything it keeps stays on this device.</string>
     <string name="TjLinks">Links</string>
+    <string name="TjFAQ">Guides and FAQ</string>
+    <string name="TjContact">Contact us</string>
     <string name="TjCustomization">Customization</string>
     <string name="TjChannel">Channel</string>
     <string name="TjDiscussions">Discussions</string>

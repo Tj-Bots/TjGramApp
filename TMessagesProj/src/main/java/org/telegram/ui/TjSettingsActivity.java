@@ -276,6 +276,13 @@ public class TjSettingsActivity extends BaseFragment {
     }
 
     private RecyclerListView listView;
+    private boolean focusPlayerSettings;
+
+    public static TjSettingsActivity forPlayerSettings() {
+        TjSettingsActivity fragment = new TjSettingsActivity();
+        fragment.focusPlayerSettings = true;
+        return fragment;
+    }
     private ListAdapter adapter;
     private final ArrayList<Item> items = new ArrayList<>();
 
@@ -477,6 +484,14 @@ public class TjSettingsActivity extends BaseFragment {
             }
         });
 
+        if (focusPlayerSettings) {
+            for (int i = 0; i < items.size(); i++) {
+                if (items.get(i).id == ID_SUBTITLE_AUTO) {
+                    ((LinearLayoutManager) listView.getLayoutManager()).scrollToPositionWithOffset(Math.max(0, i - 1), 0);
+                    break;
+                }
+            }
+        }
         return fragmentView;
     }
 

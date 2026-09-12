@@ -124,6 +124,33 @@ public class TjMediaCenterActivity extends BaseFragment implements MainTabsActiv
     private TjMediaCatalog<TjMediaLibrary.Entry> catalog = new TjMediaCatalog<>();
     private int mediaType;
     private String searchQuery = "";
+    private String pendingSettingsLink;
+
+    public TjMediaCenterActivity() { }
+
+    public TjMediaCenterActivity(Bundle args) {
+        super(args);
+        pendingSettingsLink = args == null ? null : args.getString("tj_settings_link");
+    }
+
+    public static TjMediaCenterActivity forSettingsLink(boolean lists) {
+        Bundle args = new Bundle();
+        args.putString("tj_settings_link", lists ? "lists" : "metadata");
+        return new TjMediaCenterActivity(args);
+    }
+
+    @Override public void onBecomeFullyVisible() {
+        super.onBecomeFullyVisible();
+        if (pendingSettingsLink == null || getParentActivity() == null
+                || !UserConfig.getInstance(currentAccount).isClientActivated()
+                || screenOwner != UserConfig.getInstance(currentAccount).getClientUserId()) return;
+        String destination = pendingSettingsLink;
+        pendingSettingsLink = null;
+        if (arguments != null) arguments.remove("tj_settings_link");
+        if ("lists".equals(destination)) openCollections();
+        else if ("metadata".equals(destination)) configureMetadata(currentAccount);
+    }
+
     @Override
     public View createView(Context context) {
         if (screenOwner == 0) screenOwner = UserConfig.getInstance(currentAccount).getClientUserId();
