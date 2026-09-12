@@ -931,7 +931,8 @@ public class MessagesController extends BaseController implements NotificationCe
     }
 
     public boolean isPremiumUser(TLRPC.User currentUser) {
-        return currentUser != null && !isSupportUser(currentUser) &&
+        // Local feature access must not present a bot as a Premium subscriber.
+        return currentUser != null && !currentUser.bot && !isSupportUser(currentUser) &&
                 (currentUser.premium || currentUser.id == getUserConfig().getClientUserId() && TjConfig.localPremium());
     }
 

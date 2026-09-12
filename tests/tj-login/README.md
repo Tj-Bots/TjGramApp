@@ -47,6 +47,9 @@ they do not prove that a server accepted a login or that the rendered QR can be 
 - Fresh bot account with no cached dialogs: send it a message from a test user. The chat must
   appear immediately alongside the unread badge, without requiring server history pagination.
   Repeat after restart and verify ordinary user-account history pagination is unchanged.
+- With Local Premium enabled, a bot must not gain a Premium star in the chats header, drawer,
+  profile or search results. Ordinary user-account Premium presentation must remain unchanged.
+  This display rule does not change local feature gates or grant server emoji permissions.
 - Bot login permits screenshots, with the token still masked in a clearly outlined input.
   The QR dialog must continue to block screenshots. Neither may save its credential to view
   state or autofill. Verify cancel during an outstanding bot request, then retry.
