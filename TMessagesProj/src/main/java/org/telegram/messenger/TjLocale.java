@@ -30,6 +30,22 @@ public class TjLocale {
         Map<String, String> m;
 
         m = new HashMap<>();
+        m.put("TjLoginStart", "נא להזין את מספר הטלפון שלך\nאו **לבחור דרך נוספת להתחבר**");
+        m.put("TjLoginOptions", "דרכים נוספות להתחבר");
+        m.put("TjLoginQr", "התחברות באמצעות QR");
+        m.put("TjLoginBot", "התחברות לחשבון בוט");
+        m.put("TjLoginPasskey", "על התחברות במפתח גישה");
+        m.put("TjLoginPasskeyInfo", "טלגרם מגבילה כרגע את מפתחות הגישה לדומיין telegram.org ולזהויות האפליקציות הרשמיות שלה. TjGram אינה יכולה לאמת את השיוך הזה. זו אינה תקלה בטביעת האצבע או בטלפון שלך. אפשר להתחבר באמצעות מספר טלפון או QR.");
+        m.put("TjLoginBotInfo", "יש להזין את הטוקן מ־BotFather של בוט שבשליטתך. הטוקן הוא סיסמה לכל דבר. לבוט יש הרשאות שונות: לא ניתן לטעון היסטוריית שיחות כמו בחשבון רגיל. הודעות שמתקבלות כאן נשמרות במכשיר. סנכרון אנשי קשר כבוי.");
+        m.put("TjLoginBotToken", "טוקן הבוט");
+        m.put("TjLoginConnect", "התחבר");
+        m.put("TjLoginConnecting", "מתחבר…");
+        m.put("TjLoginInvalidBotToken", "טוקן הבוט אינו תקין או בוטל. יש לבדוק אותו ב־BotFather ולנסות שוב.");
+        m.put("TjLoginAlreadyConnected", "החשבון כבר מחובר בסביבה זו. אפשר לבחור אותו בתפריט החשבונות.");
+        m.put("TjLoginQrInfo", "במכשיר אחר שבו החשבון מחובר, יש לפתוח את טלגרם ← הגדרות ← מכשירים ← קישור מכשיר, לסרוק את הקוד ולאשר את ההתחברות. אין לאשר התחברות שלא ביקשת.");
+        m.put("TjLoginQrWaiting", "ממתין לאישור. הקוד מתחלף אוטומטית.");
+        m.put("TjLoginFailed", "לא ניתן להשלים את ההתחברות. יש לבדוק את החיבור ולנסות שוב.");
+        m.put("TjLoginRetry", "לחיצה לניסיון נוסף");
         m.put("TjArchivedChats", "\u05e6\u05f3\u05d0\u05d8\u05d9\u05dd \u05d1\u05d0\u05e8\u05db\u05d9\u05d5\u05df");
         m.put("TjAudioTrack", "\u05e8\u05e6\u05d5\u05e2\u05ea \u05e9\u05de\u05e2");
         m.put("TjBotApiIds", "\u05d4\u05e6\u05d2 \u05de\u05d6\u05d4\u05d9 \u05e6\u05f3\u05d0\u05d8 \u05d1\u05e4\u05d5\u05e8\u05de\u05d8 bot API");

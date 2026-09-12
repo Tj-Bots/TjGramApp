@@ -8629,37 +8629,7 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
                 if (accountNumber == currentAccount || AndroidUtilities.isTablet()) {
                     sideMenuTouchHelper.startDrag(sideMenu.getChildViewHolder(view));
                 } else {
-                    BaseFragment preview = new DialogsActivity(null) {
-                        @Override
-                        public View createView(Context context) {
-                            View view = super.createView(context);
-                            TLRPC.User user = UserConfig.getInstance(getCurrentAccount()).getCurrentUser();
-                            if (user != null) {
-                                actionBar.setTitle(UserObject.getUserName(user));
-                            }
-                            return view;
-                        }
-
-                        @Override
-                        public void onTransitionAnimationEnd(boolean isOpen, boolean backward) {
-                            super.onTransitionAnimationEnd(isOpen, backward);
-                            if (!isOpen && backward) {
-                                drawerLayoutContainer.setDrawCurrentPreviewFragmentAbove(false);
-                                actionBarLayout.getView().invalidate();
-                            }
-                        }
-
-                        @Override
-                        public void onPreviewOpenAnimationEnd() {
-                            super.onPreviewOpenAnimationEnd();
-                            drawerLayoutContainer.setAllowOpenDrawer(false, false);
-                            drawerLayoutContainer.setDrawCurrentPreviewFragmentAbove(false);
-                            actionBarLayout.getView().invalidate();
-                        }
-                    };
-                    preview.setCurrentAccount(accountNumber);
-                    actionBarLayout.presentFragmentAsPreview(preview);
-                    drawerLayoutContainer.setDrawCurrentPreviewFragmentAbove(true);
+                    openAccountPreview(accountNumber);
                 }
                 return true;
             }
@@ -8710,9 +8680,12 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
             @Override
             public void onPreviewOpenAnimationEnd() {
                 super.onPreviewOpenAnimationEnd();
-                drawerLayoutContainer.setAllowOpenDrawer(false, false);
                 drawerLayoutContainer.setDrawCurrentPreviewFragmentAbove(false);
-                actionBarLayout.getView().invalidate();
+                // Expanding commits the account selection, rather than leaving the
+                // other account's dialogs on top of the old account's back stack.
+                switchToAccount(accountNumber, true);
+                drawerLayoutContainer.closeDrawer(false);
+                drawerLayoutContainer.setAllowOpenDrawer(true, false);
             }
         };
         preview.setCurrentAccount(accountNumber);

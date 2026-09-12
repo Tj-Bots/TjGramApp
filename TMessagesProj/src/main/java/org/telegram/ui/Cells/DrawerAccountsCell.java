@@ -1,6 +1,8 @@
 package org.telegram.ui.Cells;
 
 import android.content.Context;
+import android.graphics.Canvas;
+import android.graphics.Paint;
 import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.GradientDrawable;
 import android.view.HapticFeedbackConstants;
@@ -18,6 +20,7 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import org.telegram.messenger.AndroidUtilities;
+import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.UserConfig;
 import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.Components.LayoutHelper;
@@ -81,6 +84,29 @@ public class DrawerAccountsCell extends LinearLayout {
         };
         listView.setLayoutManager(new LinearLayoutManager(context));
         listView.setAdapter(adapter);
+        // Visual only: never intercept a hold, drag, preview, or scroll gesture.
+        listView.addItemDecoration(new RecyclerView.ItemDecoration() {
+            private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+
+            @Override
+            public void onDrawOver(@NonNull Canvas canvas, @NonNull RecyclerView parent, @NonNull RecyclerView.State state) {
+                int range = parent.computeVerticalScrollRange();
+                int extent = parent.computeVerticalScrollExtent();
+                if (!canScrollList() || range <= extent || extent <= 0) return;
+                float inset = AndroidUtilities.dp(8);
+                float track = parent.getHeight() - inset * 2;
+                if (track <= 0) return;
+                float thumb = Math.min(track, Math.max(AndroidUtilities.dp(24), track * extent / range));
+                float progress = Math.max(0f, Math.min(1f, (float) parent.computeVerticalScrollOffset() / (range - extent)));
+                float top = inset + (track - thumb) * progress;
+                float width = AndroidUtilities.dp(3);
+                float left = LocaleController.isRTL ? AndroidUtilities.dp(3) : parent.getWidth() - AndroidUtilities.dp(6);
+                paint.setColor(Theme.multAlpha(Theme.getColor(Theme.key_chats_menuItemText), 0.12f));
+                canvas.drawRoundRect(left, inset, left + width, inset + track, width, width, paint);
+                paint.setColor(Theme.multAlpha(Theme.getColor(Theme.key_chats_menuItemText), 0.5f));
+                canvas.drawRoundRect(left, top, left + width, top + thumb, width, width, paint);
+            }
+        });
         // A RecyclerView nested in the drawer's RecyclerView must not participate in nested
         // scrolling, otherwise the drawer consumes the gesture first and this list never moves.
         listView.setNestedScrollingEnabled(false);

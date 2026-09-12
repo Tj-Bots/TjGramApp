@@ -1,5 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="TjLoginStart">Please enter your phone number\nor **choose another way to log in**</string>
+    <string name="TjLoginOptions">Other ways to log in</string>
+    <string name="TjLoginQr">Log in with QR code</string>
+    <string name="TjLoginBot">Log in as a bot</string>
+    <string name="TjLoginPasskey">About passkey login</string>
+    <string name="TjLoginPasskeyInfo">Telegram currently limits passkeys to telegram.org and its official app identities. TjGram cannot validate that association. This is not a problem with your fingerprint or phone. Use phone number or QR login instead.</string>
+    <string name="TjLoginBotInfo">Enter the token from BotFather for a bot you control. Treat it like a password. Bots have different permissions: existing chat history cannot be downloaded like a regular account. Messages received here are stored on this device. Contact sync is disabled.</string>
+    <string name="TjLoginBotToken">Bot token</string>
+    <string name="TjLoginConnect">Connect</string>
+    <string name="TjLoginConnecting">Connecting…</string>
+    <string name="TjLoginInvalidBotToken">The bot token is invalid or has been revoked. Check it in BotFather and try again.</string>
+    <string name="TjLoginAlreadyConnected">This account is already connected in this environment. Select it from the account menu.</string>
+    <string name="TjLoginQrInfo">On another device where you are logged in, open Telegram → Settings → Devices → Link Desktop Device. Scan this code and approve the login. Never approve a login you did not request.</string>
+    <string name="TjLoginQrWaiting">Waiting for approval. The code refreshes automatically.</string>
+    <string name="TjLoginFailed">Unable to complete login. Check your connection and try again.</string>
+    <string name="TjLoginRetry">Tap to try again</string>
     <string name="AppName">TjGram</string>
     <string name="AppNameBeta">TjGram Beta</string>
     <string name="LanguageName">English</string>

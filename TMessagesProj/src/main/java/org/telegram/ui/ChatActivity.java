@@ -33584,7 +33584,7 @@ public class ChatActivity extends BaseFragment implements
         String path = messageObject.messageOwner.attachPath;
         if (!TextUtils.isEmpty(path)) {
             File temp = new File(path);
-            if (!temp.exists()) {
+            if (!temp.isFile() || temp.length() == 0) {
                 path = null;
             }
         }
@@ -33657,7 +33657,7 @@ public class ChatActivity extends BaseFragment implements
      */
     private boolean canSaveOneTimeMedia(MessageObject message) {
         return message != null
-                && message.isSecretMedia()
+                && (message.isSecretMedia() || message.messageOwner.tjDeleted)
                 && currentEncryptedChat == null
                 && dialog_id > 0
                 && chatMode == MODE_DEFAULT
@@ -33684,6 +33684,11 @@ public class ChatActivity extends BaseFragment implements
                 messageObject.getId(), path -> {
                     if (!TextUtils.isEmpty(path)) {
                         exportOneTimeMedia(path, isVideo);
+                        return;
+                    }
+                    if (messageObject.messageOwner.tjDeleted || !messageObject.messageOwner.media_unread) {
+                        // Viewing may expire the remote attachment; only export an existing copy.
+                        showOneTimeSaveFailed();
                         return;
                     }
                     TjMessageArchive.getInstance().saveViewOnce(currentAccount,
@@ -33719,11 +33724,12 @@ public class ChatActivity extends BaseFragment implements
 
     private boolean hasLocalMediaFile(MessageObject messageObject) {
         if (!TextUtils.isEmpty(messageObject.messageOwner.attachPath)
-                && new File(messageObject.messageOwner.attachPath).exists()) {
+                && new File(messageObject.messageOwner.attachPath).isFile()
+                && new File(messageObject.messageOwner.attachPath).length() > 0) {
             return true;
         }
         File file = FileLoader.getInstance(currentAccount).getPathToMessage(messageObject.messageOwner);
-        return file != null && file.exists();
+        return file != null && file.isFile() && file.length() > 0;
     }
 
     private void preserveAndMarkOneTimeMediaViewed(MessageObject messageObject) {
@@ -47056,6 +47062,16 @@ public class ChatActivity extends BaseFragment implements
             items.add(TjLocale.getString(R.string.TjMarkMediaViewed));
             options.add(OPTION_TJ_TTL);
             icons.add(R.drawable.msg_autodelete);
+        }
+        if (canSaveOneTimeMedia(message) && !options.contains(OPTION_TJ_SAVE_ONE_TIME)) {
+            // Prefer the archive-aware exporter over the regular cache-only save action.
+            for (int i = options.size() - 1; i >= 0; i--) {
+                if (options.get(i) == OPTION_SAVE_TO_GALLERY || options.get(i) == OPTION_SAVE_TO_GALLERY2) {
+                    options.remove(i);
+                    items.remove(i);
+                    icons.remove(i);
+                }
+            }
             items.add(LocaleController.getString(R.string.SaveToGallery));
             options.add(OPTION_TJ_SAVE_ONE_TIME);
             icons.add(R.drawable.msg_gallery);

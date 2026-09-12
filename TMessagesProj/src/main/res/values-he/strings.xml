@@ -1,5 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="TjLoginStart">נא להזין את מספר הטלפון שלך\nאו **לבחור דרך נוספת להתחבר**</string>
+    <string name="TjLoginOptions">דרכים נוספות להתחבר</string>
+    <string name="TjLoginQr">התחברות באמצעות QR</string>
+    <string name="TjLoginBot">התחברות לחשבון בוט</string>
+    <string name="TjLoginPasskey">על התחברות במפתח גישה</string>
+    <string name="TjLoginPasskeyInfo">טלגרם מגבילה כרגע את מפתחות הגישה לדומיין telegram.org ולזהויות האפליקציות הרשמיות שלה. TjGram אינה יכולה לאמת את השיוך הזה. זו אינה תקלה בטביעת האצבע או בטלפון שלך. אפשר להתחבר באמצעות מספר טלפון או QR.</string>
+    <string name="TjLoginBotInfo">יש להזין את הטוקן מ־BotFather של בוט שבשליטתך. הטוקן הוא סיסמה לכל דבר. לבוט יש הרשאות שונות: לא ניתן לטעון היסטוריית שיחות כמו בחשבון רגיל. הודעות שמתקבלות כאן נשמרות במכשיר. סנכרון אנשי קשר כבוי.</string>
+    <string name="TjLoginBotToken">טוקן הבוט</string>
+    <string name="TjLoginConnect">התחבר</string>
+    <string name="TjLoginConnecting">מתחבר…</string>
+    <string name="TjLoginInvalidBotToken">טוקן הבוט אינו תקין או בוטל. יש לבדוק אותו ב־BotFather ולנסות שוב.</string>
+    <string name="TjLoginAlreadyConnected">החשבון כבר מחובר בסביבה זו. אפשר לבחור אותו בתפריט החשבונות.</string>
+    <string name="TjLoginQrInfo">במכשיר אחר שבו החשבון מחובר, יש לפתוח את טלגרם ← הגדרות ← מכשירים ← קישור מכשיר, לסרוק את הקוד ולאשר את ההתחברות. אין לאשר התחברות שלא ביקשת.</string>
+    <string name="TjLoginQrWaiting">ממתין לאישור. הקוד מתחלף אוטומטית.</string>
+    <string name="TjLoginFailed">לא ניתן להשלים את ההתחברות. יש לבדוק את החיבור ולנסות שוב.</string>
+    <string name="TjLoginRetry">לחיצה לניסיון נוסף</string>
     <string name="TjSettings">הגדרות TjGram</string>
     <string name="TjMyProfile">הפרופיל שלי</string>
     <string name="TjMessageInfo">פרטי הודעה</string>

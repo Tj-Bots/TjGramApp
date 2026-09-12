@@ -10547,7 +10547,7 @@ public class MessagesController extends BaseController implements NotificationCe
         checkDeletingTask(false);
         checkReadTasks();
 
-        if (getUserConfig().isClientActivated()) {
+        if (getUserConfig().isClientActivated() && !getUserConfig().getCurrentUser().bot) {
             if (!ignoreSetOnline && getConnectionsManager().getPauseTime() == 0 && ApplicationLoader.isScreenOn && !ApplicationLoader.mainInterfacePausedStageQueue) {
                 if (ApplicationLoader.mainInterfacePausedStageQueueTime != 0 && Math.abs(ApplicationLoader.mainInterfacePausedStageQueueTime - System.currentTimeMillis()) > 1000) {
                     // Ghost mode skips only the "I am online" update; going offline still runs.
@@ -11546,6 +11546,10 @@ public class MessagesController extends BaseController implements NotificationCe
     }
 
     private void loadMessagesInternal(long dialogId, long mergeDialogId, boolean loadInfo, int count, int max_id, int offset_date, boolean fromCache, int minDate, int classGuid, int load_type, int last_message_id, int mode, long threadMessageId, int loadIndex, int first_unread, int unread_count, int last_date, boolean queryFromServer, int mentionsCount, boolean loadDialog, boolean processMessages, boolean isTopic, Timer loaderLogger, long hash) {
+        if (getUserConfig().getCurrentUser() != null && getUserConfig().getCurrentUser().bot) {
+            getMessagesStorage().getMessages(dialogId, mergeDialogId, loadInfo, count, max_id, offset_date, minDate, classGuid, load_type, mode, threadMessageId, loadIndex, processMessages, isTopic, loaderLogger);
+            return;
+        }
         if (BuildVars.LOGS_ENABLED) {
             FileLog.d("load messages in chat " + dialogId + " topic_id " + threadMessageId + " count " + count + " max_id " + max_id + " cache " + fromCache + " mindate = " + minDate + " guid " + classGuid + " load_type " + load_type + " last_message_id " + last_message_id + " mode " + mode + " index " + loadIndex + " firstUnread " + first_unread + " unread_count " + unread_count + " last_date " + last_date + " queryFromServer " + queryFromServer + " isTopic " + isTopic);
         }
@@ -12007,7 +12011,8 @@ public class MessagesController extends BaseController implements NotificationCe
         } else {
             reload = resCount == 0 && (!isInitialLoading || (SystemClock.elapsedRealtime() - lastServerQueryTime.get(dialogId, 0L)) > 60 * 1000 || (isCache && isTopic));
         }
-        if (!DialogObject.isEncryptedDialog(dialogId) && isCache && reload) {
+        if (!DialogObject.isEncryptedDialog(dialogId) && isCache && reload
+                && !(getUserConfig().getCurrentUser() != null && getUserConfig().getCurrentUser().bot)) {
             if (mode == ChatActivity.MODE_SCHEDULED) {
                 lastScheduledServerQueryTime.put(dialogId, SystemClock.elapsedRealtime());
             } else if (mode == ChatActivity.MODE_QUICK_REPLIES) {
@@ -12495,6 +12500,14 @@ public class MessagesController extends BaseController implements NotificationCe
     }
 
     public void loadDialogs(final int folderId, int offset, int count, boolean fromCache, Runnable onEmptyCallback) {
+        if (!fromCache && getUserConfig().getCurrentUser() != null && getUserConfig().getCurrentUser().bot) {
+            dialogsEndReached.put(folderId, true);
+            serverDialogsEndReached.put(folderId, true);
+            loadingDialogs.put(folderId, false);
+            getNotificationCenter().postNotificationName(NotificationCenter.dialogsNeedReload);
+            if (onEmptyCallback != null) onEmptyCallback.run();
+            return;
+        }
         if (loadingDialogs.get(folderId) || resetingDialogs) {
             return;
         }
@@ -17404,6 +17417,7 @@ public class MessagesController extends BaseController implements NotificationCe
     }
 
     public void loadPinnedDialogs(final int folderId, long newDialogId, ArrayList<Long> order) {
+        if (getUserConfig().getCurrentUser() != null && getUserConfig().getCurrentUser().bot) return;
         if (loadingPinnedDialogs.indexOfKey(folderId) >= 0 || getUserConfig().isPinnedDialogsLoaded(folderId)) {
             return;
         }
@@ -17906,6 +17920,10 @@ public class MessagesController extends BaseController implements NotificationCe
 
     // must be run from Utilities.stageQueue
     public void processUpdates(final TLRPC.Updates updates, boolean fromQueue) {
+        if (updates.update instanceof TL_update.TL_updateLoginToken
+                || updates.updates != null && updates.updates.stream().anyMatch(u -> u instanceof TL_update.TL_updateLoginToken)) {
+            AndroidUtilities.runOnUIThread(() -> getNotificationCenter().postNotificationName(NotificationCenter.tjLoginTokenUpdated));
+        }
         ArrayList<Long> needGetChannelsDiff = null;
         boolean needGetDiff = false;
         boolean needReceivedQueue = false;

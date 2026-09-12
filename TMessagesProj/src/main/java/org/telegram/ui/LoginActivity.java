@@ -221,6 +221,27 @@ import java.util.concurrent.atomic.AtomicReference;
 
 @SuppressLint("HardwareIds")
 public class LoginActivity extends BaseFragment implements NotificationCenter.NotificationCenterDelegate {
+    private org.telegram.ui.Components.TjLoginOptions tjLoginOptions;
+
+    private void showTjLoginOptions() {
+        if (activityMode != MODE_LOGIN || currentViewNum != VIEW_PHONE_INPUT || getParentActivity() == null) return;
+        if (tjLoginOptions != null) tjLoginOptions.close();
+        AndroidUtilities.hideKeyboard(fragmentView);
+        tjLoginOptions = new org.telegram.ui.Components.TjLoginOptions(this, new org.telegram.ui.Components.TjLoginOptions.Delegate() {
+            @Override
+            public void authorized(TLRPC.TL_auth_authorization authorization) {
+                if (authorization.user.bot) syncContacts = false;
+                onAuthSuccess(authorization);
+            }
+
+            @Override
+            public void passwordRequired(Bundle params) {
+                showDoneButton(false, true);
+                setPage(VIEW_PASSWORD, true, params, false);
+            }
+        });
+        tjLoginOptions.show();
+    }
     public final static boolean ENABLE_PASTED_TEXT_PROCESSING = false;
     private final static int SHOW_DELAY = SharedConfig.getDevicePerformanceClass() <= SharedConfig.PERFORMANCE_CLASS_AVERAGE ? 150 : 100;
 
@@ -509,6 +530,7 @@ public class LoginActivity extends BaseFragment implements NotificationCenter.No
 
     @Override
     public void onFragmentDestroy() {
+        if (tjLoginOptions != null) tjLoginOptions.close();
         super.onFragmentDestroy();
         for (int a = 0; a < views.length; a++) {
             if (views[a] != null) {
@@ -908,6 +930,7 @@ public class LoginActivity extends BaseFragment implements NotificationCenter.No
 
     @Override
     public void onPause() {
+        if (tjLoginOptions != null) tjLoginOptions.close();
         super.onPause();
         if (newAccount) {
             ConnectionsManager.getInstance(currentAccount).setAppPaused(true, false);
@@ -1662,8 +1685,10 @@ public class LoginActivity extends BaseFragment implements NotificationCenter.No
         users.add(res.user);
         MessagesStorage.getInstance(currentAccount).putUsersAndChats(users, null, true, true);
         MessagesController.getInstance(currentAccount).putUser(res.user, false);
-        ContactsController.getInstance(currentAccount).checkAppAccount();
-        MessagesController.getInstance(currentAccount).checkPromoInfo(true);
+        if (!res.user.bot) {
+            ContactsController.getInstance(currentAccount).checkAppAccount();
+            MessagesController.getInstance(currentAccount).checkPromoInfo(true);
+        }
         ConnectionsManager.getInstance(currentAccount).updateDcSettings();
         MessagesController.getInstance(currentAccount).loadAppConfig();
         MessagesController.getInstance(currentAccount).loadWebBrowserConfig();
@@ -2049,6 +2074,9 @@ public class LoginActivity extends BaseFragment implements NotificationCenter.No
 
             subtitleView = new LinkSpanDrawable.LinksTextView(context);
             subtitleView.setText(getString(activityMode == MODE_CHANGE_PHONE_NUMBER ? R.string.ChangePhoneHelp : R.string.StartText));
+            if (activityMode == MODE_LOGIN) {
+                subtitleView.setText(AndroidUtilities.replaceSingleTag(org.telegram.messenger.TjLocale.getString(R.string.TjLoginStart), () -> showTjLoginOptions()));
+            }
             subtitleView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
             subtitleView.setGravity(Gravity.CENTER);
             subtitleView.setLineSpacing(dp(2), 1.0f);

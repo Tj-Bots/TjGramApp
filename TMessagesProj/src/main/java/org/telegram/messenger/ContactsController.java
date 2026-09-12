@@ -1506,6 +1506,12 @@ public class ContactsController extends BaseController {
     }
 
     public void loadContacts(boolean fromCache, final long hash) {
+        if (getUserConfig().getCurrentUser() != null && getUserConfig().getCurrentUser().bot) {
+            synchronized (loadContactsSync) { loadingContacts = false; }
+            contactsLoaded = true;
+            AndroidUtilities.runOnUIThread(() -> getNotificationCenter().postNotificationName(NotificationCenter.contactsDidLoad));
+            return;
+        }
         synchronized (loadContactsSync) {
             loadingContacts = true;
         }

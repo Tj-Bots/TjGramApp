@@ -320,7 +320,8 @@ public class DrawerLayoutAdapter extends RecyclerListView.SelectionAdapter {
             items.add(new Item(105, TjLocale.getString(R.string.TjKillApp), R.drawable.msg_disable));
         }
         UserConfig me = UserConfig.getInstance(UserConfig.selectedAccount);
-        if (me != null && me.isPremium()) {
+        boolean botAccount = me.getCurrentUser() != null && me.getCurrentUser().bot;
+        if (!botAccount && me.isPremium()) {
             if (me.getEmojiStatus() != null) {
                 items.add(new Item(15, LocaleController.getString(R.string.ChangeEmojiStatus), R.drawable.msg_smile_status));
             } else {
@@ -329,13 +330,14 @@ public class DrawerLayoutAdapter extends RecyclerListView.SelectionAdapter {
         }
         items.add(null);
 
-        items.add(new Item(2, LocaleController.getString(R.string.NewGroup), newGroupIcon));
-        items.add(new Item(4, LocaleController.getString(R.string.NewChannel), newChannelIcon));
-        items.add(null);
-
-        items.add(new Item(6, LocaleController.getString(R.string.Contacts), contactsIcon));
-        items.add(new Item(10, LocaleController.getString(R.string.Calls), callsIcon));
-        items.add(new Item(11, LocaleController.getString(R.string.SavedMessages), savedIcon));
+        if (!botAccount) {
+            items.add(new Item(2, LocaleController.getString(R.string.NewGroup), newGroupIcon));
+            items.add(new Item(4, LocaleController.getString(R.string.NewChannel), newChannelIcon));
+            items.add(null);
+            items.add(new Item(6, LocaleController.getString(R.string.Contacts), contactsIcon));
+            items.add(new Item(10, LocaleController.getString(R.string.Calls), callsIcon));
+            items.add(new Item(11, LocaleController.getString(R.string.SavedMessages), savedIcon));
+        }
         items.add(new Item(101, LocaleController.getString(R.string.Filters), R.drawable.msg_folders));
         items.add(new Item(102, TjLocale.getString(R.string.TjChatCounters), R.drawable.msg_stats));
         items.add(null);

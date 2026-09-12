@@ -41,7 +41,9 @@ public class BuildVars {
     public static boolean IS_BILLING_UNAVAILABLE = false;
 
     // works only on official app ids, disable on your forks
-    public static boolean SUPPORTS_PASSKEYS = true;
+    // Telegram currently restricts passkeys to its own RP ID and official app identities.
+    // Keep the explanation in TjLoginOptions; do not launch a guaranteed-failing native prompt.
+    public static boolean SUPPORTS_PASSKEYS = false;
 
     static {
         if (ApplicationLoader.applicationContext != null) {
