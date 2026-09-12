@@ -99,6 +99,7 @@ public class UserInfoActivity extends UniversalFragment implements NotificationC
         getNotificationCenter().addObserver(this, NotificationCenter.userInfoDidLoad);
         getNotificationCenter().addObserver(this, NotificationCenter.privacyRulesUpdated);
         getNotificationCenter().addObserver(this, NotificationCenter.updateInterfaces);
+        getNotificationCenter().addObserver(this, NotificationCenter.tjAccountOrderChanged);
         getNotificationCenter().addObserver(this, NotificationCenter.updatedChatbot);
         getContactsController().loadPrivacySettings();
         BusinessChatbotController.getInstance(currentAccount).load(null);
@@ -110,6 +111,7 @@ public class UserInfoActivity extends UniversalFragment implements NotificationC
         getNotificationCenter().removeObserver(this, NotificationCenter.userInfoDidLoad);
         getNotificationCenter().removeObserver(this, NotificationCenter.privacyRulesUpdated);
         getNotificationCenter().removeObserver(this, NotificationCenter.updateInterfaces);
+        getNotificationCenter().removeObserver(this, NotificationCenter.tjAccountOrderChanged);
         getNotificationCenter().removeObserver(this, NotificationCenter.updatedChatbot);
         super.onFragmentDestroy();
         if (!wasSaved) {
@@ -306,16 +308,7 @@ public class UserInfoActivity extends UniversalFragment implements NotificationC
                 accountNumbers.add(a);
             }
         }
-        Collections.sort(accountNumbers, (o1, o2) -> {
-            long l1 = UserConfig.getInstance(o1).loginTime;
-            long l2 = UserConfig.getInstance(o2).loginTime;
-            if (l1 > l2) {
-                return 1;
-            } else if (l1 < l2) {
-                return -1;
-            }
-            return 0;
-        });
+        org.telegram.messenger.tj.TjAccountOrder.sort(accountNumbers);
     }
 
     @Keep
@@ -561,6 +554,11 @@ public class UserInfoActivity extends UniversalFragment implements NotificationC
 
     @Override
     public void didReceivedNotification(int id, int account, Object... args) {
+        if (id == NotificationCenter.tjAccountOrderChanged) {
+            updateAccounts();
+            if (listView != null) listView.adapter.update(true);
+            return;
+        }
         if (id == NotificationCenter.userInfoDidLoad) {
             setValue();
         } else if (id == NotificationCenter.updateInterfaces) {
@@ -584,6 +582,7 @@ public class UserInfoActivity extends UniversalFragment implements NotificationC
     @Override
     public void onResume() {
         super.onResume();
+        updateAccounts();
         channels.invalidate();
         channels.subscribe(() -> {
             if (listView != null) {

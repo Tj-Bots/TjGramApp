@@ -11636,6 +11636,8 @@ public class MessageObject {
     }
 
     public static boolean canEditMessageAnytime(int currentAccount, TLRPC.Message message, TLRPC.Chat chat) {
+        final TLRPC.User self = UserConfig.getInstance(currentAccount).getCurrentUser();
+        if (self != null && self.bot) return canEditMessage(currentAccount, message, chat, false);
         if (message == null || message.peer_id == null || getMedia(message) != null && (isRoundVideoDocument(getMedia(message).document) || isStickerDocument(getMedia(message).document) || isAnimatedStickerDocument(getMedia(message).document, true)) || message.action != null && !(message.action instanceof TLRPC.TL_messageActionEmpty) || isForwardedMessage(message) || message.via_bot_id != 0 || message.id < 0) {
             return false;
         }
@@ -11676,6 +11678,7 @@ public class MessageObject {
     }
 
     public static boolean canEditMessage(int currentAccount, TLRPC.Message message, TLRPC.Chat chat, boolean scheduled) {
+        if (message == null) return false;
         if (scheduled && message.date < ConnectionsManager.getInstance(currentAccount).getCurrentTime() - 60) {
             return false;
         }
@@ -11719,7 +11722,12 @@ public class MessageObject {
         if (message.out && chat != null && chat.megagroup && (chat.creator || chat.admin_rights != null && chat.admin_rights.pin_messages || chat.default_banned_rights != null && !chat.default_banned_rights.pin_messages)) {
             return true;
         }
-        if (!scheduled && Math.abs(message.date - ConnectionsManager.getInstance(currentAccount).getCurrentTime()) > MessagesController.getInstance(currentAccount).maxEditTime) {
+        // Bot-owned messages use server-side editing limits, not a user account's window.
+        final TLRPC.User self = UserConfig.getInstance(currentAccount).getCurrentUser();
+        final boolean botOwned = self != null && org.telegram.messenger.tj.TjMessageEditPolicy.usesBotEditWindow(
+                self.bot, self.id, message.out,
+                message.from_id instanceof TLRPC.TL_peerUser ? message.from_id.user_id : 0);
+        if (!scheduled && !botOwned && Math.abs((long) message.date - ConnectionsManager.getInstance(currentAccount).getCurrentTime()) > MessagesController.getInstance(currentAccount).maxEditTime) {
             return false;
         }
         if (message.peer_id.channel_id == 0) {

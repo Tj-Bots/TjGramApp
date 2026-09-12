@@ -261,41 +261,12 @@ public class DrawerLayoutAdapter extends RecyclerListView.SelectionAdapter {
     }
 
     private void saveAccountOrder() {
-        StringBuilder value = new StringBuilder();
-        for (Integer account : accountNumbers) {
-            long userId = UserConfig.getInstance(account).getClientUserId();
-            if (userId == 0) continue;
-            if (value.length() > 0) value.append(',');
-            value.append(userId);
-        }
-        MessagesController.getGlobalMainSettings().edit()
-                .putString("tj_account_order_v1", value.toString()).apply();
+        org.telegram.messenger.tj.TjAccountOrder.save(accountNumbers);
     }
 
     private void resetItems() {
         accountNumbers.clear();
-        for (int a = 0; a < UserConfig.MAX_ACCOUNT_COUNT; a++) {
-            if (UserConfig.getInstance(a).isClientActivated()) {
-                accountNumbers.add(a);
-            }
-        }
-        Map<Long, Integer> ranks = new HashMap<>();
-        String savedOrder = MessagesController.getGlobalMainSettings()
-                .getString("tj_account_order_v1", "");
-        String[] userIds = savedOrder.split(",");
-        for (int i = 0; i < userIds.length; i++) {
-            try {
-                ranks.put(Long.parseLong(userIds[i]), i);
-            } catch (NumberFormatException ignore) {
-            }
-        }
-        Collections.sort(accountNumbers, (o1, o2) -> {
-            int r1 = ranks.getOrDefault(UserConfig.getInstance(o1).getClientUserId(), Integer.MAX_VALUE);
-            int r2 = ranks.getOrDefault(UserConfig.getInstance(o2).getClientUserId(), Integer.MAX_VALUE);
-            if (r1 != r2) return Integer.compare(r1, r2);
-            return Integer.compare(o1, o2);
-        });
-        saveAccountOrder();
+        accountNumbers.addAll(org.telegram.messenger.tj.TjAccountOrder.activeAccounts());
 
         items.clear();
         if (!UserConfig.getInstance(UserConfig.selectedAccount).isClientActivated()) {
