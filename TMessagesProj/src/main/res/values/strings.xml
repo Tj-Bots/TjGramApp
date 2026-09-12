@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="TjLoginStart">Please enter your phone number\nor **choose another way to log in**</string>
+    <string name="TjLoginStart">Please enter your phone number\nor **log in using a passkey**</string>
     <string name="TjLoginOptions">Other ways to log in</string>
     <string name="TjLoginQr">Log in with QR code</string>
     <string name="TjLoginBot">Log in as a bot</string>

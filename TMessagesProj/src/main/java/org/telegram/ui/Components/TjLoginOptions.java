@@ -63,20 +63,11 @@ public final class TjLoginOptions implements NotificationCenter.NotificationCent
 
     private String text(int id) { return TjLocale.getString(id); }
 
-    public void show() {
+    public void show(int option) {
         if (fragment.getParentActivity() == null || UserConfig.getInstance(account).isClientActivated()) return;
-        dialog = new AlertDialog.Builder(fragment.getParentActivity())
-                .setTitle(text(R.string.TjLoginOptions))
-                .setItems(new CharSequence[]{text(R.string.TjLoginQr), text(R.string.TjLoginBot), text(R.string.TjLoginPasskey)}, (d, which) -> {
-                    // The menu dismisses after the click. Open its replacement on the next UI turn.
-                    AndroidUtilities.runOnUIThread(() -> {
-                        if (closed || fragment.getParentActivity() == null) return;
-                        if (which == 0) showQr();
-                        else if (which == 1) showBot();
-                        else showPasskeyInfo();
-                    });
-                }).setNegativeButton(LocaleController.getString(R.string.Cancel), null).create();
-        if (fragment.showDialog(dialog) == null) close();
+        if (option == R.string.TjLoginQr) showQr();
+        else if (option == R.string.TjLoginBot) showBot();
+        else if (option == R.string.TjLoginPasskey) showPasskeyInfo();
     }
 
     private void showPasskeyInfo() {

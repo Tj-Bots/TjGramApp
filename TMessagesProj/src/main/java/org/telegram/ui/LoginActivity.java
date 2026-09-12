@@ -223,7 +223,7 @@ import java.util.concurrent.atomic.AtomicReference;
 public class LoginActivity extends BaseFragment implements NotificationCenter.NotificationCenterDelegate {
     private org.telegram.ui.Components.TjLoginOptions tjLoginOptions;
 
-    private void showTjLoginOptions() {
+    private void showTjLoginOptions(int option) {
         if (activityMode != MODE_LOGIN || currentViewNum != VIEW_PHONE_INPUT || getParentActivity() == null) return;
         if (tjLoginOptions != null) tjLoginOptions.close();
         AndroidUtilities.hideKeyboard(fragmentView);
@@ -240,7 +240,7 @@ public class LoginActivity extends BaseFragment implements NotificationCenter.No
                 setPage(VIEW_PASSWORD, true, params, false);
             }
         });
-        tjLoginOptions.show();
+        tjLoginOptions.show(option);
     }
     public final static boolean ENABLE_PASTED_TEXT_PROCESSING = false;
     private final static int SHOW_DELAY = SharedConfig.getDevicePerformanceClass() <= SharedConfig.PERFORMANCE_CLASS_AVERAGE ? 150 : 100;
@@ -670,6 +670,20 @@ public class LoginActivity extends BaseFragment implements NotificationCenter.No
 
             @Override
             protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
+                // Let the surrounding ScrollView accommodate long translations and large fonts.
+                int minimumHeight = 0;
+                if (activityMode == MODE_LOGIN && currentViewNum == VIEW_PHONE_INPUT && views[VIEW_PHONE_INPUT] != null) {
+                    SlideView phoneView = views[VIEW_PHONE_INPUT];
+                    MarginLayoutParams margins = (MarginLayoutParams) phoneView.getLayoutParams();
+                    phoneView.measure(MeasureSpec.makeMeasureSpec(Math.max(0, MeasureSpec.getSize(widthMeasureSpec)
+                            - margins.leftMargin - margins.rightMargin), MeasureSpec.EXACTLY),
+                            MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED));
+                    minimumHeight = phoneView.getMeasuredHeight() + margins.topMargin + margins.bottomMargin;
+                }
+                setMinimumHeight(minimumHeight);
+                if (minimumHeight > MeasureSpec.getSize(heightMeasureSpec)) {
+                    heightMeasureSpec = MeasureSpec.makeMeasureSpec(minimumHeight, MeasureSpec.EXACTLY);
+                }
                 super.onMeasure(widthMeasureSpec, heightMeasureSpec);
                 int width = getMeasuredWidth(), height = getMeasuredHeight();
 
@@ -1988,6 +2002,8 @@ public class LoginActivity extends BaseFragment implements NotificationCenter.No
         private OutlineTextContainerView phoneOutlineView;
         private TextView plusTextView;
         private LinkSpanDrawable.LinksTextView subtitleView;
+        private TextView qrLoginButton;
+        private TextView botLoginButton;
         private View codeDividerView;
         private ImageView chevronRight;
         private CheckBoxCell syncContactsBox;
@@ -2075,7 +2091,7 @@ public class LoginActivity extends BaseFragment implements NotificationCenter.No
             subtitleView = new LinkSpanDrawable.LinksTextView(context);
             subtitleView.setText(getString(activityMode == MODE_CHANGE_PHONE_NUMBER ? R.string.ChangePhoneHelp : R.string.StartText));
             if (activityMode == MODE_LOGIN) {
-                subtitleView.setText(AndroidUtilities.replaceSingleTag(org.telegram.messenger.TjLocale.getString(R.string.TjLoginStart), () -> showTjLoginOptions()));
+                subtitleView.setText(AndroidUtilities.replaceSingleTag(org.telegram.messenger.TjLocale.getString(R.string.TjLoginStart), () -> showTjLoginOptions(R.string.TjLoginPasskey)));
             }
             subtitleView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
             subtitleView.setGravity(Gravity.CENTER);
@@ -2525,6 +2541,11 @@ public class LoginActivity extends BaseFragment implements NotificationCenter.No
                 });
             }
 
+            if (activityMode == MODE_LOGIN) {
+                qrLoginButton = addTjLoginButton(context, R.string.TjLoginQr);
+                botLoginButton = addTjLoginButton(context, R.string.TjLoginBot);
+            }
+
             if (bottomMargin > 0 && !AndroidUtilities.isSmallScreen()) {
                 Space bottomSpacer = new Space(context);
                 bottomSpacer.setMinimumHeight(AndroidUtilities.dp(bottomMargin));
@@ -2698,6 +2719,12 @@ public class LoginActivity extends BaseFragment implements NotificationCenter.No
 
         @Override
         public void updateColors() {
+            for (TextView button : new TextView[]{qrLoginButton, botLoginButton}) {
+                if (button == null) continue;
+                button.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlueText));
+                button.setBackground(Theme.createSimpleSelectorRoundRectDrawable(dp(12),
+                        Theme.getColor(Theme.key_windowBackgroundGray), Theme.getColor(Theme.key_listSelector)));
+            }
             titleView.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText));
             subtitleView.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText6));
             subtitleView.setLinkTextColor(Theme.getColor(Theme.key_chat_messageLinkIn));
@@ -3433,6 +3460,20 @@ public class LoginActivity extends BaseFragment implements NotificationCenter.No
                 cancelRequestingPasskey.run();
                 cancelRequestingPasskey = null;
             }
+        }
+
+        private TextView addTjLoginButton(Context context, int textId) {
+            TextView button = new TextView(context);
+            button.setText(org.telegram.messenger.TjLocale.getString(textId));
+            button.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15);
+            button.setGravity(Gravity.CENTER);
+            button.setTextDirection(View.TEXT_DIRECTION_LOCALE);
+            button.setMinHeight(dp(48));
+            button.setPadding(dp(16), dp(12), dp(16), dp(12));
+            button.setFocusable(true);
+            button.setOnClickListener(v -> showTjLoginOptions(textId));
+            addView(button, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 16, 8, 16, 0));
+            return button;
         }
 
         private boolean requestedPasskey = false;

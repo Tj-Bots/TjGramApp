@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="TjLoginStart">נא להזין את מספר הטלפון שלך\nאו **לבחור דרך נוספת להתחבר**</string>
+    <string name="TjLoginStart">נא להזין את מספר הטלפון שלך\nאו **להתחבר באמצעות מפתח גישה**</string>
     <string name="TjLoginOptions">דרכים נוספות להתחבר</string>
     <string name="TjLoginQr">התחברות באמצעות QR</string>
     <string name="TjLoginBot">התחברות לחשבון בוט</string>

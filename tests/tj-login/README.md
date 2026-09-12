@@ -27,8 +27,13 @@ they do not prove that a server accepted a login or that the rendered QR can be 
 
 ## Device checks (require an authorized test account / bot)
 
-- In Hebrew and English, open Other ways to log in from the phone screen. The phone-number
-  change and account-deletion screens must not offer alternative login methods.
+- In Hebrew and English, open QR and bot login directly from the two buttons below the phone
+  controls. There must be no intermediate method picker. The existing passkey subtitle link
+  must open only the limitation explanation. Phone-number change and account-deletion screens
+  must not offer alternative login methods.
+- Check narrow screens, large system fonts, RTL/LTR and light/dark themes. Button labels must
+  wrap without truncation and remain reachable by scrolling with the keyboard visible. Local
+  TJ login strings have Hebrew and English coverage; other languages fall back to English.
 - QR: scan and approve from an already connected device. Verify automatic expiry refresh,
   a two-step password account, a different Telegram data center, network interruption and retry.
 - Dismiss QR, navigate back, background the app, and rotate while a request or QR encoding is
