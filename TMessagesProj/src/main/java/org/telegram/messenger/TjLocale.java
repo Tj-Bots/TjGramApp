@@ -187,6 +187,9 @@ public class TjLocale {
         m.put("TjReadUntil", "סמן כנקרא עד כאן");
         m.put("TjMarkMediaViewed", "סמן את המדיה כנצפתה");
         m.put("TjViewOnceSaveFailed", "לא ניתן היה לשמור את המדיה החד־פעמית. היא לא סומנה כנצפתה.");
+        m.put("TjViewOnceSaveFailedTitle", "המדיה לא נשמרה");
+        m.put("TjViewOnceSaveFailedConfirm", "TjGram לא הצליח לשמור עותק פרטי של המדיה החד־פעמית. לסמן אותה כנצפתה בכל זאת? ייתכן שהיא תיעלם לצמיתות.");
+        m.put("TjMarkViewedAnyway", "סמן בכל זאת");
         m.put("TjClearFromCache", "נקה מהמטמון");
         m.put("TjEnableChatGhost", "הפעל מצב רפאים");
         m.put("TjDisableChatGhost", "כבה מצב רפאים");

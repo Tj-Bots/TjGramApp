@@ -17,6 +17,7 @@ import org.telegram.messenger.MessageObject;
 import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.UserConfig;
 import org.telegram.messenger.Utilities;
+import org.telegram.messenger.secretmedia.EncryptedFileInputStream;
 import org.telegram.tgnet.NativeByteBuffer;
 import org.telegram.tgnet.TLRPC;
 
@@ -24,6 +25,7 @@ import java.security.MessageDigest;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Set;
@@ -134,16 +136,17 @@ public final class TjMessageArchive extends SQLiteOpenHelper {
 
     /**
      * Saves one-time media and reports success only after both the serialized message and the
-     * attachment are durable. Callers must not acknowledge the view to Telegram before success.
+     * attachment are durable. This is an explicit user action, so it is not blocked by automatic
+     * archive filters. Secret-chat media remains outside this path.
      */
     public void saveViewOnce(int accountId, TLRPC.Message message, Callback<Boolean> callback) {
-        if (!TjConfig.saveDeletedMessages() || !shouldArchive(accountId, message)
-                || !shouldSaveMedia(accountId, message)) {
-            AndroidUtilities.runOnUIThread(() -> callback.onResult(false));
+        if (message == null || message.media == null
+                || org.telegram.messenger.DialogObject.isEncryptedDialog(MessageObject.getDialogId(message))) {
+            postResult(callback, false);
             return;
         }
         byte[] data = serializeForArchive(message);
-        enqueue(message, accountId, KIND_DELETED, data, true, callback);
+        enqueue(message, accountId, KIND_DELETED, data, true, true, callback);
     }
 
     public void saveEdited(int accountId, TLRPC.Message oldMessage, TLRPC.Message newMessage) {
@@ -222,11 +225,11 @@ public final class TjMessageArchive extends SQLiteOpenHelper {
     }
 
     private void enqueue(TLRPC.Message message, int accountId, int kind, byte[] data) {
-        enqueue(message, accountId, kind, data, false, null);
+        enqueue(message, accountId, kind, data, false, false, null);
     }
 
     private void enqueue(TLRPC.Message message, int accountId, int kind, byte[] data,
-                         boolean requireMedia, Callback<Boolean> callback) {
+                         boolean requireMedia, boolean forceMedia, Callback<Boolean> callback) {
         if (message == null || data == null || message.id == 0) {
             postResult(callback, false);
             return;
@@ -252,7 +255,8 @@ public final class TjMessageArchive extends SQLiteOpenHelper {
             TLRPC.Message archivedMessage = deserialize(snapshot.data);
             if (archivedMessage != null) {
                 archivedMessage.attachPath = attachPath;
-                snapshot.mediaPath = copyMediaIfNeeded(accountId, snapshot.ownerUserId, archivedMessage);
+                snapshot.mediaPath = copyMediaIfNeeded(accountId, snapshot.ownerUserId,
+                        archivedMessage, forceMedia);
             }
             boolean success = !requireMedia || !TextUtils.isEmpty(snapshot.mediaPath);
             if (success) {
@@ -412,7 +416,11 @@ public final class TjMessageArchive extends SQLiteOpenHelper {
      */
     public void getArchivedMediaPath(int accountId, long dialogId, int messageId, Callback<String> callback) {
         long ownerUserId = UserConfig.getInstance(accountId).getClientUserId();
-        if (ownerUserId == 0 || callback == null) {
+        if (callback == null) {
+            return;
+        }
+        if (ownerUserId == 0) {
+            AndroidUtilities.runOnUIThread(() -> callback.onResult(null));
             return;
         }
         Utilities.globalQueue.postRunnable(() -> {
@@ -580,16 +588,48 @@ public final class TjMessageArchive extends SQLiteOpenHelper {
         return snapshot;
     }
 
-    private static String copyMediaIfNeeded(int accountId, long ownerUserId, TLRPC.Message message) {
-        if (!shouldSaveMedia(accountId, message)) {
+    private static final class LocalMediaSource {
+        final File file;
+        final File encryptionKey;
+
+        LocalMediaSource(File file, File encryptionKey) {
+            this.file = file;
+            this.encryptionKey = encryptionKey;
+        }
+    }
+
+    private static LocalMediaSource findLocalMediaSource(int accountId, TLRPC.Message message) {
+        ArrayList<File> candidates = new ArrayList<>(2);
+        if (!TextUtils.isEmpty(message.attachPath)) {
+            candidates.add(new File(message.attachPath));
+        }
+        candidates.add(FileLoader.getInstance(accountId).getPathToMessage(message));
+        for (File candidate : candidates) {
+            if (candidate == null || TextUtils.isEmpty(candidate.getPath())) {
+                continue;
+            }
+            if (candidate.isFile() && !candidate.getName().endsWith(".enc")) {
+                return new LocalMediaSource(candidate, null);
+            }
+            File encrypted = candidate.getName().endsWith(".enc")
+                    ? candidate : new File(candidate.getAbsolutePath() + ".enc");
+            File key = new File(FileLoader.getInternalCacheDir(), encrypted.getName() + ".key");
+            if (encrypted.isFile() && key.isFile() && key.length() >= 48) {
+                return new LocalMediaSource(encrypted, key);
+            }
+        }
+        return null;
+    }
+
+    private static String copyMediaIfNeeded(int accountId, long ownerUserId, TLRPC.Message message,
+                                            boolean forceMedia) {
+        if (message == null || message.media == null
+                || !forceMedia && !shouldSaveMedia(accountId, message)) {
             return null;
         }
         try {
-            File source = !TextUtils.isEmpty(message.attachPath) ? new File(message.attachPath) : null;
-            if (source == null || !source.isFile()) {
-                source = FileLoader.getInstance(accountId).getPathToMessage(message);
-            }
-            if (source == null || !source.isFile() || source.length() == 0) {
+            LocalMediaSource source = findLocalMediaSource(accountId, message);
+            if (source == null || source.file.length() == 0) {
                 return null;
             }
             File root = ApplicationLoader.applicationContext.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS);
@@ -600,7 +640,11 @@ public final class TjMessageArchive extends SQLiteOpenHelper {
             if (!directory.exists() && !directory.mkdirs()) {
                 return null;
             }
-            String safeName = source.getName().replaceAll("[^a-zA-Z0-9._-]", "_");
+            String sourceName = source.file.getName();
+            if (source.encryptionKey != null && sourceName.endsWith(".enc")) {
+                sourceName = sourceName.substring(0, sourceName.length() - 4);
+            }
+            String safeName = sourceName.replaceAll("[^a-zA-Z0-9._-]", "_");
             long mediaId = 0;
             TLRPC.Photo photo = MessageObject.getPhoto(message);
             TLRPC.Document document = MessageObject.getDocument(message);
@@ -611,16 +655,20 @@ public final class TjMessageArchive extends SQLiteOpenHelper {
             }
             File destination = new File(directory,
                     ownerUserId + "_" + MessageObject.getDialogId(message) + "_" + message.id + "_" + mediaId + "_" + safeName);
-            if (destination.isFile() && destination.length() == source.length()) {
+            if (destination.isFile() && destination.length() == source.file.length()) {
                 return destination.getAbsolutePath();
             }
             File temporary = new File(directory, destination.getName() + ".tmp");
-            try (FileInputStream input = new FileInputStream(source);
+            try (InputStream input = source.encryptionKey != null
+                    ? new EncryptedFileInputStream(source.file, source.encryptionKey)
+                    : new FileInputStream(source.file);
                  FileOutputStream output = new FileOutputStream(temporary)) {
                 byte[] buffer = new byte[64 * 1024];
                 int read;
-                while ((read = input.read(buffer)) >= 0) {
-                    output.write(buffer, 0, read);
+                while ((read = input.read(buffer)) != -1) {
+                    if (read > 0) {
+                        output.write(buffer, 0, read);
+                    }
                 }
                 output.getFD().sync();
             }

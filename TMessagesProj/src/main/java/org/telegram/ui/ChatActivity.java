@@ -33664,6 +33664,13 @@ public class ChatActivity extends BaseFragment implements
                 && (message.isPhoto() || message.isVideo() || message.isGif());
     }
 
+    private boolean canUseOneTimeGhostActions(MessageObject message) {
+        return canSaveOneTimeMedia(message)
+                && !message.isOutOwner()
+                && !message.messageOwner.tjDeleted
+                && TjConfig.hideReads(currentAccount, message.getDialogId());
+    }
+
     private void saveOneTimeMediaToGallery(MessageObject messageObject) {
         if (messageObject == null || getParentActivity() == null) {
             return;
@@ -33675,16 +33682,39 @@ public class ChatActivity extends BaseFragment implements
         final boolean isVideo = messageObject.isVideo();
         TjMessageArchive.getInstance().getArchivedMediaPath(currentAccount, messageObject.getDialogId(),
                 messageObject.getId(), path -> {
-                    if (getParentActivity() == null) {
+                    if (!TextUtils.isEmpty(path)) {
+                        exportOneTimeMedia(path, isVideo);
                         return;
                     }
-                    if (TextUtils.isEmpty(path)) {
-                        BulletinFactory.of(ChatActivity.this).createErrorBulletin(
-                                TjLocale.getString(R.string.TjOneTimeSaveFailed), themeDelegate).show();
-                        return;
-                    }
-                    MediaController.saveFile(path, getParentActivity(), isVideo ? 1 : 0, null, null);
+                    TjMessageArchive.getInstance().saveViewOnce(currentAccount,
+                            messageObject.messageOwner, success -> {
+                                if (!success) {
+                                    showOneTimeSaveFailed();
+                                    return;
+                                }
+                                TjMessageArchive.getInstance().getArchivedMediaPath(currentAccount,
+                                        messageObject.getDialogId(), messageObject.getId(),
+                                        savedPath -> exportOneTimeMedia(savedPath, isVideo));
+                            });
                 });
+    }
+
+    private void exportOneTimeMedia(String path, boolean isVideo) {
+        if (getParentActivity() == null) {
+            return;
+        }
+        if (TextUtils.isEmpty(path) || !new File(path).isFile()) {
+            showOneTimeSaveFailed();
+            return;
+        }
+        MediaController.saveFile(path, getParentActivity(), isVideo ? 1 : 0, null, null);
+    }
+
+    private void showOneTimeSaveFailed() {
+        if (getParentActivity() != null) {
+            BulletinFactory.of(ChatActivity.this).createErrorBulletin(
+                    TjLocale.getString(R.string.TjOneTimeSaveFailed), themeDelegate).show();
+        }
     }
 
     private boolean hasLocalMediaFile(MessageObject messageObject) {
@@ -33694,6 +33724,53 @@ public class ChatActivity extends BaseFragment implements
         }
         File file = FileLoader.getInstance(currentAccount).getPathToMessage(messageObject.messageOwner);
         return file != null && file.exists();
+    }
+
+    private void preserveAndMarkOneTimeMediaViewed(MessageObject messageObject) {
+        TjMessageArchive.getInstance().saveViewOnce(currentAccount, messageObject.messageOwner, success -> {
+            if (success) {
+                markOneTimeMediaViewed(messageObject);
+                return;
+            }
+            if (getParentActivity() == null) {
+                return;
+            }
+            AlertDialog.Builder builder = new AlertDialog.Builder(getParentActivity(), themeDelegate);
+            builder.setTitle(TjLocale.getString(R.string.TjViewOnceSaveFailedTitle));
+            builder.setMessage(TjLocale.getString(R.string.TjViewOnceSaveFailedConfirm));
+            builder.setNegativeButton(LocaleController.getString(R.string.Cancel), null);
+            builder.setPositiveButton(TjLocale.getString(R.string.TjMarkViewedAnyway),
+                    (dialog, which) -> markOneTimeMediaViewed(messageObject));
+            showDialog(builder.create());
+        });
+    }
+
+    private void markOneTimeMediaViewed(MessageObject messageObject) {
+        if (messageObject == null || messageObject.messageOwner == null) {
+            return;
+        }
+        TjGhostController.allowReadRequest(currentAccount, messageObject.getDialogId(), messageObject.getId());
+        int mediaTtl = messageObject.messageOwner.ttl;
+        if (messageObject.messageOwner.media != null) {
+            mediaTtl = Math.max(mediaTtl, messageObject.messageOwner.media.ttl_seconds);
+        }
+        if (currentEncryptedChat != null) {
+            getMessagesController().markMessageAsRead(messageObject.getDialogId(),
+                    messageObject.messageOwner.random_id, Integer.MIN_VALUE);
+        } else {
+            getMessagesController().markMessageAsRead2(messageObject.getDialogId(), messageObject.getId(),
+                    null, mediaTtl == 0x7FFFFFFF ? 0 : mediaTtl, 0, false);
+        }
+        messageObject.messageOwner.destroyTime = 0;
+        messageObject.messageOwner.destroyTimeMillis = 0;
+        messageObject.setContentIsRead();
+        ArrayList<Integer> viewedIds = new ArrayList<>();
+        viewedIds.add(messageObject.getId());
+        getMessagesStorage().markMessagesContentAsRead(messageObject.getDialogId(), viewedIds,
+                getConnectionsManager().getCurrentTime(), getConnectionsManager().getCurrentTime());
+        if (chatAdapter != null) {
+            chatAdapter.updateRowWithMessageObject(messageObject, false, false);
+        }
     }
 
     private void processSelectedOption(int option) {
@@ -33707,36 +33784,7 @@ public class ChatActivity extends BaseFragment implements
                 break;
             case OPTION_TJ_TTL:
                 final MessageObject viewOnceObject = selectedObject;
-                TjMessageArchive.getInstance().saveViewOnce(currentAccount, viewOnceObject.messageOwner, success -> {
-                    if (!success) {
-                        BulletinFactory.of(ChatActivity.this).createErrorBulletin(
-                                TjLocale.getString(R.string.TjViewOnceSaveFailed), themeDelegate).show();
-                        return;
-                    }
-                    TjGhostController.allowReadRequest(currentAccount, dialog_id, viewOnceObject.getId());
-                    int mediaTtl = viewOnceObject.messageOwner.ttl;
-                    if (viewOnceObject.messageOwner.media != null) {
-                        mediaTtl = Math.max(mediaTtl, viewOnceObject.messageOwner.media.ttl_seconds);
-                    }
-                    if (currentEncryptedChat != null) {
-                        getMessagesController().markMessageAsRead(dialog_id,
-                                viewOnceObject.messageOwner.random_id, Integer.MIN_VALUE);
-                    } else {
-                        getMessagesController().markMessageAsRead2(dialog_id, viewOnceObject.getId(),
-                                null, mediaTtl == 0x7FFFFFFF ? 0 : mediaTtl,
-                                0, false);
-                    }
-                    viewOnceObject.messageOwner.destroyTime = 0;
-                    viewOnceObject.messageOwner.destroyTimeMillis = 0;
-                    viewOnceObject.setContentIsRead();
-                    ArrayList<Integer> viewedIds = new ArrayList<>();
-                    viewedIds.add(viewOnceObject.getId());
-                    getMessagesStorage().markMessagesContentAsRead(dialog_id, viewedIds,
-                            getConnectionsManager().getCurrentTime(), getConnectionsManager().getCurrentTime());
-                    if (chatAdapter != null) {
-                        chatAdapter.updateRowWithMessageObject(viewOnceObject, false, false);
-                    }
-                });
+                preserveAndMarkOneTimeMediaViewed(viewOnceObject);
                 break;
             case OPTION_TJ_READ_UNTIL:
                 TjGhostController.sendReadReceipt(currentAccount,
@@ -47004,14 +47052,10 @@ public class ChatActivity extends BaseFragment implements
             options.add(OPTION_TJ_EDIT_HISTORY);
             icons.add(R.drawable.msg_log);
         }
-        if (message != null && message.isSecretMedia() && !message.messageOwner.tjDeleted) {
+        if (canUseOneTimeGhostActions(message)) {
             items.add(TjLocale.getString(R.string.TjMarkMediaViewed));
             options.add(OPTION_TJ_TTL);
             icons.add(R.drawable.msg_autodelete);
-        }
-        // TJ: one-time media in a normal private chat is preserved, so it can also be kept in the
-        // gallery. Secret chats are deliberately left out - their protections stay as they are.
-        if (canSaveOneTimeMedia(message)) {
             items.add(LocaleController.getString(R.string.SaveToGallery));
             options.add(OPTION_TJ_SAVE_ONE_TIME);
             icons.add(R.drawable.msg_gallery);
@@ -47021,7 +47065,8 @@ public class ChatActivity extends BaseFragment implements
             options.add(OPTION_TJ_CLEAR_CACHE);
             icons.add(R.drawable.msg_clearcache);
         }
-        if (message != null && TjConfig.hideReads() && !message.messageOwner.tjDeleted
+        if (message != null && TjConfig.hideReads(currentAccount, message.getDialogId())
+                && !message.messageOwner.tjDeleted
                 && message.messageOwner.from_id != null
                 && message.messageOwner.from_id.user_id != getUserConfig().getClientUserId()) {
             items.add(TjLocale.getString(R.string.TjReadUntil));

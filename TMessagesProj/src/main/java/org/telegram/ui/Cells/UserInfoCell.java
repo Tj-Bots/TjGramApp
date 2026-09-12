@@ -110,10 +110,22 @@ public class UserInfoCell extends View implements NotificationCenter.Notificatio
     }
 
     public static String displayDate(String date) {
+        if (date == null) {
+            return "";
+        }
         final String[] parts = date.split("\\.");
         if (parts.length != 2) return date;
-        final int month = Integer.parseInt(parts[0]);
-        final int year = Integer.parseInt(parts[1]);
+        final int month;
+        final int year;
+        try {
+            month = Integer.parseInt(parts[0]);
+            year = Integer.parseInt(parts[1]);
+        } catch (NumberFormatException ignore) {
+            return date;
+        }
+        if (month < 1 || month > 12 || year < 1970 || year > 9999) {
+            return date;
+        }
 
         final Calendar calendar = Calendar.getInstance();
         calendar.set(year, month - 1, 1, 0, 0, 0);

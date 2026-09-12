@@ -158,6 +158,9 @@
     <string name="TjReadUntil">סמן כנקרא עד כאן</string>
     <string name="TjMarkMediaViewed">סמן את המדיה כנצפתה</string>
     <string name="TjViewOnceSaveFailed">לא ניתן היה לשמור את המדיה החד־פעמית. היא לא סומנה כנצפתה.</string>
+    <string name="TjViewOnceSaveFailedTitle">המדיה לא נשמרה</string>
+    <string name="TjViewOnceSaveFailedConfirm">TjGram לא הצליח לשמור עותק פרטי של המדיה החד־פעמית. לסמן אותה כנצפתה בכל זאת? ייתכן שהיא תיעלם לצמיתות.</string>
+    <string name="TjMarkViewedAnyway">סמן בכל זאת</string>
     <string name="TjClearFromCache">נקה מהמטמון</string>
     <string name="TjEnableChatGhost">הפעל מצב רפאים</string>
     <string name="TjDisableChatGhost">כבה מצב רפאים</string>

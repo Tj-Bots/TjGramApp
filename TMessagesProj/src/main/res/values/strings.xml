@@ -11382,6 +11382,9 @@
     <string name="TjReadUntil">Mark as read up to here</string>
     <string name="TjMarkMediaViewed">Mark media as viewed</string>
     <string name="TjViewOnceSaveFailed">Could not preserve this one-time media. It was not marked as viewed.</string>
+    <string name="TjViewOnceSaveFailedTitle">Media was not preserved</string>
+    <string name="TjViewOnceSaveFailedConfirm">TjGram could not save a private copy of this one-time media. Mark it as viewed anyway? It may disappear permanently.</string>
+    <string name="TjMarkViewedAnyway">Mark anyway</string>
     <string name="TjClearFromCache">Clear from cache</string>
     <string name="TjEnableChatGhost">Enable Ghost</string>
     <string name="TjDisableChatGhost">Disable Ghost</string>
