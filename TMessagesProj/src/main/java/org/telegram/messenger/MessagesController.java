@@ -22549,7 +22549,10 @@ public class MessagesController extends BaseController implements NotificationCe
                         }
                     }
                     if (maxDate > Integer.MIN_VALUE) {
-                        if (maxDate < dialogsLoadedTillDate) {
+                        // Bots have no server dialog-history pagination. Its initial cutoff
+                        // must not hide locally received chats (while their unread badge grows).
+                        if (maxDate < dialogsLoadedTillDate
+                                && !(getUserConfig().getCurrentUser() != null && getUserConfig().getCurrentUser().bot)) {
                             continue;
                         }
                     }

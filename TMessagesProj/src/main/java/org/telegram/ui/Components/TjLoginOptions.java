@@ -96,13 +96,26 @@ public final class TjLoginOptions implements NotificationCenter.NotificationCent
         token.setTextSize(16);
         token.setTextColor(Theme.getColor(Theme.key_dialogTextBlack));
         token.setHintTextColor(Theme.getColor(Theme.key_dialogTextHint));
-        token.setHint(text(R.string.TjLoginBotToken));
+        OutlineTextContainerView tokenContainer = new OutlineTextContainerView(fragment.getParentActivity());
+        tokenContainer.setText(text(R.string.TjLoginBotToken));
+        tokenContainer.animateSelection(0f, 1f, false);
+        token.setContentDescription(text(R.string.TjLoginBotToken));
+        token.setBackground(null);
+        token.setPadding(AndroidUtilities.dp(16), AndroidUtilities.dp(12), AndroidUtilities.dp(16), AndroidUtilities.dp(12));
         token.setSingleLine(true);
         token.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
         token.setTextDirection(View.TEXT_DIRECTION_LTR);
+        token.setGravity(Gravity.LEFT | Gravity.CENTER_VERTICAL);
+        token.setOnFocusChangeListener((v, focused) -> tokenContainer.animateSelection(focused ? 1f : 0f, 1f, true));
         token.setSaveEnabled(false);
         if (android.os.Build.VERSION.SDK_INT >= 26) token.setImportantForAutofill(View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS);
-        content.addView(token, LayoutHelper.createLinear(-1, 48, 24, 0, 24, 8));
+        tokenContainer.addView(token, LayoutHelper.createFrame(-1, -2, Gravity.CENTER_VERTICAL));
+        tokenContainer.setMinimumHeight(AndroidUtilities.dp(64));
+        tokenContainer.setOnClickListener(v -> {
+            token.requestFocus();
+            AndroidUtilities.showKeyboard(token);
+        });
+        content.addView(tokenContainer, LayoutHelper.createLinear(-1, -2, 24, 12, 24, 8));
         status = label("");
         content.addView(status);
         ScrollView scroll = new ScrollView(fragment.getParentActivity());
@@ -115,7 +128,7 @@ public final class TjLoginOptions implements NotificationCenter.NotificationCent
             close();
             return;
         }
-        if (dialog.getWindow() != null) dialog.getWindow().addFlags(WindowManager.LayoutParams.FLAG_SECURE);
+        // Bot login permits screenshots at the user's request; keep the token masked.
         dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
             if (requestId != 0 || closed) return;
             String value = token.getText().toString().trim();

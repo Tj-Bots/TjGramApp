@@ -6,7 +6,7 @@
     <string name="TjLoginBot">התחברות לחשבון בוט</string>
     <string name="TjLoginPasskey">על התחברות במפתח גישה</string>
     <string name="TjLoginPasskeyInfo">טלגרם מגבילה כרגע את מפתחות הגישה לדומיין telegram.org ולזהויות האפליקציות הרשמיות שלה. TjGram אינה יכולה לאמת את השיוך הזה. זו אינה תקלה בטביעת האצבע או בטלפון שלך. אפשר להתחבר באמצעות מספר טלפון או QR.</string>
-    <string name="TjLoginBotInfo">יש להזין את הטוקן מ־BotFather של בוט שבשליטתך. הטוקן הוא סיסמה לכל דבר. לבוט יש הרשאות שונות: לא ניתן לטעון היסטוריית שיחות כמו בחשבון רגיל. הודעות שמתקבלות כאן נשמרות במכשיר. סנכרון אנשי קשר כבוי.</string>
+    <string name="TjLoginBotInfo">הדבק בשדה למטה את טוקן הבוט שקיבלת דרך BotFather. יש להשתמש רק בבוט שבשליטתך.\n\nהטוקן מאפשר גישה לבוט — אין לשתף אותו.\n\nהיסטוריית שיחות קודמת אינה נטענת כמו בחשבון רגיל. הודעות שיתקבלו כאן יישמרו במכשיר, ללא סנכרון אנשי קשר.</string>
     <string name="TjLoginBotToken">טוקן הבוט</string>
     <string name="TjLoginConnect">התחבר</string>
     <string name="TjLoginConnecting">מתחבר…</string>

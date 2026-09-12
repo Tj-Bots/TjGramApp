@@ -44,8 +44,12 @@ they do not prove that a server accepted a login or that the rendered QR can be 
   and send messages, switch accounts, restart and read its locally stored messages. Remote
   historical chat lists/history are not supported like user accounts. No contacts sync or
   periodic online-status request should be sent for the bot.
-- The token field and QR dialog must block screenshots; neither may save its credential to
-  view state or autofill. Verify cancel during an outstanding bot request, then retry.
+- Fresh bot account with no cached dialogs: send it a message from a test user. The chat must
+  appear immediately alongside the unread badge, without requiring server history pagination.
+  Repeat after restart and verify ordinary user-account history pagination is unchanged.
+- Bot login permits screenshots, with the token still masked in a clearly outlined input.
+  The QR dialog must continue to block screenshots. Neither may save its credential to view
+  state or autofill. Verify cancel during an outstanding bot request, then retry.
 - Passkey information must be localized; no native passkey prompt should open. The existing
   test-backend checkbox must remain unchanged.
 
