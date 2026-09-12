@@ -1,0 +1,4 @@
+package org.telegram.messenger;
+public final class DialogObject {
+    public static boolean isEncryptedDialog(long id) { return id == (1L << 40); }
+}

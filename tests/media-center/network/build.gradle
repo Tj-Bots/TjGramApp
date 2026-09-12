@@ -1,0 +1,16 @@
+plugins { id 'java' }
+repositories { mavenCentral() }
+dependencies {
+    implementation 'com.squareup.okhttp3:okhttp:4.12.0'
+    implementation 'org.json:json:20240303'
+}
+sourceSets.main.java.srcDirs = ['stubs', 'src']
+tasks.named('compileJava') {
+    source '../../../TMessagesProj/src/main/java/org/telegram/messenger/tj/TjMediaMetadata.java'
+    options.encoding = 'UTF-8'
+}
+tasks.register('checkMetadata', JavaExec) {
+    dependsOn classes
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'org.telegram.messenger.tj.TjMediaMetadataTest'
+}

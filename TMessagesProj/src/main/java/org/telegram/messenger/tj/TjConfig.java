@@ -38,6 +38,16 @@ public final class TjConfig {
         return ApplicationLoader.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
     }
 
+    /** Library preferences are owned by a Telegram user, never a reusable account slot. */
+    public static SharedPreferences mediaLibrary(int account) {
+        return mediaLibraryForOwner(UserConfig.getInstance(account).getClientUserId());
+    }
+
+    private static SharedPreferences mediaLibraryForOwner(long ownerId) {
+        return ownerId == 0 ? null : ApplicationLoader.applicationContext.getSharedPreferences(
+                "tj_media_library_" + ownerId, Context.MODE_PRIVATE);
+    }
+
     static SharedPreferences localFolders(int account) {
         long ownerId = UserConfig.getInstance(account).getClientUserId();
         return ownerId == 0 ? null : ApplicationLoader.applicationContext.getSharedPreferences(
@@ -330,14 +340,18 @@ public final class TjConfig {
     }
 
     private static SecretKey getSyncTokenKey() throws Exception {
+        return getSecretKey(SYNC_TOKEN_KEY_ALIAS);
+    }
+
+    private static synchronized SecretKey getSecretKey(String alias) throws Exception {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
             throw new IllegalStateException("Android Keystore AES requires API 23");
         }
         KeyStore keyStore = KeyStore.getInstance("AndroidKeyStore");
         keyStore.load(null);
-        if (!keyStore.containsAlias(SYNC_TOKEN_KEY_ALIAS)) {
+        if (!keyStore.containsAlias(alias)) {
             KeyGenerator generator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore");
-            generator.init(new KeyGenParameterSpec.Builder(SYNC_TOKEN_KEY_ALIAS,
+            generator.init(new KeyGenParameterSpec.Builder(alias,
                     KeyProperties.PURPOSE_ENCRYPT | KeyProperties.PURPOSE_DECRYPT)
                     .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
                     .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
@@ -345,7 +359,45 @@ public final class TjConfig {
                     .build());
             generator.generateKey();
         }
-        return (SecretKey) keyStore.getKey(SYNC_TOKEN_KEY_ALIAS, null);
+        return (SecretKey) keyStore.getKey(alias, null);
+    }
+
+    /** Worker-thread access: Keystore can perform secure-hardware or disk I/O. */
+    public static String mediaMetadataCredential(int account, long owner) {
+        if (owner == 0 || UserConfig.getInstance(account).getClientUserId() != owner) return "";
+        SharedPreferences preferences = mediaLibraryForOwner(owner);
+        if (preferences == null) return "";
+        String encrypted = preferences.getString("tmdb_ciphertext", "");
+        String iv = preferences.getString("tmdb_iv", "");
+        if (encrypted.isEmpty() || iv.isEmpty()) return "";
+        try {
+            Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
+            cipher.init(Cipher.DECRYPT_MODE, getSecretKey("TjGramMetadataKey"),
+                    new GCMParameterSpec(128, Base64.decode(iv, Base64.NO_WRAP)));
+            return new String(cipher.doFinal(Base64.decode(encrypted, Base64.NO_WRAP)), StandardCharsets.UTF_8);
+        } catch (Exception error) { return ""; }
+    }
+
+    public static boolean hasMediaMetadataCredential(int account) {
+        SharedPreferences preferences = mediaLibrary(account);
+        return preferences != null && preferences.contains("tmdb_ciphertext");
+    }
+
+    /** Worker-thread access; failed encryption never falls back to plaintext. */
+    public static boolean setMediaMetadataCredential(int account, long owner, String value) {
+        if (owner == 0 || !UserConfig.getInstance(account).isClientActivated()
+                || UserConfig.getInstance(account).getClientUserId() != owner) return false;
+        SharedPreferences preferences = mediaLibraryForOwner(owner);
+        if (preferences == null) return false;
+        if (value == null || value.trim().isEmpty())
+            return preferences.edit().remove("tmdb_ciphertext").remove("tmdb_iv").commit();
+        try {
+            Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
+            cipher.init(Cipher.ENCRYPT_MODE, getSecretKey("TjGramMetadataKey"));
+            byte[] encrypted = cipher.doFinal(value.trim().getBytes(StandardCharsets.UTF_8));
+            return preferences.edit().putString("tmdb_ciphertext", Base64.encodeToString(encrypted, Base64.NO_WRAP))
+                    .putString("tmdb_iv", Base64.encodeToString(cipher.getIV(), Base64.NO_WRAP)).commit();
+        } catch (Exception error) { return false; }
     }
     public static String filterExpressions() { return prefs().getString("message_filter_expressions", ""); }
 }

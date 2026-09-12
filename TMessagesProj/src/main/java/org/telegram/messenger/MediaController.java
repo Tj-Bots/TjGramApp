@@ -1024,6 +1024,10 @@ public class MediaController implements AudioManager.OnAudioFocusChangeListener,
     private float seekToProgressPending;
     private long lastProgress = 0;
     private MessageObject playingMessageObject;
+    private MessageObject tjPlaybackMessage;
+    private VideoPlayer tjPlaybackPlayer;
+    private long tjPlaybackOwner;
+    private long tjLastProgressSave;
     private MessageObject goingToShowMessageObject;
     private MusicListenReporter reporter;
     private boolean manualRecording;
@@ -1588,6 +1592,11 @@ public class MediaController implements AudioManager.OnAudioFocusChangeListener,
     }
 
     private void startProgressTimer(final MessageObject currentPlayingMessageObject) {
+        tjPlaybackMessage = currentPlayingMessageObject;
+        tjPlaybackPlayer = videoPlayer != null ? videoPlayer : audioPlayer;
+        tjPlaybackOwner = UserConfig.getInstance(currentPlayingMessageObject.currentAccount).getClientUserId();
+        tjLastProgressSave = SystemClock.elapsedRealtime();
+        final VideoPlayer tjTimerPlayer = tjPlaybackPlayer;
         synchronized (progressTimerSync) {
             if (progressTimer != null) {
                 try {
@@ -1631,6 +1640,11 @@ public class MediaController implements AudioManager.OnAudioFocusChangeListener,
                                         }
                                     }
                                     lastProgress = progress;
+                                    if (currentPlayingMessageObject == tjPlaybackMessage && tjTimerPlayer == tjPlaybackPlayer
+                                            && SystemClock.elapsedRealtime() - tjLastProgressSave >= 5000) {
+                                        tjLastProgressSave = SystemClock.elapsedRealtime();
+                                        tjSavePlaybackProgress();
+                                    }
                                     currentPlayingMessageObject.audioPlayerDuration = (int) (duration / 1000);
                                     currentPlayingMessageObject.audioProgress = value;
                                     currentPlayingMessageObject.audioProgressSec = (int) (lastProgress / 1000);
@@ -1656,6 +1670,10 @@ public class MediaController implements AudioManager.OnAudioFocusChangeListener,
     }
 
     private void stopProgressTimer() {
+        tjSavePlaybackProgress();
+        tjPlaybackMessage = null;
+        tjPlaybackPlayer = null;
+        tjPlaybackOwner = 0;
         synchronized (progressTimerSync) {
             if (progressTimer != null) {
                 try {
@@ -2448,11 +2466,22 @@ public class MediaController implements AudioManager.OnAudioFocusChangeListener,
         }
     }
 
+    private void tjSavePlaybackProgress() {
+        if (tjPlaybackMessage == null || tjPlaybackMessage != playingMessageObject || tjPlaybackPlayer == null
+                || tjPlaybackPlayer != audioPlayer && tjPlaybackPlayer != videoPlayer || tjPlaybackOwner == 0
+                || UserConfig.getInstance(tjPlaybackMessage.currentAccount).getClientUserId() != tjPlaybackOwner) return;
+        try {
+            org.telegram.messenger.tj.TjMediaStore.getInstance().progress(tjPlaybackMessage,
+                    tjPlaybackPlayer.getCurrentPosition(), tjPlaybackPlayer.getDuration());
+        } catch (Exception e) { FileLog.e("Tj media playback progress failed", e); }
+    }
+
     public void cleanupPlayer(boolean notify, boolean stopService) {
         cleanupPlayer(notify, stopService, false, false);
     }
 
     public void cleanupPlayer(boolean notify, boolean stopService, boolean byVoiceEnd, boolean transferPlayerToPhotoViewer) {
+        tjSavePlaybackProgress();
         if (stopService && restoreMusicPlaylistState()) {
             return;
         }

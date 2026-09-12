@@ -47,6 +47,7 @@ public class TjSettingsHomeActivity extends BaseFragment {
     private static final int FILTERS = 3;
     private static final int CUSTOMIZATION = 4;
     private static final int ADVANCED = 5;
+    private static final int MEDIA_CENTER = 6;
     private static final int CHANNEL = 10;
     private static final int DISCUSSION = 11;
 
@@ -111,6 +112,11 @@ public class TjSettingsHomeActivity extends BaseFragment {
                 return;
             }
             switch (items.get(position).id) {
+                case MEDIA_CENTER:
+                    TjMediaCenterActivity mediaCenter = new TjMediaCenterActivity();
+                    mediaCenter.setCurrentAccount(currentAccount);
+                    presentFragment(mediaCenter);
+                    break;
                 case GHOST:
                     presentFragment(new TjPrivacySettingsActivity(TjPrivacySettingsActivity.PAGE_GHOST));
                     break;
@@ -152,6 +158,8 @@ public class TjSettingsHomeActivity extends BaseFragment {
         items.clear();
         items.add(new Item(TYPE_BRAND, 0, null, null, 0, 0));
         items.add(Item.header(TjLocale.getString(R.string.TjCategories)));
+        items.add(Item.category(MEDIA_CENTER, R.string.TjMediaCenter, R.string.TjMediaCenterDesc,
+                R.drawable.msg_media, TjSettingsStyle.APPEARANCE_COLOR));
         items.add(new Item(TYPE_CATEGORY, GHOST, TjLocale.getString(R.string.TjGhostMode),
                 ghostSummary(), R.drawable.tj_ghost, TjSettingsStyle.GHOST_COLOR));
         items.add(Item.category(ARCHIVE, R.string.TjArchiveInsights, R.string.TjArchiveInsightsDesc,

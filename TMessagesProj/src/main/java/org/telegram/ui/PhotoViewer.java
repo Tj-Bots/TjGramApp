@@ -1099,6 +1099,10 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
     private String shouldSavePositionForCurrentVideoShortTerm;
     private static final HashMap<String, SavedVideoPosition> savedVideoPositions = new HashMap<>();
     private long lastSaveTime;
+    private long tjLastProgressSave;
+    private MessageObject tjPlaybackMessage;
+    private long tjPlaybackOwner;
+    private final org.telegram.messenger.tj.TjMediaPlaybackProgress tjPlaybackProgress = new org.telegram.messenger.tj.TjMediaPlaybackProgress();
     private float seekToProgressPending2;
     private boolean streamingAlertShown;
     private long startedPlayTime;
@@ -1502,6 +1506,7 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
     }
 
     private void seekVideoOrWebTo(long position) {
+        tjPlaybackProgress.userPositionChanged();
         if (photoViewerWebView != null && photoViewerWebView.isControllable()) {
             photoViewerWebView.seekTo(position);
         } else if (videoPlayer != null) {
@@ -1522,6 +1527,10 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
         @Override
         public void run() {
             if (videoPlayer != null || photoViewerWebView != null && photoViewerWebView.isControllable()) {
+                if (tjPlaybackMessage != null && SystemClock.elapsedRealtime() - tjLastProgressSave >= 5000) {
+                    tjLastProgressSave = SystemClock.elapsedRealtime();
+                    tjSavePlaybackProgress();
+                }
                 if (isCurrentVideo) {
                     if (!videoTimelineView.isDragging()) {
                         float progress = getCurrentVideoPosition() / (float) getVideoDuration();
@@ -10175,6 +10184,7 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
     }
 
     private void updatePlayerState(boolean playWhenReady, int playbackState) {
+        if (playWhenReady && playbackState == ExoPlayer.STATE_READY) tjPlaybackProgress.userPositionChanged();
         if (videoPlayer == null && (photoViewerWebView == null || !photoViewerWebView.isControllable())) {
             return;
         }
@@ -10303,6 +10313,10 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
             isPlaying = false;
             AndroidUtilities.cancelRunOnUIThread(updateProgressRunnable);
             if (playbackState == ExoPlayer.STATE_ENDED) {
+                if (tjPlaybackMessage != null && videoPlayer != null) {
+                    tjPlaybackProgress.complete(videoPlayer.getDuration());
+                    tjSavePlaybackProgress();
+                }
                 if (isCurrentVideo) {
                     if (!videoTimelineView.isDragging()) {
                         videoTimelineView.setProgress(videoTimelineView.getLeftProgress());
@@ -10334,6 +10348,7 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
                         toggleActionBar(true, true);
                     }
                 }
+                tjPlaybackProgress.finishRewind();
                 PipVideoOverlay.onVideoCompleted();
             }
         }
@@ -10344,6 +10359,7 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
     }
 
     private void playVideoOrWeb() {
+        tjPlaybackProgress.userPositionChanged();
         if (videoPlayer != null) {
             videoPlayer.play();
         } else if (photoViewerWebView != null) {
@@ -10360,6 +10376,7 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
     }
 
     private void seekVideoOrWebToProgress(float progress) {
+        tjPlaybackProgress.userPositionChanged();
         if (videoPlayer != null) {
             videoPlayer.seekTo((long) (progress * videoPlayer.getDuration()));
         } else if (photoViewerWebView != null) {
@@ -10386,6 +10403,11 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
         firstAnimationDelay = true;
         inPreview = preview;
         releasePlayer(false);
+        if (!preview && !livePhoto && currentMessageObject != null) {
+            tjPlaybackMessage = currentMessageObject;
+            tjPlaybackOwner = UserConfig.getInstance(currentMessageObject.currentAccount).getClientUserId();
+            tjLastProgressSave = SystemClock.elapsedRealtime();
+        }
         if (imagesArrLocals.isEmpty()) {
             createVideoTextureView(null);
         }
@@ -11002,7 +11024,20 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
         }
     }
 
+    private void tjSavePlaybackProgress() {
+        // The visible message can change before the previous player is released.
+        if (tjPlaybackMessage != null && videoPlayer != null && tjPlaybackOwner != 0
+                && UserConfig.getInstance(tjPlaybackMessage.currentAccount).getClientUserId() == tjPlaybackOwner) {
+            org.telegram.messenger.tj.TjMediaStore.getInstance().progress(tjPlaybackMessage,
+                    tjPlaybackProgress.position(videoPlayer.getCurrentPosition()), videoPlayer.getDuration());
+        }
+    }
+
     private void releasePlayer(boolean onClose) {
+        tjSavePlaybackProgress();
+        tjPlaybackMessage = null;
+        tjPlaybackOwner = 0;
+        tjPlaybackProgress.reset();
         usedSurfaceView = false;
         if (pipSource != null) {
             pipSource.destroy();
