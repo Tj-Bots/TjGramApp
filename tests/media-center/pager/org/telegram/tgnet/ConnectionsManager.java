@@ -1,7 +1,7 @@
 package org.telegram.tgnet;
 import java.util.ArrayList;
 public final class ConnectionsManager {
-    public interface Callback { void run(TLObject response, Object error); }
+    public interface Callback { void run(TLObject response, TLRPC.TL_error error); }
     public static final class Pending {
         public int id, account;
         public TLObject request;
@@ -26,7 +26,7 @@ public final class ConnectionsManager {
     public void cancelRequest(int id, boolean notifyServer) { requests.get(id - 1).canceled = true; }
     public static void respond(Pending pending, TLObject result, Object error) {
         pending.completed = true;
-        pending.callback.run(result, error); // Deliberately permits a late canceled callback.
+        pending.callback.run(result, error == null ? null : error instanceof TLRPC.TL_error ? (TLRPC.TL_error) error : new TLRPC.TL_error()); // Deliberately permits a late canceled callback.
     }
     public static ArrayList<Pending> active() {
         ArrayList<Pending> active = new ArrayList<>();

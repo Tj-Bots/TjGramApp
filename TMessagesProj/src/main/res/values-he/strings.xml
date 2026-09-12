@@ -408,4 +408,7 @@
     <string name="TjMediaUnavailableFolder">תיקייה לא זמינה</string>
     <string name="TjMediaFolderScopeInfo">בחירת תיקייה מתעדכנת כשהצ׳אטים שבה משתנים. הכיסוי מתרחב כשטלגרם טוענת צ׳אטים; תיקייה ריקה או לא זמינה לעולם אינה בוחרת את כל הצ׳אטים. פריטים שכבר נוספו לאינדקס אינם נמחקים.</string>
     <string name="TjMediaSearchInfo">החיפוש המקומי מתאים מילים ותחיליות של מילים בשמות קבצים, בכיתובים ובכותרים שזוהו. החיפוש בטלגרם עשוי להחזיר תוצאות שונות. פריטים ישנים הופכים לזמינים לחיפוש כשהם נוספים לאינדקס.</string>
+    <string name="TjMediaDeleteCollection">למחוק את הרשימה?</string>
+    <string name="TjMediaDeleteCollectionInfo">רק הרשימה תוסר. המדיה וההודעות לא יימחקו.</string>
+    <string name="TjMediaNetworkError">הבקשה לטלגרם נכשלה. לחץ לניסיון נוסף.</string>
 </resources>

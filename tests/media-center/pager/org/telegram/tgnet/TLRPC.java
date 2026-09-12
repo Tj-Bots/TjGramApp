@@ -2,6 +2,7 @@ package org.telegram.tgnet;
 import java.util.ArrayList;
 /** Test protocol shapes only; no serialization or network implementation. */
 public final class TLRPC {
+    public static class TL_error { public String text; public int code; }
     public static class Document {
         public String mime_type;
         public ArrayList<DocumentAttribute> attributes = new ArrayList<>();

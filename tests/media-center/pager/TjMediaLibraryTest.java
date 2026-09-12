@@ -39,6 +39,16 @@ public final class TjMediaLibraryTest {
         check(guard > 0, "network terminates");
     }
     public static void main(String[] args) {
+        TjMediaLibrary errorLibrary = start(false);
+        TLRPC.TL_error protocolError = new TLRPC.TL_error(); protocolError.text = "FLOOD_WAIT_60"; protocolError.code = 420;
+        ConnectionsManager.respond(ConnectionsManager.active().get(0), null, protocolError);
+        check("FLOOD_WAIT_60".equals(errorLibrary.errorCode()), "protocol error exposed without hiding cached media");
+        errorLibrary.close();
+        errorLibrary = start(false);
+        protocolError.text = "private message text should never appear";
+        ConnectionsManager.respond(ConnectionsManager.active().get(0), null, protocolError);
+        check("420".equals(errorLibrary.errorCode()), "arbitrary error content is not exposed");
+        errorLibrary.close();
         TjMediaLibrary library = start(false);
         check(ConnectionsManager.active().size() == 3, "three initial requests maximum");
         TLRPC.TL_messages_searchGlobal request = (TLRPC.TL_messages_searchGlobal) ConnectionsManager.active().get(0).request;

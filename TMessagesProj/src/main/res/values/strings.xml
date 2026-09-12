@@ -11632,4 +11632,7 @@
     <string name="TjMediaUnavailableFolder">Unavailable folder</string>
     <string name="TjMediaFolderScopeInfo">Folder selection follows changes to its chats. Coverage grows as Telegram loads chats; an empty or unavailable folder never selects all chats. Previously indexed items are not deleted.</string>
     <string name="TjMediaSearchInfo">Local search matches words and word beginnings in filenames, captions and identified titles. Telegram search may return different results. Older items become searchable as they are indexed.</string>
+    <string name="TjMediaDeleteCollection">Delete list?</string>
+    <string name="TjMediaDeleteCollectionInfo">Only the list will be removed. Media and messages will not be deleted.</string>
+    <string name="TjMediaNetworkError">Telegram request failed. Tap to retry.</string>
 </resources>

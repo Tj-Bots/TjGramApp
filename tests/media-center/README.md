@@ -1,10 +1,10 @@
 # TjGram Media Center
 
-## Current implementation — 2026-09-12
+## Current implementation — 2026-09-13
 
 Native Android implementation, with local logic/SQL checks and Java compilation.
 This is not a claim of device UI, playback or live-account certification. The
-current delivery is **local commits only**, without an APK build or Git push.
+checks do not replace visual and live-account testing. APK packaging is handled by CI.
 
 ### Navigation and use
 
@@ -12,6 +12,8 @@ current delivery is **local commits only**, without an APK build or Git push.
   The settings screen also offers an optional Media Center tab in the host app.
 - Inside the center there is one bottom navigation row: Library, Watch, Lists.
   The host Telegram navigation and its fade overlay are hidden here.
+  It uses MainTabsLayout/GlassTabView and the host bar's 56dp height, 8dp margins
+  and themed non-blurred background. Search lives in the native action bar.
 - Library exposes enabled media types: video, photos, music, voice/round video,
   files and GIFs. The visibility selection is saved per account owner. Video
   container files sent as documents use the same recognition as the player.
@@ -21,6 +23,12 @@ current delivery is **local commits only**, without an APK build or Git push.
   contain one entry per catalog identity across all selected accounts.
 - Watch has bounded featured/recent/continue/favorite/movie/series shelves.
   Lists, favorites and playback state currently belong to individual source files.
+  Lists have an owner-scoped directory and can exist empty. Create from Lists;
+  long-press a name to rename/delete the list without deleting media. A file still
+  belongs to one named list. Existing file-based names remain discoverable.
+  Ordinary media opens through native viewers/player; unavailable documents and
+  cross-account photos/videos go to their source chat. Identified movies/series
+  use full-screen details. Long-press a library item for its management actions.
 
 ### Sources and scanning
 
@@ -44,9 +52,15 @@ an owner/revision/worker-lease guard. A failed write cannot advance the cursor.
 
 Scanning fetches message metadata, not all media file bytes. It uses at most three
 network requests, bounded pending batches and a separate preview window. Existing
-content remains usable while indexing. Store updates expose a refresh banner;
-they do not dismiss dialogs or replace the page being read. A user-requested
-refresh/navigation may update the view. Scan status and paging controls are separate.
+content remains usable while indexing. Store updates are coalesced into automatic
+refreshes of the current page boundary, deferred while a dialog or scrolling is
+active. The refresh attempts to restore the visible item's offset when that item
+remains in the bounded result window. Scan status and paging controls are separate.
+Visible row changes use DiffUtil; progress-only notifications do not rebind artwork.
+Touching, scrolling, paused fragments and open dialogs defer visual refresh.
+Protocol error identifiers are separated from local read/write failures; arbitrary
+server text is not displayed. A particular device's server failure still requires
+its actual error code to diagnose.
 
 ### Local catalog, with no TMDB requirement
 
@@ -79,8 +93,9 @@ total seasons or completeness from filenames or partial scans.
 
 | Component | Responsibility |
 | --- | --- |
-| `TjMediaCenterActivity` | Native navigation, saved scope/types, search, bounded pages and refresh banner |
+| `TjMediaCenterActivity` | Native navigation, saved scope/types, search, bounded pages and deferred automatic refresh |
 | `TjMediaDetailsActivity` / `TjMediaEpisodesView` | Stable full-screen detail, local correction, episode summaries and source selection |
+| `TjMediaCollectionsActivity` | Empty-list creation, owner-scoped browsing, rename/delete with confirmation |
 | `TjMediaHomeView` / row/card cells | Bounded shelves, general media rows and themed artwork cards |
 | `TjMediaLibrary` / `TjMediaScanCoordinator` | Existing Telegram transport, scan lifetime, pacing and owner-scoped resume |
 | `TjMediaStore` / `TjMediaScanState` | App-private schema 9 storage and atomic checkpoint transactions on a serial queue |

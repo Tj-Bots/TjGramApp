@@ -25,7 +25,7 @@ import org.telegram.ui.Components.LayoutHelper;
 public final class TjMediaCardCell extends LinearLayout {
     private final FrameLayout artwork;
     private final BackupImageView image;
-    private final TextView fallback;
+    private final android.widget.ImageView fallback;
     private final TextView badge;
     private final TextView title;
     private final TextView subtitle;
@@ -43,11 +43,10 @@ public final class TjMediaCardCell extends LinearLayout {
         artwork.setClipToOutline(true);
         artwork.setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);
         addView(artwork, LayoutHelper.createLinear(-1, 120));
-        fallback = new TextView(context);
-        fallback.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText));
-        fallback.setTextSize(15);
-        fallback.setGravity(Gravity.CENTER);
-        artwork.addView(fallback, LayoutHelper.createFrame(-1, -1));
+        fallback = new android.widget.ImageView(context);
+        fallback.setColorFilter(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText));
+        fallback.setScaleType(android.widget.ImageView.ScaleType.CENTER_INSIDE);
+        artwork.addView(fallback, LayoutHelper.createFrame(40, 40, Gravity.CENTER));
         image = new BackupImageView(context);
         artwork.addView(image, LayoutHelper.createFrame(-1, -1));
         badge = new TextView(context);
@@ -89,17 +88,17 @@ public final class TjMediaCardCell extends LinearLayout {
                 : message.isVideo() || message.isGif() ? R.string.TjMediaVideos
                 : message.isMusic() ? R.string.TjMediaMusic : message.isVoice() || message.isRoundVideo()
                 ? R.string.TjMediaVoice : R.string.TjMediaFiles);
-        fallback.setText(kind);
+        fallback.setImageResource(message.isPhoto() ? R.drawable.msg_media : R.drawable.msg_played);
         badge.setText(message.getDocument() != null && message.getDocument().size > 0
                 ? AndroidUtilities.formatFileSize(message.getDocument().size) : kind);
         boolean concealed = message.hasMediaSpoilers();
         if (!concealed && posterUrl != null && !posterUrl.isEmpty() && TjConfig.hasMediaMetadataCredential(message.currentAccount)) {
             image.setImage(posterUrl, "320_180", null);
         } else if (!concealed) {
-            TLRPC.PhotoSize thumb = FileLoader.getClosestPhotoSizeWithSize(message.photoThumbs, 320);
+            TLRPC.PhotoSize thumb = FileLoader.getClosestPhotoSizeWithSize(message.photoThumbs, 320, false, null, true);
             ImageLocation location = thumb == null ? null : ImageLocation.getForObject(thumb, message.photoThumbsObject);
             if (location == null && message.getDocument() != null) {
-                thumb = FileLoader.getClosestPhotoSizeWithSize(message.getDocument().thumbs, 320);
+                thumb = FileLoader.getClosestPhotoSizeWithSize(message.getDocument().thumbs, 320, false, null, true);
                 if (thumb != null) location = ImageLocation.getForDocument(thumb, message.getDocument());
             }
             if (location != null) image.setImage(location, "320_180", (android.graphics.drawable.Drawable) null, message);

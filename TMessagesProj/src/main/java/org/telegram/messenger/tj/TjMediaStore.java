@@ -37,6 +37,8 @@ public final class TjMediaStore extends SQLiteOpenHelper implements Notification
 
     @Override public void onOpen(SQLiteDatabase db) {
         super.onOpen(db);
+        db.execSQL("CREATE TABLE IF NOT EXISTS media_collections (owner INTEGER NOT NULL, name TEXT NOT NULL, PRIMARY KEY(owner,name))");
+        db.execSQL("CREATE INDEX IF NOT EXISTS media_collection_page ON media(owner,collection,date DESC,dialog,mid) WHERE collection<>''");
         try {
             TjMediaLocalIndex.ensure(db);
             localCatalogAvailable = true;
@@ -229,6 +231,7 @@ public final class TjMediaStore extends SQLiteOpenHelper implements Notification
         try {
             db.delete("media", "owner=?", args);
             db.delete("media_scan_progress", "owner=?", args);
+            db.delete("media_collections", "owner=?", args);
             db.setTransactionSuccessful();
         } finally { db.endTransaction(); }
     }
@@ -691,10 +694,18 @@ public final class TjMediaStore extends SQLiteOpenHelper implements Notification
             boolean success = false;
             try {
                 SQLiteDatabase db = getWritableDatabase();
-                if (snapshot.current(db)) success = db.update("media", values,
-                        "owner=? AND dialog=? AND mid=?", snapshot.args) == 1;
-            } catch (Exception e) { FileLog.e("Tj media list update failed", e); }
+                if (snapshot.current(db)) {
+                    db.beginTransaction();
+                    try {
+                        db.execSQL("INSERT OR IGNORE INTO media_collections(owner,name) SELECT owner,collection FROM media WHERE owner=? AND dialog=? AND mid=? AND collection<>''", snapshot.args);
+                        success = db.update("media", values, "owner=? AND dialog=? AND mid=?", snapshot.args) == 1;
+                        db.execSQL("INSERT OR IGNORE INTO media_collections(owner,name) SELECT owner,collection FROM media WHERE owner=? AND dialog=? AND mid=? AND collection<>''", snapshot.args);
+                        db.setTransactionSuccessful();
+                    } finally { db.endTransaction(); }
+                }
+            } catch (Exception e) { success = false; FileLog.e("Tj media list update failed", e); }
             boolean result = success;
+            if (success) changed();
             AndroidUtilities.runOnUIThread(() -> callback.run(result && ownerActive(account, owner)));
         });
     }
@@ -718,7 +729,7 @@ public final class TjMediaStore extends SQLiteOpenHelper implements Notification
                 AndroidUtilities.runOnUIThread(() -> callback.run(null));
                 return;
             }
-            try (Cursor cursor = getReadableDatabase().query("media", new String[]{"position", "duration", "played", "watched", "favorite", "collection", "metadata", "series", "season_override", "episode_override", "metadata_origin"},
+            try (Cursor cursor = getReadableDatabase().query("media", new String[]{"position", "duration", "played", "watched", "favorite", "collection", "metadata", "series", "season_override", "episode_override", "metadata_origin", "source_type"},
                     "owner=? AND dialog=? AND mid=?", args, null, null, null)) {
                 if (cursor.moveToFirst()) {
                     record.position = cursor.getLong(0);
@@ -731,6 +742,7 @@ public final class TjMediaStore extends SQLiteOpenHelper implements Notification
                     record.seasonOverride = cursor.getInt(8);
                     record.episodeOverride = cursor.getInt(9);
                     record.metadataOrigin = cursor.getInt(10);
+                    record.sourceType = cursor.getInt(11);
                 }
             } catch (Exception e) {
                 FileLog.e("Tj media state failed", e);
@@ -872,13 +884,48 @@ public final class TjMediaStore extends SQLiteOpenHelper implements Notification
             ArrayList<String> names = new ArrayList<>();
             boolean success = false;
             if (ownerActive(account, owner)) try (Cursor cursor = getReadableDatabase().rawQuery(
-                    "SELECT DISTINCT collection FROM media WHERE owner=? AND collection<>'' ORDER BY collection COLLATE NOCASE",
-                    new String[]{Long.toString(owner)})) {
+                    "SELECT name FROM media_collections WHERE owner=? UNION SELECT collection AS name FROM media WHERE owner=? AND collection<>'' ORDER BY name COLLATE NOCASE",
+                    new String[]{Long.toString(owner), Long.toString(owner)})) {
                 while (cursor.moveToNext()) names.add(cursor.getString(0));
                 success = true;
             } catch (Exception e) { FileLog.e("Tj media lists load failed", e); }
             boolean result = success;
             AndroidUtilities.runOnUIThread(() -> callback.run(result && ownerActive(account, owner) ? names : null));
+        });
+    }
+
+    /** null replacement deletes only the list and its memberships, never the files. */
+    public void editCollection(int account, String oldName, String replacement, Callback<Boolean> callback) {
+        long owner = UserConfig.getInstance(account).getClientUserId();
+        String name = replacement == null ? null : replacement.trim();
+        if (name != null && (name.isEmpty() || name.length() > 128)) { callback.run(false); return; }
+        queue.postRunnable(() -> {
+            boolean success = false;
+            try {
+                SQLiteDatabase db = getWritableDatabase();
+                if (!ownerActive(account, owner)) throw new IllegalStateException("Unavailable owner");
+                db.beginTransaction();
+                try {
+                    if (name != null) {
+                        if (!name.equals(oldName)) try (Cursor duplicate = db.rawQuery(
+                                "SELECT 1 FROM media_collections WHERE owner=? AND name=? UNION ALL SELECT 1 FROM media WHERE owner=? AND collection=? AND collection<>'' LIMIT 1",
+                                new String[]{Long.toString(owner), name, Long.toString(owner), name})) {
+                            if (duplicate.moveToFirst()) throw new IllegalArgumentException("Collection already exists");
+                        }
+                        ContentValues row = new ContentValues(); row.put("owner", owner); row.put("name", name);
+                        db.insertWithOnConflict("media_collections", null, row, SQLiteDatabase.CONFLICT_IGNORE);
+                    }
+                    if (oldName != null && !oldName.equals(name)) {
+                        ContentValues membership = new ContentValues(); membership.put("collection", name == null ? "" : name);
+                        db.update("media", membership, "owner=? AND collection=?", new String[]{Long.toString(owner), oldName});
+                        db.delete("media_collections", "owner=? AND name=?", new String[]{Long.toString(owner), oldName});
+                    }
+                    db.setTransactionSuccessful(); success = true;
+                } finally { db.endTransaction(); }
+            } catch (Exception e) { success = false; FileLog.e("Tj media collection edit failed", e); }
+            boolean result = success;
+            if (success) changed();
+            AndroidUtilities.runOnUIThread(() -> callback.run(result && ownerActive(account, owner)));
         });
     }
 
@@ -1046,7 +1093,12 @@ public final class TjMediaStore extends SQLiteOpenHelper implements Notification
                 String where = "c.owner=? AND c.catalog_key=?";
                 ArrayList<String> args = new ArrayList<>(); args.add(Long.toString(owner));
                 args.add(key);
-                if (key.isEmpty()) where += " AND 0";
+                if (key.isEmpty()) {
+                    // An uncertain identity still has one known source, not a global group of empty keys.
+                    where += " AND c.dialog=? AND c.mid=?";
+                    args.add(Long.toString(title.message.getDialogId())); args.add(Integer.toString(title.message.getId()));
+                    if (account != title.message.currentAccount) where += " AND 0";
+                }
                 if (numberedOnly) where += " AND (" + seasonSql + ")>=0 AND (" + episodeSql + ")>=0";
                 if (!sources.isEmpty()) {
                     StringBuilder ids = new StringBuilder();
@@ -1071,6 +1123,19 @@ public final class TjMediaStore extends SQLiteOpenHelper implements Notification
 
     public void loadCatalogSources(int account, Record title, int season, int episode, TjMediaPageKey after,
             java.util.Set<Long> sources, int sourceType, Callback<Page> callback) {
+        if (title.catalogKey().isEmpty()) {
+            if (account != title.message.currentAccount || after != null) { callback.run(new Page()); return; }
+            state(title.message, current -> {
+                if (current == null) { callback.run(null); return; }
+                Page page = new Page();
+                if ((sources == null || sources.isEmpty() || sources.contains(current.message.getDialogId()))
+                        && (sourceType == 0 || current.sourceType == sourceType)
+                        && (season == ANY_EPISODE || current.season() == season)
+                        && (episode == ANY_EPISODE || current.episode() == episode)) page.add(current);
+                callback.run(page);
+            });
+            return;
+        }
         boolean local = !title.localKey.isEmpty();
         loadInternal(account, local ? 10 : title.isSeries() ? 8 : 7, "", title.localKey, after, sources,
                 sourceType, 0, local || title.metadata == null ? 0 : title.metadata.id, 50,
@@ -1128,7 +1193,7 @@ public final class TjMediaStore extends SQLiteOpenHelper implements Notification
                 if (mode == 2) where += " AND played>0";
                 if (mode == 3) where += " AND favorite=1";
                 if (mode == 4) where += " AND watched=1";
-                if (mode == 5) { where += " AND collection=?"; args.add(collection == null ? "" : collection); }
+                if (mode == 5) { where += " AND collection=? AND collection<>''"; args.add(collection == null ? "" : collection); }
                 if (mode == 7 || mode == 8) {
                     int series = mode == 8 ? 1 : 0;
                     where += localCatalogAvailable

@@ -31,10 +31,19 @@ assert db.execute("SELECT position FROM media WHERE owner=1 AND dialog=7 AND mid
 # Directory names are scoped by owner; similarly named lists cannot leak across accounts.
 db.execute("UPDATE media SET collection='Weekend' WHERE owner=1")
 db.execute("UPDATE media SET collection='Private' WHERE owner=2")
-directory = re.search(r'"(SELECT DISTINCT collection FROM media[^"\n]+)"', source).group(1)
-assert db.execute(directory, ("1",)).fetchall() == [("Weekend",)]
-assert db.execute(directory, ("2",)).fetchall() == [("Private",)]
-assert db.execute(directory, ("3",)).fetchall() == []
+db.execute(re.search(r'db.execSQL\("(CREATE TABLE IF NOT EXISTS media_collections[^"\n]+)"', source).group(1))
+directory = re.search(r'"(SELECT name FROM media_collections[^"\n]+)"', source).group(1)
+assert db.execute(directory, ("1", "1")).fetchall() == [("Weekend",)]
+assert db.execute(directory, ("2", "2")).fetchall() == [("Private",)]
+assert db.execute(directory, ("3", "3")).fetchall() == []
+db.execute("INSERT INTO media_collections VALUES(1,'Empty')")
+assert db.execute(directory, ("1", "1")).fetchall() == [("Empty",), ("Weekend",)]
+assert db.execute(directory, ("2", "2")).fetchall() == [("Private",)]
+count = db.execute('SELECT COUNT(*) FROM media').fetchone()[0]
+db.execute("UPDATE media SET collection='' WHERE owner=1 AND collection='Weekend'")
+db.execute("DELETE FROM media_collections WHERE owner=1 AND name='Empty'")
+assert db.execute('SELECT COUNT(*) FROM media').fetchone()[0] == count
+assert db.execute(directory, ("2", "2")).fetchall() == [("Private",)]
 
 # A filtered match outside the first unfiltered page must still be found.
 for mid in range(100, 351):

@@ -87,6 +87,12 @@ public final class TjMediaEpisodesView extends LinearLayout {
     private void seasons(int after) {
         numbers(TjMediaStore.ANY_EPISODE, after, (values, more) -> {
             if (values == null) { error(() -> seasons(after)); return; }
+            if (values.isEmpty()) {
+                host.showDialog(new AlertDialog.Builder(getContext()).setTitle(text(R.string.TjMediaSeasons))
+                        .setMessage(text(R.string.TjMediaNoIndexedEpisodes))
+                        .setPositiveButton(LocaleController.getString(R.string.OK), null).create());
+                return;
+            }
             ArrayList<Integer> keys = new ArrayList<>(values.keySet());
             ArrayList<CharSequence> labels = new ArrayList<>();
             for (int key : keys) labels.add(key == Integer.MAX_VALUE ? text(R.string.TjMediaUnknownEpisode) : text(R.string.TjMediaSeason) + " " + key);

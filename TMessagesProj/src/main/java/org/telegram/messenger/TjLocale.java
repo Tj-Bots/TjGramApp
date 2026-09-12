@@ -96,6 +96,9 @@ public class TjLocale {
         m.put("TjMediaGifs", "GIF");
         m.put("TjMediaFilters", "סינון");
         m.put("TjMediaListsTab", "הרשימות שלי");
+        m.put("TjMediaNetworkError", "הבקשה לטלגרם נכשלה. לחץ לניסיון נוסף.");
+        m.put("TjMediaDeleteCollection", "למחוק את הרשימה?");
+        m.put("TjMediaDeleteCollectionInfo", "רק הרשימה תוסר. המדיה וההודעות לא יימחקו.");
         m.put("TjMediaWatchTab", "צפייה");
         m.put("TjMediaLibraryTab", "ספרייה");
         m.put("TjMediaRefreshAvailable", "הספרייה עודכנה · לחצו לרענון");

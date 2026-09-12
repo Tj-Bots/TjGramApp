@@ -6,6 +6,7 @@ import android.view.View;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.TextView;
+import android.widget.ImageView;
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.FileLoader;
 import org.telegram.messenger.ImageLocation;
@@ -22,7 +23,8 @@ import org.telegram.ui.Components.LayoutHelper;
 /** Recycled, thumbnail-only general library row; no full media download on bind. */
 public final class TjMediaRowCell extends LinearLayout {
     private final BackupImageView image;
-    private final TextView title, subtitle, fallback;
+    private final TextView title, subtitle;
+    private final ImageView fallback;
 
     public TjMediaRowCell(Context context) {
         super(context);
@@ -34,11 +36,10 @@ public final class TjMediaRowCell extends LinearLayout {
         androidx.core.view.ViewCompat.setScreenReaderFocusable(this, true);
         FrameLayout thumbnail = new FrameLayout(context);
         thumbnail.setBackground(Theme.createRoundRectDrawable(dp(10), Theme.getColor(Theme.key_windowBackgroundGray)));
-        fallback = new TextView(context);
-        fallback.setTextSize(12);
-        fallback.setGravity(Gravity.CENTER);
-        fallback.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlueText));
-        thumbnail.addView(fallback, LayoutHelper.createFrame(-1, -1));
+        fallback = new ImageView(context);
+        fallback.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
+        fallback.setColorFilter(Theme.getColor(Theme.key_windowBackgroundWhiteBlueText));
+        thumbnail.addView(fallback, LayoutHelper.createFrame(28, 28, Gravity.CENTER));
         image = new BackupImageView(context);
         image.setRoundRadius(dp(10));
         thumbnail.addView(image, LayoutHelper.createFrame(-1, -1));
@@ -74,14 +75,17 @@ public final class TjMediaRowCell extends LinearLayout {
         int label = kind == TjMediaKind.PHOTO ? R.string.TjMediaPhotos : kind == TjMediaKind.VIDEO ? R.string.TjMediaVideos
                 : kind == TjMediaKind.GIF ? R.string.TjMediaGifs : kind == TjMediaKind.MUSIC ? R.string.TjMediaMusic
                 : kind == TjMediaKind.VOICE ? R.string.TjMediaVoice : R.string.TjMediaFiles;
-        fallback.setText(TjLocale.getString(label));
+        fallback.setImageResource(kind == TjMediaKind.PHOTO ? R.drawable.msg_media
+                : kind == TjMediaKind.VIDEO || kind == TjMediaKind.GIF ? R.drawable.msg_played
+                : kind == TjMediaKind.MUSIC ? R.drawable.search_music_filled
+                : kind == TjMediaKind.VOICE ? R.drawable.msg_filled_data_voice : R.drawable.msg_view_file);
         image.getImageReceiver().cancelLoadImage(); image.setImageDrawable(null);
         image.getImageReceiver().setCurrentAccount(message.currentAccount);
         if (!message.hasMediaSpoilers()) {
-            TLRPC.PhotoSize thumb = FileLoader.getClosestPhotoSizeWithSize(message.photoThumbs, 90);
+            TLRPC.PhotoSize thumb = FileLoader.getClosestPhotoSizeWithSize(message.photoThumbs, 160, true, null, true);
             ImageLocation location = thumb == null ? null : ImageLocation.getForObject(thumb, message.photoThumbsObject);
             if (location == null && message.getDocument() != null) {
-                thumb = FileLoader.getClosestPhotoSizeWithSize(message.getDocument().thumbs, 90);
+                thumb = FileLoader.getClosestPhotoSizeWithSize(message.getDocument().thumbs, 160, true, null, true);
                 if (thumb != null) location = ImageLocation.getForDocument(thumb, message.getDocument());
             }
             if (location != null) image.setImage(location, "90_90", (android.graphics.drawable.Drawable) null, message);

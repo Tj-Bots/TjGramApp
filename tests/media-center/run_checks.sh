@@ -53,4 +53,5 @@ python3 tests/media-center/test_seek_pages.py
 python3 tests/media-center/test_scan_progress.py
 python3 tests/media-center/test_resources.py
 python3 tests/media-center/test_navigation.py
+python3 tests/media-center/test_ui_regressions.py
 git diff --check

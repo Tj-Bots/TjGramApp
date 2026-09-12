@@ -27,7 +27,7 @@ public final class TjMediaLibrary {
         public final long ownerId;
         public final MessageObject message;
         public final String key;
-        final long storeRevision;
+        public final long storeRevision;
 
         public Entry(int account, long ownerId, MessageObject message) {
             this.account = account;
@@ -94,6 +94,7 @@ public final class TjMediaLibrary {
         boolean loading;
         boolean complete;
         boolean failed;
+        String errorCode;
         boolean queued;
         boolean writing;
         boolean refreshLane;
@@ -175,6 +176,14 @@ public final class TjMediaLibrary {
         if (!failedWrites.isEmpty()) return true;
         for (Stream stream : streams) if (stream.failed) return true;
         return false;
+    }
+
+    public boolean hasWriteError() { return !failedWrites.isEmpty(); }
+
+    public String errorCode() {
+        for (Stream stream : streams) if (stream.failed && stream.errorCode != null)
+            return stream.errorCode;
+        return null;
     }
 
     public void loadMore() {
@@ -315,6 +324,9 @@ public final class TjMediaLibrary {
                     }
                     if (error != null || !(response instanceof TLRPC.messages_Messages)) {
                         stream.failed = true;
+                        // Only protocol identifiers, never arbitrary server text or peer data.
+                        stream.errorCode = error != null && error.text != null && error.text.matches("[A-Z_0-9]{1,64}")
+                                ? error.text : error == null ? "UNEXPECTED_RESPONSE" : Integer.toString(error.code);
                         pump();
                         listener.onChanged();
                         return;

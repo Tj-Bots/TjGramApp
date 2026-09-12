@@ -35,7 +35,20 @@ assert toggle.index("viewPager.setPosition(POSITION_CHATS)") < toggle.index("med
 assert "dropFragmentAtPosition(POSITION_MEDIA)" in toggle and "viewPager.rebuild(false)" in toggle
 assert "mainTabBackAction.run()" in media
 assert "tabsViewWrapper.setVisibility(position == POSITION_MEDIA ? View.GONE : View.VISIBLE)" in tabs
-assert media.index("root.addView(mainTabs,") > media.index("root.addView(newItemsButton,")
+assert media.index("root.addView(mainTabs,") > media.index("root.addView(pages,")
+assert "new MainTabsLayout(context, getResourceProvider())" in media
+assert "GlassTabView.createMainTab" in media
+assert "DialogsActivity.MAIN_TABS_HEIGHT_WITH_MARGINS" in media
+assert "DialogsActivity.MAIN_TABS_MARGIN + 4" in media
+assert "BlurredBackgroundProviderImpl.mainTabs(getResourceProvider())" in media
+assert "newItemsButton" not in media and "updateNewItemsButton" not in media
+assert "automatic ? displayedBoundaries" in media
+assert "automatic ? displayedCatalogBoundary" in media
+assert "layout.scrollToPositionWithOffset(i, anchorOffset)" in media
+automatic = media.split("private void applyAutomaticRefresh()", 1)[1].split("private void onScanChanged()", 1)[0]
+assert "reload()" not in automatic and "interactionInProgress()" in automatic
+scan_update = media.split("private void onScanChanged()", 1)[1].split("private TextView label", 1)[0]
+assert "pendingStoreUpdate = true" not in scan_update
 assert "tabletLayout || viewPager.getCurrentPosition() == POSITION_MEDIA" in tabs
 reload = media.split("private void reload()", 1)[1].split("private CharSequence[] viewNames()", 1)[0]
 assert "dismissCurrentDialog()" not in reload

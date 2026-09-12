@@ -133,10 +133,10 @@ public final class TjMediaDetailsActivity extends BaseFragment implements Notifi
             if (record.metadata != null && TjConfig.hasMediaMetadataCredential(entry.account)) {
                 artwork.setImage(record.metadata.backdropUrl(), "640_360", null);
             } else {
-                TLRPC.PhotoSize thumb = FileLoader.getClosestPhotoSizeWithSize(entry.message.photoThumbs, 640);
+                TLRPC.PhotoSize thumb = FileLoader.getClosestPhotoSizeWithSize(entry.message.photoThumbs, 640, false, null, true);
                 ImageLocation location = thumb == null ? null : ImageLocation.getForObject(thumb, entry.message.photoThumbsObject);
                 if (location == null && entry.message.getDocument() != null) {
-                    thumb = FileLoader.getClosestPhotoSizeWithSize(entry.message.getDocument().thumbs, 640);
+                    thumb = FileLoader.getClosestPhotoSizeWithSize(entry.message.getDocument().thumbs, 640, false, null, true);
                     if (thumb != null) location = ImageLocation.getForDocument(thumb, entry.message.getDocument());
                 }
                 if (location != null) artwork.setImage(location, "640_360", (android.graphics.drawable.Drawable) null, entry.message);
@@ -156,9 +156,11 @@ public final class TjMediaDetailsActivity extends BaseFragment implements Notifi
         TextView view = paragraph(context, name);
         view.setMinHeight(dp(48)); view.setGravity(Gravity.CENTER);
         view.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlueText));
-        view.setBackground(Theme.getSelectorDrawable(false));
-        view.setOnClickListener(v -> { if (entry.isAccountAvailable() && action != null) action.run(); });
         view.setTextIsSelectable(false);
+        view.setBackground(Theme.createSimpleSelectorRoundRectDrawable(dp(10), Theme.getColor(Theme.key_windowBackgroundGray), Theme.getColor(Theme.key_listSelector)));
+        view.setOnClickListener(v -> { if (entry.isAccountAvailable() && action != null) action.run(); });
+        view.setFocusable(true);
+        view.setLayoutParams(LayoutHelper.createLinear(-1, -2, 16, 4, 16, 4));
         return view;
     }
 

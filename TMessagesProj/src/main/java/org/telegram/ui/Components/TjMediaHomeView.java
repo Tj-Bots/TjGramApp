@@ -36,6 +36,27 @@ public final class TjMediaHomeView extends ScrollView {
     private final Delegate delegate;
     private final HashMap<Integer, RecyclerListView> shelves = new HashMap<>();
     private final HashMap<Integer, Parcelable> shelfPositions = new HashMap<>();
+    private boolean touching;
+    private long lastScroll;
+
+    @Override public boolean dispatchTouchEvent(android.view.MotionEvent event) {
+        if (event.getActionMasked() == android.view.MotionEvent.ACTION_DOWN) touching = true;
+        if (event.getActionMasked() == android.view.MotionEvent.ACTION_UP || event.getActionMasked() == android.view.MotionEvent.ACTION_CANCEL) {
+            touching = false; lastScroll = android.os.SystemClock.uptimeMillis();
+        }
+        return super.dispatchTouchEvent(event);
+    }
+
+    @Override protected void onScrollChanged(int x, int y, int oldX, int oldY) {
+        super.onScrollChanged(x, y, oldX, oldY);
+        lastScroll = android.os.SystemClock.uptimeMillis();
+    }
+
+    public boolean isInteracting() {
+        if (touching || android.os.SystemClock.uptimeMillis() - lastScroll < 350) return true;
+        for (RecyclerListView shelf : shelves.values()) if (shelf.getScrollState() != RecyclerView.SCROLL_STATE_IDLE) return true;
+        return false;
+    }
     public TjMediaHomeView(Context context, Delegate delegate) {
         super(context);
         this.delegate = delegate;
