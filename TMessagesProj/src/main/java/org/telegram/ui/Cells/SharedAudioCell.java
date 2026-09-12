@@ -118,7 +118,13 @@ public class SharedAudioCell extends FrameLayout implements DownloadController.F
     }
 
     public SharedAudioCell(Context context, int viewType, Theme.ResourcesProvider resourcesProvider) {
+        this(context, viewType, resourcesProvider, UserConfig.selectedAccount);
+    }
+
+    /** Explicit owner for multi-account media results; existing callers keep their default. */
+    public SharedAudioCell(Context context, int viewType, Theme.ResourcesProvider resourcesProvider, int account) {
         super(context);
+        currentAccount = account;
         this.resourcesProvider = resourcesProvider;
         this.viewType = viewType;
         setFocusable(true);
@@ -856,4 +862,3 @@ public class SharedAudioCell extends FrameLayout implements DownloadController.F
         }
     }
 }
-

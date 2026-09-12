@@ -173,6 +173,20 @@ public class TjMediaCenterActivity extends BaseFragment implements MainTabsActiv
         root.setOrientation(LinearLayout.VERTICAL);
         root.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
         fragmentView = root;
+        android.widget.FrameLayout playerHost = new android.widget.FrameLayout(context);
+        root.addView(playerHost, LayoutHelper.createLinear(-1, 0));
+        org.telegram.ui.Components.FragmentContextView player = new org.telegram.ui.Components.FragmentContextView(context, this, false) {
+            @Override public void setTopPadding(float value) {
+                super.setTopPadding(value);
+                ViewGroup.LayoutParams params = playerHost.getLayoutParams();
+                if (params != null && params.height != Math.round(value)) {
+                    params.height = Math.round(value);
+                    playerHost.setLayoutParams(params);
+                }
+            }
+        };
+        player.setSupportsCalls(false);
+        playerHost.addView(player, LayoutHelper.createFrame(-1, -2));
         if (mainTabBackAction != null) {
             androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(root, (view, insets) -> {
                 androidx.core.graphics.Insets system = AndroidUtilities.getDefaultWindowInsets(insets, false);
@@ -254,9 +268,7 @@ public class TjMediaCenterActivity extends BaseFragment implements MainTabsActiv
             @Override protected void onSizeChanged(int w, int h, int oldw, int oldh) {
                 super.onSizeChanged(w, h, oldw, oldh);
                 if (getLayoutManager() instanceof GridLayoutManager && w > 0) {
-                    float cardWidth = 180 * Math.max(1f, getResources().getConfiguration().fontScale);
-                    ((GridLayoutManager) getLayoutManager()).setSpanCount(libraryView == 7 || libraryView == 8 ? Math.max(1,
-                            (int) ((w - getPaddingLeft() - getPaddingRight()) / AndroidUtilities.density / cardWidth)) : 1);
+                    ((GridLayoutManager) getLayoutManager()).setSpanCount(mediaColumns(w - getPaddingLeft() - getPaddingRight()));
                 }
             }
         };
@@ -268,7 +280,24 @@ public class TjMediaCenterActivity extends BaseFragment implements MainTabsActiv
         adapter = new Adapter();
         list.setAdapter(adapter);
         list.setOnItemClickListener((view, position) -> {
-            if (position >= 0 && position < visible.size()) showDetails(visible.get(position));
+            if (position < 0 || position >= visible.size()) return;
+            if (!visible.get(position).isAccountAvailable()) return;
+            if (view instanceof org.telegram.ui.Cells.SharedAudioCell) {
+                ((org.telegram.ui.Cells.SharedAudioCell) view).didPressedButton();
+            } else if (view instanceof org.telegram.ui.Cells.SharedDocumentCell) {
+                org.telegram.ui.Cells.SharedDocumentCell cell = (org.telegram.ui.Cells.SharedDocumentCell) view;
+                MessageObject message = cell.getMessage();
+                if (cell.isLoaded()) openOrdinaryMedia(visible.get(position));
+                else if (message.getDocument() != null) {
+                    org.telegram.messenger.FileLoader loader = org.telegram.messenger.FileLoader.getInstance(message.currentAccount);
+                    if (cell.isLoading()) loader.cancelLoadFile(message.getDocument());
+                    else {
+                        message.putInDownloadsStore = true;
+                        loader.loadFile(message.getDocument(), message, org.telegram.messenger.FileLoader.PRIORITY_LOW, 0);
+                    }
+                    cell.updateFileExistIcon(true);
+                }
+            } else showDetails(visible.get(position));
         });
         list.setOnItemLongClickListener((view, position) -> {
             if (position < 0 || position >= visible.size()) return false;
@@ -510,8 +539,8 @@ public class TjMediaCenterActivity extends BaseFragment implements MainTabsActiv
         if (library == null) return;
         grid.setVisibility(libraryView == 9 ? View.GONE : View.VISIBLE);
         home.setVisibility(libraryView == 9 ? View.VISIBLE : View.GONE);
-        ((GridLayoutManager) grid.getLayoutManager()).setSpanCount(libraryView == 7 || libraryView == 8
-                ? Math.max(1, (int) (AndroidUtilities.displaySize.x / AndroidUtilities.density / 180)) : 1);
+        ((GridLayoutManager) grid.getLayoutManager()).setSpanCount(mediaColumns(grid.getWidth() > 0
+                ? grid.getWidth() - grid.getPaddingLeft() - grid.getPaddingRight() : AndroidUtilities.displaySize.x));
         if (libraryView == 0 || libraryView == 9) {
             library.reset(accounts, sources, sourceType, search.getText().toString());
             if (libraryView == 9) refreshHome();
@@ -748,7 +777,7 @@ public class TjMediaCenterActivity extends BaseFragment implements MainTabsActiv
             MessagesController controller = MessagesController.getInstance(entry.account);
             TLRPC.Chat chat = dialog < 0 ? controller.getChat(-dialog) : null;
             String source = dialog > 0 ? UserObject.getUserName(controller.getUser(dialog)) : chat == null ? "" : chat.title;
-            newRows.add(libraryView + "|" + entry.key + "|" + message.messageOwner.edit_date + "|" + message.getDocumentName()
+            newRows.add(libraryView + "|" + mediaType + "|" + entry.key + "|" + message.messageOwner.edit_date + "|" + message.getDocumentName()
                     + "|" + TjMediaStore.displayCaption(message) + "|" + source + "|" + message.hasMediaSpoilers()
                     + "|" + (message.getDocument() == null ? "" : message.getDocument().id + ":" + message.getDocument().size)
                     + "|" + (record == null ? "" : record.title() + ":" + record.position + ":" + record.duration
@@ -1210,7 +1239,7 @@ public class TjMediaCenterActivity extends BaseFragment implements MainTabsActiv
             viewer.setParentActivity(this);
             if (viewer.openPhoto(message, message.getDialogId(), 0, 0, new PhotoViewer.EmptyPhotoViewerProvider(), false)) return;
         } else if (message.isMusic() || message.isVoice()) {
-            if (org.telegram.messenger.MediaController.getInstance().playMessage(message)) return;
+            if (playAudio(message)) return;
         } else {
             java.io.File file = org.telegram.messenger.FileLoader.getInstance(entry.account).getPathToMessage(message.messageOwner);
             if (file.exists() && AndroidUtilities.openForView(message, getParentActivity(), getResourceProvider(), true)) return;
@@ -1613,11 +1642,60 @@ public class TjMediaCenterActivity extends BaseFragment implements MainTabsActiv
         super.onPause();
     }
 
+    private boolean photoGrid() {
+        return libraryView != 7 && libraryView != 8 && (mediaType == 1 || mediaType == 6);
+    }
+
+    private int mediaColumns(int width) {
+        if (photoGrid()) return Math.max(2, Math.min(6, (int) (width / AndroidUtilities.density / 110)));
+        if (libraryView == 7 || libraryView == 8) return Math.max(1,
+                (int) (width / AndroidUtilities.density / (180 * Math.max(1f, getContext().getResources().getConfiguration().fontScale))));
+        return 1;
+    }
+
+    private boolean playAudio(MessageObject message) {
+        if (!UserConfig.getInstance(message.currentAccount).isClientActivated()) return false;
+        org.telegram.messenger.MediaController controller = org.telegram.messenger.MediaController.getInstance();
+        if (message.isMusic()) {
+            ArrayList<MessageObject> queue = new ArrayList<>();
+            // Telegram's playlist map uses message IDs, which are unique only within a dialog.
+            for (TjMediaLibrary.Entry entry : visible) {
+                if (entry.isAccountAvailable() && entry.account == message.currentAccount
+                        && entry.message.getDialogId() == message.getDialogId() && entry.message.isMusic()) queue.add(entry.message);
+            }
+            if (!queue.contains(message)) queue.add(message);
+            return controller.setPlaylist(queue, message, 0, false, null);
+        }
+        if (!controller.playMessage(message)) return false;
+        ArrayList<MessageObject> queue = new ArrayList<>(); queue.add(message);
+        controller.setVoiceMessagesPlaylist(queue, false);
+        return true;
+    }
+
     private class Adapter extends RecyclerListView.SelectionAdapter {
         @Override public int getItemCount() { return visible.size(); }
-        @Override public int getItemViewType(int position) { return libraryView == 7 || libraryView == 8 ? 1 : 0; }
+        @Override public int getItemViewType(int position) {
+            if (libraryView == 7 || libraryView == 8) return 1;
+            if (photoGrid()) return 3;
+            MessageObject message = visible.get(position).message;
+            // A separate recycle pool per owner prevents download observers crossing accounts.
+            if (message.isMusic() || message.isVoice()) return 100 + message.currentAccount * 10 + 2;
+            if (org.telegram.messenger.tj.TjMediaKind.of(message) == org.telegram.messenger.tj.TjMediaKind.DOCUMENT)
+                return 100 + message.currentAccount * 10 + 4;
+            return 0;
+        }
         @Override public boolean isEnabled(RecyclerView.ViewHolder holder) { return true; }
         @Override public RecyclerView.ViewHolder onCreateViewHolder(ViewGroup parent, int type) {
+            if (type >= 100 && type % 10 == 2) {
+                org.telegram.ui.Cells.SharedAudioCell cell = new org.telegram.ui.Cells.SharedAudioCell(parent.getContext(),
+                        org.telegram.ui.Cells.SharedAudioCell.VIEW_TYPE_DEFAULT, getResourceProvider(), (type - 100) / 10);
+                cell.setNeedPlayMessageListener(TjMediaCenterActivity.this::playAudio);
+                cell.initStreamingIcons();
+                return new RecyclerListView.Holder(cell);
+            }
+            if (type == 3) return new RecyclerListView.Holder(new org.telegram.ui.Cells.TjMediaGridCell(parent.getContext()));
+            if (type >= 100 && type % 10 == 4) return new RecyclerListView.Holder(new org.telegram.ui.Cells.SharedDocumentCell(
+                    parent.getContext(), 0, getResourceProvider(), (type - 100) / 10));
             if (type == 0) {
                 org.telegram.ui.Cells.TjMediaRowCell cell = new org.telegram.ui.Cells.TjMediaRowCell(parent.getContext());
                 cell.setLayoutParams(new RecyclerView.LayoutParams(-1, -2));
@@ -1630,6 +1708,18 @@ public class TjMediaCenterActivity extends BaseFragment implements MainTabsActiv
         @Override public void onBindViewHolder(RecyclerView.ViewHolder holder, int position) {
             TjMediaLibrary.Entry entry = visible.get(position);
             MessageObject message = entry.message;
+            if (holder.itemView instanceof org.telegram.ui.Cells.SharedAudioCell) {
+                ((org.telegram.ui.Cells.SharedAudioCell) holder.itemView).setMessageObject(message, position + 1 < visible.size());
+                return;
+            }
+            if (holder.itemView instanceof org.telegram.ui.Cells.SharedDocumentCell) {
+                ((org.telegram.ui.Cells.SharedDocumentCell) holder.itemView).setDocument(message, position + 1 < visible.size());
+                return;
+            }
+            if (holder.itemView instanceof org.telegram.ui.Cells.TjMediaGridCell) {
+                ((org.telegram.ui.Cells.TjMediaGridCell) holder.itemView).bind(message);
+                return;
+            }
             String title = message.getDocumentName();
             if (title == null || title.isEmpty()) title = TjMediaStore.displayCaption(message);
             if (title == null || title.isEmpty()) title = text(R.string.TjMediaCenter);

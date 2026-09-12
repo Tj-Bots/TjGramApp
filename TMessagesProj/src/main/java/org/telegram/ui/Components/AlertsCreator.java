@@ -8130,18 +8130,16 @@ public class AlertsCreator {
             }
         }
 
-        // Ticked by default where the choice is offered, so a message is only lost when the user
-        // deliberately clears the box. Where no box is shown nothing is kept, which is what the
-        // deletion path did before this option existed.
+        // Keeping an explicitly deleted message requires an opt-in for this deletion,
+        // independently of the general setting for saving messages deleted by others.
         final boolean[] keepLocally = {false};
         if (TjConfig.saveDeletedMessages() && !scheduled && !isSavedMessages && mode == ChatActivity.MODE_DEFAULT) {
-            keepLocally[0] = true;
             CheckBoxCell keepCell = new CheckBoxCell(activity, 1, resourcesProvider);
             keepCell.setBackgroundDrawable(Theme.getSelectorDrawable(false));
             keepCell.setText(TjLocale.getString(R.string.TjDeleteKeepLocally), "", false, false);
             keepCell.setPadding(LocaleController.isRTL ? dp(16) : dp(8), 0,
                     LocaleController.isRTL ? dp(8) : dp(16), 0);
-            keepCell.setChecked(true, false);
+            keepCell.setChecked(keepLocally[0], false);
             int top = deleteOptions.getChildCount() * 48;
             deleteOptions.addView(keepCell, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 48,
                     Gravity.TOP | Gravity.LEFT, 0, top, 0, 0));

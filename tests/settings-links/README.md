@@ -17,5 +17,5 @@ Device checks for a release build:
   dismissing or returning must not reopen the dialog/collection screen.
 - Check Back navigation, Hebrew/English/Russian, and light/dark themes.
 - In TjGram settings, verify FAQ opens the pinned index, updates opens @TjGramApp,
-  discussion retains its existing destination, and contact opens @avi_user.
+  and discussion retains its existing destination. No personal contact shortcut is shown.
 - Verify ordinary Telegram links such as `tg://settings/folders` still work.

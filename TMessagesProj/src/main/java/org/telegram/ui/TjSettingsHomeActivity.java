@@ -51,7 +51,6 @@ public class TjSettingsHomeActivity extends BaseFragment {
     private static final int CHANNEL = 10;
     private static final int DISCUSSION = 11;
     private static final int FAQ = 12;
-    private static final int CONTACT = 13;
 
     private final ArrayList<Item> items = new ArrayList<>();
     private Adapter adapter;
@@ -143,9 +142,6 @@ public class TjSettingsHomeActivity extends BaseFragment {
                 case FAQ:
                     Browser.openUrl(getParentActivity(), TjCommunity.FAQ_URL);
                     break;
-                case CONTACT:
-                    Browser.openUrl(getParentActivity(), TjCommunity.CONTACT_URL);
-                    break;
             }
         });
         root.addView(list, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
@@ -185,8 +181,6 @@ public class TjSettingsHomeActivity extends BaseFragment {
                 TjCommunity.CHANNEL_USERNAME, R.drawable.msg_channel, TjSettingsStyle.CHANNEL_COLOR));
         items.add(new Item(TYPE_CATEGORY, DISCUSSION, TjLocale.getString(R.string.TjDiscussions),
                 TjCommunity.DISCUSSION_USERNAME, R.drawable.msg_groups, TjSettingsStyle.DISCUSSION_COLOR));
-        items.add(new Item(TYPE_CATEGORY, CONTACT, TjLocale.getString(R.string.TjContact),
-                TjCommunity.CONTACT_USERNAME, R.drawable.msg_contacts, TjSettingsStyle.DISCUSSION_COLOR));
         items.add(new Item(TYPE_INFO, 0, TjLocale.getString(R.string.TjSettingsFooter), null, 0, 0));
     }
 

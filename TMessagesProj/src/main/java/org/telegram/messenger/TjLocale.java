@@ -190,7 +190,10 @@ public class TjLocale {
         m.put("TjMediaType", "סוג מדיה");
         m.put("TjMediaAll", "כל המדיה");
         m.put("TjMediaPhotos", "תמונות");
-        m.put("TjMediaVideos", "סרטונים וקובצי GIF");
+        m.put("TjMediaVideos", "סרטונים");
+        m.put("TjMediaListItemCount", "פריטים: %1$d");
+        m.put("TjMediaListEmpty", "אין פריטים עדיין");
+        m.put("TjMediaListsEmpty", "כאן אפשר לסדר את המדיה ברשימות. לחצו על + ליצירת הרשימה הראשונה.");
         m.put("TjMediaFiles", "קבצים");
         m.put("TjMediaMusic", "מוזיקה");
         m.put("TjMediaVoice", "הודעות קוליות ווידאו");
@@ -442,7 +445,6 @@ public class TjLocale {
         m.put("TjProtectedForwardFailed", "לא ניתן היה להכין %1$d הודעות מוגנות. שאר ההודעות נשלחו.");
         m.put("TjReorderAccount", "גרירה לשינוי סדר החשבון");
         m.put("TjFAQ", "מדריכים ושאלות נפוצות");
-        m.put("TjContact", "יצירת קשר");
         TRANSLATIONS.put("he", m);
 
         m = new HashMap<>();
@@ -602,7 +604,10 @@ public class TjLocale {
         m.put("TjTotalChats", "\u0412\u0441\u0435\u0433\u043e \u0447\u0430\u0442\u043e\u0432");
         m.put("TjUnreadChats", "\u041d\u0435\u043f\u0440\u043e\u0447\u0438\u0442\u0430\u043d\u043d\u044b\u0435 \u0447\u0430\u0442\u044b");
         m.put("TjFAQ", "Руководства и FAQ");
-        m.put("TjContact", "Связаться с нами");
+        m.put("TjMediaVideos", "Видео");
+        m.put("TjMediaListItemCount", "Элементов: %1$d");
+        m.put("TjMediaListEmpty", "Пока нет элементов");
+        m.put("TjMediaListsEmpty", "Организуйте медиа в списки. Нажмите +, чтобы создать первый список.");
         TRANSLATIONS.put("ru", m);
 
         m = new HashMap<>();

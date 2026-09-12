@@ -190,3 +190,23 @@ Official TMDB references: [authentication](https://developer.themoviedb.org/docs
 [SVG](https://www.themoviedb.org/assets/v4/logos/v2/blue_short-8e7b30f73a4020692ccca9c88bafe5dcb6f8a62a4c6bc55cd9ba82bb2cd95f6c.svg)
 from [TMDB logos](https://www.themoviedb.org/about/logos-attribution). Geometry,
 gradient and viewport are preserved. TMDB owns its mark; no endorsement is implied.
+# Library presentation follow-up
+
+The list directory now uses recycled chat-style rows with local item counts and
+a latest-item text preview. A floating plus button creates lists; long press
+retains rename/delete. Counts describe indexed membership, not a remote scan.
+Queries use the existing owner/collection index on the store's worker queue.
+
+Photo and GIF tabs use static thumbnail grids. The mixed library keeps compact
+rows; videos include duration and size. Music/voice and documents use Telegram's
+existing cells, with explicit account constructors and separate recycle pools per
+account. Existing callers retain the selected-account default. The media center
+hosts FragmentContextView for the existing mini-player and full music player.
+Music queues include only the visible same-account, same-dialog tracks and do not
+request an unbounded remote playlist. Voice playback clears an unrelated queue.
+
+`test_library_presentation.py` checks production summary SQL, empty lists, owner
+isolation, index use and source wiring. These are not device playback tests.
+Device QA should cover create/rename/delete, partial account loading failure,
+photo/GIF grids and returning to mixed rows, music/voice pause/resume and full
+player, document download/cancel/open, account logout, large text, RTL and themes.

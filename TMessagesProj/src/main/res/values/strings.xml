@@ -11499,7 +11499,6 @@
     <string name="TjSettingsFooter">TjGram is an unofficial Telegram client. Everything it keeps stays on this device.</string>
     <string name="TjLinks">Links</string>
     <string name="TjFAQ">Guides and FAQ</string>
-    <string name="TjContact">Contact us</string>
     <string name="TjCustomization">Customization</string>
     <string name="TjChannel">Channel</string>
     <string name="TjDiscussions">Discussions</string>
@@ -11518,7 +11517,10 @@
     <string name="TjMediaType">Media type</string>
     <string name="TjMediaAll">All media</string>
     <string name="TjMediaPhotos">Photos</string>
-    <string name="TjMediaVideos">Videos and GIFs</string>
+    <string name="TjMediaVideos">Videos</string>
+    <string name="TjMediaListItemCount">Items: %1$d</string>
+    <string name="TjMediaListEmpty">No items yet</string>
+    <string name="TjMediaListsEmpty">Keep your media organized in lists. Tap + to create your first list.</string>
     <string name="TjMediaFiles">Files</string>
     <string name="TjMediaMusic">Music</string>
     <string name="TjMediaVoice">Voice and video messages</string>

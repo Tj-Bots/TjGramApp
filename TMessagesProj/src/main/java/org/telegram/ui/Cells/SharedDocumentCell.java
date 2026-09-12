@@ -108,7 +108,13 @@ public class SharedDocumentCell extends FrameLayout implements DownloadControlle
     }
 
     public SharedDocumentCell(Context context, int viewType, Theme.ResourcesProvider resourcesProvider) {
+        this(context, viewType, resourcesProvider, UserConfig.selectedAccount);
+    }
+
+    /** Explicit owner for multi-account media results; existing callers keep their default. */
+    public SharedDocumentCell(Context context, int viewType, Theme.ResourcesProvider resourcesProvider, int account) {
         super(context);
+        currentAccount = account;
         this.resourcesProvider = resourcesProvider;
 
         this.viewType = viewType;

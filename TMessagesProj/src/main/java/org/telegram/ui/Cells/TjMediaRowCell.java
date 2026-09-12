@@ -70,7 +70,9 @@ public final class TjMediaRowCell extends LinearLayout {
     public void bind(MessageObject message, String name, String source) {
         title.setText(name);
         String size = message.getDocument() == null ? "" : " · " + AndroidUtilities.formatFileSize(message.getDocument().size);
-        subtitle.setText(source + size);
+        String duration = TjMediaKind.of(message) == TjMediaKind.VIDEO
+                ? " · " + AndroidUtilities.formatDuration((int) message.getDuration(), false) : "";
+        subtitle.setText(source + duration + size);
         int kind = TjMediaKind.of(message);
         int label = kind == TjMediaKind.PHOTO ? R.string.TjMediaPhotos : kind == TjMediaKind.VIDEO ? R.string.TjMediaVideos
                 : kind == TjMediaKind.GIF ? R.string.TjMediaGifs : kind == TjMediaKind.MUSIC ? R.string.TjMediaMusic
@@ -90,6 +92,6 @@ public final class TjMediaRowCell extends LinearLayout {
             }
             if (location != null) image.setImage(location, "90_90", (android.graphics.drawable.Drawable) null, message);
         }
-        setContentDescription(name + ", " + TjLocale.getString(label) + ", " + source + size);
+        setContentDescription(name + ", " + TjLocale.getString(label) + ", " + source + duration + size);
     }
 }

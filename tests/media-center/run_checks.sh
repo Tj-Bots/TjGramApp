@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 cd "$(dirname "$0")/../.."
+python3 tests/media-center/test_library_presentation.py
 test_output=$(mktemp -d /tmp/tj-media-tests.XXXXXX)
 javac -encoding UTF-8 -d "$test_output" \
   TMessagesProj/src/main/java/org/telegram/messenger/tj/TjMediaTitle.java \

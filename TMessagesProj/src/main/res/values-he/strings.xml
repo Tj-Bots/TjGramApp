@@ -268,7 +268,6 @@
     <string name="TjMenuShortcutsLimit">עד %1$d קיצורים</string>
     <string name="TjLinks">קישורים</string>
     <string name="TjFAQ">מדריכים ושאלות נפוצות</string>
-    <string name="TjContact">יצירת קשר</string>
     <string name="TjCustomization">התאמה אישית</string>
     <string name="TjChannel">ערוץ</string>
     <string name="TjDiscussions">דיונים</string>
@@ -294,7 +293,10 @@
     <string name="TjMediaType">סוג מדיה</string>
     <string name="TjMediaAll">כל המדיה</string>
     <string name="TjMediaPhotos">תמונות</string>
-    <string name="TjMediaVideos">סרטונים וקובצי GIF</string>
+    <string name="TjMediaVideos">סרטונים</string>
+    <string name="TjMediaListItemCount">פריטים: %1$d</string>
+    <string name="TjMediaListEmpty">אין פריטים עדיין</string>
+    <string name="TjMediaListsEmpty">כאן אפשר לסדר את המדיה ברשימות. לחצו על + ליצירת הרשימה הראשונה.</string>
     <string name="TjMediaFiles">קבצים</string>
     <string name="TjMediaMusic">מוזיקה</string>
     <string name="TjMediaVoice">הודעות קוליות ווידאו</string>

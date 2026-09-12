@@ -878,6 +878,33 @@ public final class TjMediaStore extends SQLiteOpenHelper implements Notification
         });
     }
 
+    public static final class CollectionSummary {
+        public final String name, preview;
+        public final long count;
+        CollectionSummary(String name, long count, String preview) {
+            this.name = name; this.count = count; this.preview = preview;
+        }
+    }
+
+    /** Index-backed local list summaries; never downloads or deserializes media. */
+    public void collectionSummaries(int account, Callback<ArrayList<CollectionSummary>> callback) {
+        long owner = UserConfig.getInstance(account).getClientUserId();
+        queue.postRunnable(() -> {
+            ArrayList<CollectionSummary> result = new ArrayList<>();
+            boolean success = false;
+            if (ownerActive(account, owner)) try (Cursor cursor = getReadableDatabase().rawQuery(
+                    "SELECT n.name, (SELECT COUNT(*) FROM media m WHERE m.owner=? AND m.collection=n.name AND m.collection<>''), "
+                    + "(SELECT substr(COALESCE(NULLIF(m.filename,''),m.caption),1,120) FROM media m WHERE m.owner=? AND m.collection=n.name AND m.collection<>'' ORDER BY m.date DESC,m.dialog,m.mid LIMIT 1) "
+                    + "FROM (SELECT name FROM media_collections WHERE owner=? UNION SELECT collection AS name FROM media WHERE owner=? AND collection<>'') n ORDER BY n.name COLLATE NOCASE",
+                    new String[]{Long.toString(owner), Long.toString(owner), Long.toString(owner), Long.toString(owner)})) {
+                while (cursor.moveToNext()) result.add(new CollectionSummary(cursor.getString(0), cursor.getLong(1), cursor.getString(2)));
+                success = true;
+            } catch (Exception e) { FileLog.e("Tj collection summaries failed", e); }
+            boolean loaded = success;
+            AndroidUtilities.runOnUIThread(() -> callback.run(loaded && ownerActive(account, owner) ? result : null));
+        });
+    }
+
     public void collections(int account, Callback<ArrayList<String>> callback) {
         long owner = UserConfig.getInstance(account).getClientUserId();
         queue.postRunnable(() -> {
