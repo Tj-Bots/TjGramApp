@@ -31,6 +31,7 @@ public class TjLocale {
 
         m = new HashMap<>();
         m.put("TjLoginStart", "נא להזין את מספר הטלפון שלך\nאו **להתחבר באמצעות מפתח גישה**");
+        m.put("TjEstimatedLastSeen", "הצג זמן משוער של הפעילות האחרונה");
         m.put("TjLoginOptions", "דרכים נוספות להתחבר");
         m.put("TjLoginQr", "התחברות באמצעות QR");
         m.put("TjLoginBot", "התחברות לחשבון בוט");

@@ -30,8 +30,8 @@ public final class TjLocalFolders {
     public static boolean isLocal(int id) { return id >= FIRST_ID && id <= MANAGING; }
 
     public static String title(int id) {
-        int[] resources = {R.string.TjLocalPrivate, R.string.FilterGroups, R.string.FilterChannels,
-                R.string.FilterBots, R.string.TjLocalUnread, R.string.TjLocalUnmuted,
+        int[] resources = {R.string.TjLocalPrivate, R.string.TjGroups, R.string.TjChannels,
+                R.string.TjBots, R.string.TjLocalUnread, R.string.TjLocalUnmuted,
                 R.string.TjLocalFavorites, R.string.TjFolderManaging};
         return TjLocale.getString(resources[id - FIRST_ID]);
     }
@@ -53,7 +53,8 @@ public final class TjLocalFolders {
 
     public static boolean enabled(int account, int id) {
         SharedPreferences prefs = TjConfig.localFolders(account);
-        return prefs != null && prefs.getBoolean("enabled_" + id, false);
+        // Missing preferences use the defaults; explicit user opt-outs remain untouched.
+        return isLocal(id) && prefs != null && prefs.getBoolean("enabled_" + id, true);
     }
 
     public static void setEnabled(int account, int id, boolean enabled) {
