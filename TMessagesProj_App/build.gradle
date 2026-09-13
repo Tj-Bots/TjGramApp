@@ -16,6 +16,7 @@ configurations.all {
 
 dependencies {
     implementation project(':TMessagesProj')
+    androidTestImplementation 'androidx.core:core:1.16.0'
     coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.5'
     implementation files('../TMessagesProj/libs/libgsaverification-client.aar')
 }
@@ -25,6 +26,7 @@ android {
     buildToolsVersion '36.0.0'
 
     defaultConfig.applicationId = APP_PACKAGE
+    defaultConfig.testInstrumentationRunner = project.findProperty('tjSmokeRunner') ?: 'org.telegram.ui.TjMediaUiSmoke'
 
     sourceSets.main.jniLibs.srcDirs = ['../TMessagesProj/jni/']
 

@@ -128,6 +128,12 @@ public class DrawerAccountsCell extends LinearLayout {
 
     public void setAccounts(ArrayList<Integer> value, Listener listener) {
         this.listener = listener;
+        if (dragging && accounts.size() == value.size() && accounts.containsAll(value)) {
+            // The outer drawer can rebind with the last saved order while ItemTouchHelper is
+            // still moving a row. Keep the gesture's working order until clearView commits it.
+            // Membership changes (login/logout) must still be applied normally.
+            return;
+        }
         if (accounts.equals(value)) {
             // Rebinding the drawer must not restart an in-flight drag or reset the scroll position.
             return;
