@@ -192,17 +192,21 @@ public final class TjMediaDetailsActivity extends BaseFragment implements Notifi
         name.setSingleLine(true); name.setText(record.title());
         name.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText));
         name.setHint(text(R.string.TjMediaLocalTitle));
+        org.telegram.ui.Components.TjMediaInputStyle.apply(name, text(R.string.TjMediaLocalTitle));
         name.setPadding(dp(20), dp(12), dp(20), dp(12));
+        org.telegram.ui.Components.TjMediaInputStyle.addLabel(body, name);
         body.addView(name, LayoutHelper.createLinear(-1, 56));
         EditTextBoldCursor year = new EditTextBoldCursor(context);
         year.setSingleLine(true); year.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
         year.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText));
         year.setHintTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText));
         year.setHint(text(R.string.TjMediaYearHint));
+        org.telegram.ui.Components.TjMediaInputStyle.apply(year, text(R.string.TjMediaYearHint));
         year.setPadding(dp(20), dp(12), dp(20), dp(12));
         int parsedYear = record.localManual || !record.localKey.isEmpty() ? record.localYear
                 : TjMediaTitle.parse(entry.message.getDocumentName(), entry.message.messageOwner.message).year;
         year.setText(parsedYear > 0 ? Integer.toString(parsedYear) : "");
+        org.telegram.ui.Components.TjMediaInputStyle.addLabel(body, year);
         body.addView(year, LayoutHelper.createLinear(-1, 56));
         TextCheckCell series = new TextCheckCell(context);
         boolean[] isSeries = {record.isSeries()};
@@ -240,9 +244,11 @@ public final class TjMediaDetailsActivity extends BaseFragment implements Notifi
             fields[i].setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText));
             fields[i].setHintTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText));
             fields[i].setHint(text(i == 0 ? R.string.TjMediaSeason : R.string.TjMediaEpisode));
+            org.telegram.ui.Components.TjMediaInputStyle.apply(fields[i], text(i == 0 ? R.string.TjMediaSeason : R.string.TjMediaEpisode));
             fields[i].setPadding(dp(20), dp(12), dp(20), dp(12));
             int value = i == 0 ? record.season() : record.episode();
             fields[i].setText(value >= 0 ? Integer.toString(value) : "");
+            org.telegram.ui.Components.TjMediaInputStyle.addLabel(body, fields[i]);
             body.addView(fields[i], LayoutHelper.createLinear(-1, 56));
         }
         showDialog(new AlertDialog.Builder(context).setTitle(text(R.string.TjMediaEditEpisode)).setView(body)
@@ -298,14 +304,8 @@ public final class TjMediaDetailsActivity extends BaseFragment implements Notifi
                         if (index < choices.size()) saveFlags(record.favorite, record.watched, choices.get(index));
                         else if (index > choices.size()) saveFlags(record.favorite, record.watched, "");
                         else {
-                            EditTextBoldCursor input = new EditTextBoldCursor(getParentActivity());
-                            input.setSingleLine(true); input.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText));
-                            input.setPadding(dp(20), dp(12), dp(20), dp(12));
-                            showDialog(new AlertDialog.Builder(getParentActivity()).setTitle(text(R.string.TjMediaNewCollection))
-                                    .setView(input).setPositiveButton(LocaleController.getString(R.string.Save), (a, w) -> {
-                                        String name = input.getText().toString().trim();
-                                        if (name.isEmpty()) invalidEdit(); else saveFlags(record.favorite, record.watched, name);
-                                    }).setNegativeButton(LocaleController.getString(R.string.Cancel), null).create());
+                            presentFragment(new TjMediaCollectionEditActivity(entry.account, null, "",
+                                    name -> { if (entry.isAccountAvailable()) saveFlags(record.favorite, record.watched, name); }));
                         }
                     }).create());
         });

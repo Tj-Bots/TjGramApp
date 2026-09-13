@@ -38,6 +38,7 @@ public final class TjMediaStore extends SQLiteOpenHelper implements Notification
     @Override public void onOpen(SQLiteDatabase db) {
         super.onOpen(db);
         db.execSQL("CREATE TABLE IF NOT EXISTS media_collections (owner INTEGER NOT NULL, name TEXT NOT NULL, PRIMARY KEY(owner,name))");
+        db.execSQL("CREATE TABLE IF NOT EXISTS media_collection_icons (owner INTEGER NOT NULL, name TEXT NOT NULL, icon TEXT NOT NULL, PRIMARY KEY(owner,name))");
         db.execSQL("CREATE INDEX IF NOT EXISTS media_collection_page ON media(owner,collection,date DESC,dialog,mid) WHERE collection<>''");
         try {
             TjMediaLocalIndex.ensure(db);
@@ -232,6 +233,7 @@ public final class TjMediaStore extends SQLiteOpenHelper implements Notification
             db.delete("media", "owner=?", args);
             db.delete("media_scan_progress", "owner=?", args);
             db.delete("media_collections", "owner=?", args);
+            db.delete("media_collection_icons", "owner=?", args);
             db.setTransactionSuccessful();
         } finally { db.endTransaction(); }
     }
@@ -879,10 +881,10 @@ public final class TjMediaStore extends SQLiteOpenHelper implements Notification
     }
 
     public static final class CollectionSummary {
-        public final String name, preview;
+        public final String name, preview, icon;
         public final long count;
-        CollectionSummary(String name, long count, String preview) {
-            this.name = name; this.count = count; this.preview = preview;
+        CollectionSummary(String name, long count, String preview, String icon) {
+            this.name = name; this.count = count; this.preview = preview; this.icon = icon;
         }
     }
 
@@ -894,10 +896,11 @@ public final class TjMediaStore extends SQLiteOpenHelper implements Notification
             boolean success = false;
             if (ownerActive(account, owner)) try (Cursor cursor = getReadableDatabase().rawQuery(
                     "SELECT n.name, (SELECT COUNT(*) FROM media m WHERE m.owner=? AND m.collection=n.name AND m.collection<>''), "
-                    + "(SELECT substr(COALESCE(NULLIF(m.filename,''),m.caption),1,120) FROM media m WHERE m.owner=? AND m.collection=n.name AND m.collection<>'' ORDER BY m.date DESC,m.dialog,m.mid LIMIT 1) "
+                    + "(SELECT substr(COALESCE(NULLIF(m.filename,''),m.caption),1,120) FROM media m WHERE m.owner=? AND m.collection=n.name AND m.collection<>'' ORDER BY m.date DESC,m.dialog,m.mid LIMIT 1), "
+                    + "(SELECT icon FROM media_collection_icons i WHERE i.owner=? AND i.name=n.name) "
                     + "FROM (SELECT name FROM media_collections WHERE owner=? UNION SELECT collection AS name FROM media WHERE owner=? AND collection<>'') n ORDER BY n.name COLLATE NOCASE",
-                    new String[]{Long.toString(owner), Long.toString(owner), Long.toString(owner), Long.toString(owner)})) {
-                while (cursor.moveToNext()) result.add(new CollectionSummary(cursor.getString(0), cursor.getLong(1), cursor.getString(2)));
+                    new String[]{Long.toString(owner), Long.toString(owner), Long.toString(owner), Long.toString(owner), Long.toString(owner)})) {
+                while (cursor.moveToNext()) result.add(new CollectionSummary(cursor.getString(0), cursor.getLong(1), cursor.getString(2), cursor.getString(3)));
                 success = true;
             } catch (Exception e) { FileLog.e("Tj collection summaries failed", e); }
             boolean loaded = success;
@@ -923,6 +926,10 @@ public final class TjMediaStore extends SQLiteOpenHelper implements Notification
 
     /** null replacement deletes only the list and its memberships, never the files. */
     public void editCollection(int account, String oldName, String replacement, Callback<Boolean> callback) {
+        editCollection(account, oldName, replacement, null, callback);
+    }
+
+    public void editCollection(int account, String oldName, String replacement, String icon, Callback<Boolean> callback) {
         long owner = UserConfig.getInstance(account).getClientUserId();
         String name = replacement == null ? null : replacement.trim();
         if (name != null && (name.isEmpty() || name.length() > 128)) { callback.run(false); return; }
@@ -943,9 +950,18 @@ public final class TjMediaStore extends SQLiteOpenHelper implements Notification
                         db.insertWithOnConflict("media_collections", null, row, SQLiteDatabase.CONFLICT_IGNORE);
                     }
                     if (oldName != null && !oldName.equals(name)) {
+                        if (name != null) {
+                            ContentValues renamed = new ContentValues(); renamed.put("name", name);
+                            db.update("media_collection_icons", renamed, "owner=? AND name=?", new String[]{Long.toString(owner), oldName});
+                        } else db.delete("media_collection_icons", "owner=? AND name=?", new String[]{Long.toString(owner), oldName});
                         ContentValues membership = new ContentValues(); membership.put("collection", name == null ? "" : name);
                         db.update("media", membership, "owner=? AND collection=?", new String[]{Long.toString(owner), oldName});
                         db.delete("media_collections", "owner=? AND name=?", new String[]{Long.toString(owner), oldName});
+                    }
+                    if (name != null && icon != null) {
+                        ContentValues symbol = new ContentValues(); symbol.put("owner", owner); symbol.put("name", name); symbol.put("icon", icon);
+                        if (db.insertWithOnConflict("media_collection_icons", null, symbol, SQLiteDatabase.CONFLICT_REPLACE) < 0)
+                            throw new IllegalStateException("Collection icon write failed");
                     }
                     db.setTransactionSuccessful(); success = true;
                 } finally { db.endTransaction(); }

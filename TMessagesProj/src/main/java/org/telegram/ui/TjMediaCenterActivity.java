@@ -90,8 +90,13 @@ public class TjMediaCenterActivity extends BaseFragment implements MainTabsActiv
     private int libraryView = 0;
     private int enabledTypes = org.telegram.messenger.tj.TjMediaKind.ALL_MASK;
     private MainTabsLayout mainTabs;
-    private LinearLayout typeTabs;
-    private android.widget.HorizontalScrollView typeStrip;
+    private org.telegram.ui.Components.FilterTabsView typeTabs;
+    private int boundTypeMask = -1;
+    private boolean boundTypesRtl;
+    private View typeStrip;
+    private boolean subpage;
+    private long collectionOwner;
+    private final HashMap<Integer, Long> subpageOwners = new HashMap<>();
     private TjMediaHomeView home;
     private RecyclerListView grid;
     private final Runnable homeRefresh = this::refreshHome;
@@ -131,6 +136,13 @@ public class TjMediaCenterActivity extends BaseFragment implements MainTabsActiv
     public TjMediaCenterActivity(Bundle args) {
         super(args);
         pendingSettingsLink = args == null ? null : args.getString("tj_settings_link");
+        if (args != null) {
+            subpage = args.getBoolean("media_subpage");
+            libraryView = args.getInt("media_view", 0);
+            collection = args.getString("media_collection", "");
+            collectionAccount = args.getInt("media_collection_account", -1);
+            collectionOwner = args.getLong("media_collection_owner");
+        }
     }
 
     public static TjMediaCenterActivity forSettingsLink(boolean lists) {
@@ -156,12 +168,13 @@ public class TjMediaCenterActivity extends BaseFragment implements MainTabsActiv
         if (screenOwner == 0) screenOwner = UserConfig.getInstance(currentAccount).getClientUserId();
         AndroidUtilities.cancelRunOnUIThread(searchAction);
         if (library != null) library.close();
-        actionBar.setTitle(text(R.string.TjMediaCenter));
+        actionBar.setTitle(subpage ? libraryView == 5 ? collection : viewNames()[libraryView] : text(R.string.TjMediaCenter));
         actionBar.setBackButtonImage(R.drawable.ic_ab_back);
         actionBar.createMenu().addItem(1, R.drawable.msg_settings).setContentDescription(LocaleController.getString(R.string.Settings));
         actionBar.setActionBarMenuOnItemClick(new ActionBar.ActionBarMenuOnItemClick() {
             @Override public void onItemClick(int id) {
                 if (id == -1) {
+                    if (!onBackPressed(true)) return;
                     if (mainTabBackAction != null) mainTabBackAction.run();
                     else finishFragment();
                 }
@@ -171,6 +184,8 @@ public class TjMediaCenterActivity extends BaseFragment implements MainTabsActiv
         });
         LinearLayout root = new LinearLayout(context);
         root.setOrientation(LinearLayout.VERTICAL);
+        root.setFocusableInTouchMode(true);
+        root.requestFocus();
         root.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
         fragmentView = root;
         android.widget.FrameLayout playerHost = new android.widget.FrameLayout(context);
@@ -195,15 +210,19 @@ public class TjMediaCenterActivity extends BaseFragment implements MainTabsActiv
                 return insets;
             });
         }
-        org.telegram.ui.ActionBar.ActionBarMenuItem searchItem = actionBar.createMenu().addItem(2, R.drawable.msg_search)
-                .setIsSearchField(true);
-        searchItem.setSearchFieldHint(text(R.string.TjMediaSearch));
-        search = searchItem.getSearchField();
+        org.telegram.ui.Components.FragmentSearchField searchField = new org.telegram.ui.Components.FragmentSearchField(context, getResourceProvider());
+        search = searchField.editText;
+        search.setHint(text(R.string.TjMediaSearch));
         search.setText(searchQuery);
+        root.addView(searchField, LayoutHelper.createLinear(-1, 48, 12, 8, 12, 6));
         actionBar.createMenu().addItem(3, R.drawable.menu_tag_filter).setContentDescription(text(R.string.TjMediaFilters));
         accountButton = label(context);
+        accountButton.setMinHeight(AndroidUtilities.dp(28));
+        accountButton.setTextSize(13);
+        accountButton.setPadding(AndroidUtilities.dp(16), 0, AndroidUtilities.dp(16), 0);
         accountButton.setGravity(LocaleController.isRTL ? Gravity.RIGHT : Gravity.LEFT);
         accountButton.setOnClickListener(v -> chooseAccounts());
+        accountButton.setEnabled(!(subpage && collectionAccount >= 0));
         LinearLayout scopeRow = new LinearLayout(context);
         scopeRow.setLayoutDirection(LocaleController.isRTL ? View.LAYOUT_DIRECTION_RTL : View.LAYOUT_DIRECTION_LTR);
         scopeRow.addView(accountButton, new LinearLayout.LayoutParams(0, -2, 1));
@@ -248,12 +267,29 @@ public class TjMediaCenterActivity extends BaseFragment implements MainTabsActiv
         tabsBackground.setRadius(AndroidUtilities.dp(DialogsActivity.MAIN_TABS_HEIGHT / 2f));
         tabsBackground.setPadding(AndroidUtilities.dp(DialogsActivity.MAIN_TABS_MARGIN - 0.334f));
         mainTabs.setBackground(tabsBackground);
-        typeTabs = new LinearLayout(context);
-        typeTabs.setLayoutDirection(LocaleController.isRTL ? View.LAYOUT_DIRECTION_RTL : View.LAYOUT_DIRECTION_LTR);
-        typeStrip = new android.widget.HorizontalScrollView(context);
-        typeStrip.setHorizontalScrollBarEnabled(false);
-        typeStrip.addView(typeTabs);
-        root.addView(typeStrip, LayoutHelper.createLinear(-1, -2));
+        typeTabs = new org.telegram.ui.Components.FilterTabsView(context, getResourceProvider());
+        boundTypeMask = -1;
+        typeStrip = typeTabs;
+        typeTabs.setDelegate(new org.telegram.ui.Components.FilterTabsView.FilterTabsViewDelegate() {
+            @Override public void onPageSelected(org.telegram.ui.Components.FilterTabsView.Tab tab, boolean forward) {
+                if (mediaType != tab.id) { mediaType = tab.id; reload(); }
+            }
+            @Override public void onPageScrolled(float progress) { }
+            @Override public void onSamePageSelected() { }
+            @Override public int getTabCounter(int id) { return 0; }
+            @Override public boolean didSelectTab(org.telegram.ui.Components.FilterTabsView.TabView view, boolean selected) { return false; }
+            @Override public boolean isTabMenuVisible() { return false; }
+            @Override public void onDeletePressed(int id) { }
+            @Override public void onPageReorder(int from, int to) { }
+            @Override public boolean canPerformActions() { return true; }
+        });
+        BlurredBackgroundSourceColor filterSource = new BlurredBackgroundSourceColor();
+        filterSource.setColor(getThemedColor(Theme.key_windowBackgroundWhite));
+        BlurredBackgroundDrawable filterBackground = new BlurredBackgroundDrawableViewFactory(filterSource)
+                .create(typeTabs, BlurredBackgroundProviderImpl.mainTabs(getResourceProvider()));
+        filterBackground.setRadius(AndroidUtilities.dp(24));
+        typeTabs.setBlurredBackground(filterBackground);
+        root.addView(typeStrip, LayoutHelper.createLinear(-1, 48, 12, 0, 12, 8));
         // These labels are also used in the filter sheet, not permanent toolbar rows.
         typeButton = label(context);
         sourceButton = label(context);
@@ -307,7 +343,7 @@ public class TjMediaCenterActivity extends BaseFragment implements MainTabsActiv
         root.addView(list, new LinearLayout.LayoutParams(-1, 0, 1));
         home = new TjMediaHomeView(context, new TjMediaHomeView.Delegate() {
             @Override public void open(TjMediaLibrary.Entry entry) { showDetails(entry); }
-            @Override public void view(int view) { libraryView = view; reload(); }
+            @Override public void view(int view) { openMediaPage(view, -1, ""); }
         });
         root.addView(home, new LinearLayout.LayoutParams(-1, 0, 1));
         status = label(context);
@@ -341,6 +377,7 @@ public class TjMediaCenterActivity extends BaseFragment implements MainTabsActiv
         LinearLayout.LayoutParams bottomParams = new LinearLayout.LayoutParams(-1, AndroidUtilities.dp(DialogsActivity.MAIN_TABS_HEIGHT_WITH_MARGINS));
         bottomParams.gravity = Gravity.CENTER_HORIZONTAL;
         root.addView(mainTabs, bottomParams);
+        mainTabs.setVisibility(subpage ? View.GONE : View.VISIBLE);
         loadPreferences();
         TjMediaStore.getInstance().addListener(storeChanged);
         org.telegram.messenger.tj.TjMediaScanCoordinator.getInstance().addListener(scanChanged);
@@ -442,18 +479,21 @@ public class TjMediaCenterActivity extends BaseFragment implements MainTabsActiv
     }
 
     private void chooseFilters() {
+        boolean fixedAccount = subpage && collectionAccount >= 0;
+        CharSequence[] filters = fixedAccount
+                ? new CharSequence[]{text(R.string.TjMediaSources), text(R.string.TjMediaType), text(R.string.TjMediaView)}
+                : new CharSequence[]{text(R.string.TjMediaAccounts), text(R.string.TjMediaSources), text(R.string.TjMediaType), text(R.string.TjMediaView)};
         showDialog(new org.telegram.ui.ActionBar.BottomSheet.Builder(getParentActivity())
                 .setTitle(text(R.string.TjMediaFilters))
-                .setItems(new CharSequence[]{text(R.string.TjMediaAccounts), text(R.string.TjMediaSources),
-                        text(R.string.TjMediaType), text(R.string.TjMediaView)}, (dialog, which) -> {
+                .setItems(filters, (dialog, selection) -> {
+                    int which = selection + (fixedAccount ? 1 : 0);
                     if (which == 0) chooseAccounts();
                     else if (which == 1) chooseSources();
                     else if (which == 2) chooseMediaTypes();
                     else showDialog(new AlertDialog.Builder(getParentActivity()).setTitle(text(R.string.TjMediaView))
                             .setItems(viewNames(), (d, view) -> {
-                                if (view == 5) chooseCollection(new ArrayList<>(accounts), null,
-                                        value -> { collection = value; collectionAccount = -1; libraryView = 5; reload(); });
-                                else { libraryView = view; reload(); }
+                                if (view == 5) openCollections();
+                                else openMediaPage(view, -1, "");
                             }).create());
                 }).create());
     }
@@ -488,38 +528,67 @@ public class TjMediaCenterActivity extends BaseFragment implements MainTabsActiv
             boolean selected = ((Integer) tab.getTag()) == page;
             tab.setSelected(selected, true);
         }
-        typeStrip.setVisibility(page == 0 ? View.VISIBLE : View.GONE);
-        typeTabs.removeAllViews();
+        typeStrip.setVisibility(page == 0 || libraryView == 5 ? View.VISIBLE : View.GONE);
+        if (boundTypeMask == enabledTypes && boundTypesRtl == LocaleController.isRTL) {
+            if (typeTabs.getCurrentTabStableId() != mediaType) {
+                typeTabs.selectTabWithStableId(mediaType);
+                typeTabs.finishAddingTabs(false);
+                revealMediaType();
+            }
+            return;
+        }
+        boundTypeMask = enabledTypes;
+        boundTypesRtl = LocaleController.isRTL;
+        typeTabs.removeTabs();
         CharSequence[] names = typeNames();
-        for (int type : new int[]{0, 2, 1, 3, 4, 5, 6}) {
+        int[] order = LocaleController.isRTL ? new int[]{6, 5, 4, 3, 1, 2, 0} : new int[]{0, 2, 1, 3, 4, 5, 6};
+        for (int type : order) {
             if (type != 0 && (enabledTypes & (1 << type)) == 0) continue;
-            TextView tab = label(getContext()); tab.setText(names[type]); tab.setSelected(mediaType == type);
-            tab.setTextSize(14);
-            tab.setPadding(AndroidUtilities.dp(14), AndroidUtilities.dp(8), AndroidUtilities.dp(14), AndroidUtilities.dp(8));
-            tab.setMinHeight(AndroidUtilities.dp(44));
-            tab.setBackground(Theme.createSimpleSelectorRoundRectDrawable(AndroidUtilities.dp(18),
-                    Theme.getColor(mediaType == type ? Theme.key_windowBackgroundGray : Theme.key_windowBackgroundWhite), Theme.getColor(Theme.key_listSelector)));
-            tab.setTextColor(Theme.getColor(mediaType == type ? Theme.key_windowBackgroundWhiteBlueText : Theme.key_windowBackgroundWhiteGrayText));
-            tab.setOnClickListener(v -> { mediaType = type; reload(); });
-            typeTabs.addView(tab, LayoutHelper.createLinear(-2, -2));
+            typeTabs.addTab(type, type, names[type], true, false, false);
+        }
+        typeTabs.selectTabWithStableId(mediaType);
+        typeTabs.finishAddingTabs(false);
+        revealMediaType();
+    }
+
+    private void revealMediaType() {
+        for (int i = 0; i < typeTabs.getTabsCount(); i++) {
+            if (typeTabs.getTab(i).id == mediaType) {
+                typeTabs.getTabsContainer().scrollToPosition(i);
+                break;
+            }
         }
     }
 
     private void reload() {
         metadataClient.cancel();
         stopMatching();
-        if (screenOwner != UserConfig.getInstance(currentAccount).getClientUserId()) {
+        if (screenOwner != UserConfig.getInstance(currentAccount).getClientUserId()
+                || subpage && collectionAccount >= 0 && (!UserConfig.getInstance(collectionAccount).isClientActivated()
+                || UserConfig.getInstance(collectionAccount).getClientUserId() != collectionOwner)) {
             if (library != null) library.close();
             finishFragment();
             return;
         }
-        preferencesLoaded = false;
-        accounts.clear();
-        sources.clear();
-        explicitSources.clear();
-        sourceFolders.clear();
+        if (!subpage) {
+            preferencesLoaded = false;
+            accounts.clear();
+            sources.clear();
+            explicitSources.clear();
+            sourceFolders.clear();
+        }
         loadPreferences();
         bindTabs();
+        if (subpage) {
+            java.util.Iterator<Integer> iterator = accounts.iterator();
+            while (iterator.hasNext()) {
+                int account = iterator.next();
+                long owner = UserConfig.getInstance(account).getClientUserId();
+                Long original = subpageOwners.get(account);
+                if (!UserConfig.getInstance(account).isClientActivated() || original != null && original != owner) iterator.remove();
+                else subpageOwners.put(account, owner);
+            }
+        }
         AndroidUtilities.cancelRunOnUIThread(homeRefresh);
         AndroidUtilities.cancelRunOnUIThread(automaticRefresh);
         refreshScheduled = false; pendingStoreUpdate = false; pendingVisualRefresh = false;
@@ -986,6 +1055,7 @@ public class TjMediaCenterActivity extends BaseFragment implements MainTabsActiv
         filter.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText));
         filter.setHintTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText));
         filter.setHint(LocaleController.getString(R.string.Search));
+        org.telegram.ui.Components.TjMediaInputStyle.apply(filter, LocaleController.getString(R.string.Search));
         filter.setPadding(AndroidUtilities.dp(20), 0, AndroidUtilities.dp(20), 0);
         body.addView(filter, LayoutHelper.createLinear(-1, 48));
         ArrayList<Integer> positions = new ArrayList<>();
@@ -1064,9 +1134,16 @@ public class TjMediaCenterActivity extends BaseFragment implements MainTabsActiv
         if (accounts.isEmpty() && UserConfig.getInstance(currentAccount).isClientActivated()) accounts.add(currentAccount);
         sources.putAll(org.telegram.messenger.tj.TjMediaSources.resolve(accounts, explicitSources, sourceFolders));
         sourceType = preferences == null ? 0 : Math.max(0, Math.min(3, preferences.getInt("source_type", 0)));
+        if (subpage && collectionAccount >= 0) {
+            accounts.clear(); sources.clear(); explicitSources.clear(); sourceFolders.clear(); sourceType = 0;
+            if (UserConfig.getInstance(collectionAccount).isClientActivated()
+                    && UserConfig.getInstance(collectionAccount).getClientUserId() == collectionOwner) accounts.add(collectionAccount);
+            enabledTypes = org.telegram.messenger.tj.TjMediaKind.ALL_MASK;
+        }
     }
 
     private void savePreferences() {
+        if (subpage) return; // Child filters must not overwrite the parent library's scope.
         SharedPreferences preferences = TjConfig.mediaLibrary(currentAccount);
         if (preferences == null) return;
         HashSet<String> owners = new HashSet<>();
@@ -1158,22 +1235,11 @@ public class TjMediaCenterActivity extends BaseFragment implements MainTabsActiv
             showDialog(new AlertDialog.Builder(getParentActivity()).setTitle(text(R.string.TjMediaCollection))
                     .setItems(labels.toArray(new CharSequence[0]), (dialog, which) -> {
                         if (which < values.size()) callback.run(values.get(which));
-                        else if (which == values.size()) editCollection("", callback);
+                        else if (which == values.size()) presentFragment(new TjMediaCollectionEditActivity(
+                                selectedAccounts.get(0), null, "", value -> callback.run(value)));
                         else callback.run("");
                     }).create());
         });
-    }
-
-    private void editCollection(String initial, TjMediaStore.Callback<String> callback) {
-        EditTextBoldCursor input = new EditTextBoldCursor(getParentActivity());
-        input.setSingleLine(true);
-        input.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText));
-        input.setText(initial);
-        input.setPadding(AndroidUtilities.dp(20), AndroidUtilities.dp(12), AndroidUtilities.dp(20), AndroidUtilities.dp(12));
-        showDialog(new AlertDialog.Builder(getParentActivity()).setTitle(text(R.string.TjMediaCollection))
-                .setMessage(text(R.string.TjMediaCollectionHint)).setView(input)
-                .setPositiveButton(LocaleController.getString(R.string.Save), (dialog, which) -> callback.run(input.getText().toString().trim()))
-                .setNegativeButton(LocaleController.getString(R.string.Cancel), null).create());
     }
 
     private void saveRecord(TjMediaStore.Record record) {
@@ -1222,8 +1288,28 @@ public class TjMediaCenterActivity extends BaseFragment implements MainTabsActiv
     private void openCollections() {
         presentFragment(new TjMediaCollectionsActivity(currentAccount, accounts, (account, name) -> {
             if (!accounts.contains(account)) return;
-            collection = name; collectionAccount = account; libraryView = 5; mediaType = 0; reload();
+            openMediaPage(5, account, name);
         }));
+    }
+
+    private void openMediaPage(int view, int account, String name) {
+        Bundle args = new Bundle(); args.putBoolean("media_subpage", true); args.putInt("media_view", view);
+        args.putString("media_collection", name); args.putInt("media_collection_account", account);
+        if (account >= 0) args.putLong("media_collection_owner", UserConfig.getInstance(account).getClientUserId());
+        TjMediaCenterActivity child = new TjMediaCenterActivity(args); child.setCurrentAccount(currentAccount);
+        presentFragment(child);
+    }
+
+    @Override public boolean onBackPressed(boolean invoked) {
+        if (search != null && (search.length() > 0 || search.hasFocus())) {
+            if (invoked) { search.setText(""); search.clearFocus(); AndroidUtilities.hideKeyboard(search); }
+            return false;
+        }
+        return super.onBackPressed(invoked);
+    }
+
+    @Override public boolean isSwipeBackEnabled(android.view.MotionEvent event) {
+        return (search == null || search.length() == 0 && !search.hasFocus()) && super.isSwipeBackEnabled(event);
     }
 
     private void openOrdinaryMedia(TjMediaLibrary.Entry entry) {
@@ -1259,6 +1345,8 @@ public class TjMediaCenterActivity extends BaseFragment implements MainTabsActiv
         input.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(4096)});
         input.setInputType(android.text.InputType.TYPE_CLASS_TEXT | android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD);
         input.setTextDirection(View.TEXT_DIRECTION_LTR);
+        org.telegram.ui.Components.TjMediaInputStyle.apply(input, text(R.string.TjMediaKeyHint));
+        input.setGravity(Gravity.LEFT | Gravity.CENTER_VERTICAL);
         input.setPadding(AndroidUtilities.dp(20), AndroidUtilities.dp(12), AndroidUtilities.dp(20), AndroidUtilities.dp(12));
         if (android.os.Build.VERSION.SDK_INT >= 26) input.setImportantForAutofill(View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS);
         showDialog(new AlertDialog.Builder(context).setTitle(text(R.string.TjMediaMetadata))
@@ -1508,9 +1596,11 @@ public class TjMediaCenterActivity extends BaseFragment implements MainTabsActiv
             field.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText));
             field.setHintTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText));
             field.setHint(text(i == 0 ? R.string.TjMediaSeason : R.string.TjMediaEpisode));
+            org.telegram.ui.Components.TjMediaInputStyle.apply(field, text(i == 0 ? R.string.TjMediaSeason : R.string.TjMediaEpisode));
             int value = i == 0 ? record.season() : record.episode();
             if (value >= 0) field.setText(Integer.toString(value));
             field.setPadding(AndroidUtilities.dp(20), 0, AndroidUtilities.dp(20), 0);
+            org.telegram.ui.Components.TjMediaInputStyle.addLabel(body, field);
             body.addView(field, LayoutHelper.createLinear(-1, 56));
         }
         showDialog(new AlertDialog.Builder(getParentActivity()).setTitle(text(R.string.TjMediaEditEpisode))
@@ -1565,7 +1655,9 @@ public class TjMediaCenterActivity extends BaseFragment implements MainTabsActiv
         input.setSingleLine(true);
         input.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText));
         input.setText(hint.title);
+        org.telegram.ui.Components.TjMediaInputStyle.apply(input, text(R.string.TjMediaLocalTitle));
         input.setPadding(AndroidUtilities.dp(20), 0, AndroidUtilities.dp(20), 0);
+        org.telegram.ui.Components.TjMediaInputStyle.addLabel(body, input);
         body.addView(input, LayoutHelper.createLinear(-1, 56));
         TextCheckCell series = new TextCheckCell(getParentActivity());
         boolean[] isSeries = {hint.season >= 0};

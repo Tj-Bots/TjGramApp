@@ -4,7 +4,8 @@
 
 Native Android implementation, with local logic/SQL checks and Java compilation.
 This is not a claim of device UI, playback or live-account certification. The
-checks do not replace visual and live-account testing. APK packaging is handled by CI.
+checks do not replace visual and live-account testing. An x86_64 test-only APK was
+also packaged and installed locally; universal release packaging remains a CI check.
 
 ### Navigation and use
 
@@ -13,7 +14,9 @@ checks do not replace visual and live-account testing. APK packaging is handled 
 - Inside the center there is one bottom navigation row: Library, Watch, Lists.
   The host Telegram navigation and its fade overlay are hidden here.
   It uses MainTabsLayout/GlassTabView and the host bar's 56dp height, 8dp margins
-  and themed non-blurred background. Search lives in the native action bar.
+  and themed non-blurred background. A permanent FragmentSearchField sits above
+  native FilterTabsView media tabs. Refreshes retain the existing tab strip; a
+  changed selection is brought into view in both reading directions.
 - Library exposes enabled media types: video, photos, music, voice/round video,
   files and GIFs. The visibility selection is saved per account owner. Video
   container files sent as documents use the same recognition as the player.
@@ -24,7 +27,14 @@ checks do not replace visual and live-account testing. APK packaging is handled 
 - Watch has bounded featured/recent/continue/favorite/movie/series shelves.
   Lists, favorites and playback state currently belong to individual source files.
   Lists have an owner-scoped directory and can exist empty. Create from Lists;
-  long-press a name to rename/delete the list without deleting media. A file still
+  use the visible options menu (or long press) to edit/delete without deleting media.
+  The separate list editor has a labeled name field, the existing folder-icon
+  palette and inline validation. Name, icon and renamed memberships commit in one
+  owner-scoped transaction. Icons survive media-index clearing and are removed on logout.
+  List contents and shelf destinations open as child fragments: Back returns to
+  the preceding media screen, not directly to chats. Search consumes Back first
+  while its query/focus is active. Child collection scope cannot switch owners or
+  overwrite the parent screen's saved filters. A file still
   belongs to one named list. Existing file-based names remain discoverable.
   Ordinary media opens through native viewers/player; unavailable documents and
   cross-account photos/videos go to their source chat. Identified movies/series
@@ -96,6 +106,7 @@ total seasons or completeness from filenames or partial scans.
 | `TjMediaCenterActivity` | Native navigation, saved scope/types, search, bounded pages and deferred automatic refresh |
 | `TjMediaDetailsActivity` / `TjMediaEpisodesView` | Stable full-screen detail, local correction, episode summaries and source selection |
 | `TjMediaCollectionsActivity` | Empty-list creation, owner-scoped browsing, rename/delete with confirmation |
+| `TjMediaCollectionEditActivity` / `TjMediaInputStyle` | Dedicated name/icon editor and shared themed field styling |
 | `TjMediaHomeView` / row/card cells | Bounded shelves, general media rows and themed artwork cards |
 | `TjMediaLibrary` / `TjMediaScanCoordinator` | Existing Telegram transport, scan lifetime, pacing and owner-scoped resume |
 | `TjMediaStore` / `TjMediaScanState` | App-private schema 9 storage and atomic checkpoint transactions on a serial queue |
@@ -140,7 +151,8 @@ stubs are explicitly test-only; these do not send Telegram requests.
 
 SQL checks cover migration DDL 1–9, FTS/backfill/rollback, local catalog overrides,
 distinct cross-account title pages, owner/source isolation, cleanup, seek pages,
-stale leases and checkpoint atomicity. Resource checks validate 125 keys across
+stale leases and checkpoint atomicity. Collection checks include icon rename,
+rollback, deletion and owner isolation. Resource checks validate 134 keys across
 English, Hebrew and runtime fallback, including placeholders. Account tests cover
 14 ordering/notification/bot-edit policy cases.
 
@@ -148,6 +160,16 @@ The available Android emulator also ran `android_catalog_sql.py` through an isol
 in-memory sqlite3 database: directory cleanup, rollback, scope and title boundaries
 passed; integrity check returned `ok`. This is native SQL, **not** SQLiteOpenHelper,
 serialized Telegram-message, Android UI or real-account verification.
+
+`TMessagesProj_App/src/androidTest/java/org/telegram/ui/TjMediaUiSmoke.java` is an
+opt-in, signed-out emulator harness, not shipped in the application. On API 35 it
+captured the permanent search/tabs, separate list editor, icon palette and a
+synthetic list row in LTR and forced RTL. It checked search Back consumption,
+child-fragment creation/return, and absence of duplicate child bottom navigation.
+The screenshots were visually inspected. Forced RTL uses English UI strings plus
+a Hebrew sample row; it is not a full Hebrew locale, dark theme or large-font test.
+The synthetic row is injected into the editor solely for layout inspection; real
+list persistence is covered separately by SQL tests, not by this signed-out run.
 
 See [SCALE_BASELINE.md](SCALE_BASELINE.md) for measured desktop SQL results and their
 limits. [REDESIGN.md](REDESIGN.md) and [SERIES_DESIGN.md](SERIES_DESIGN.md) preserve

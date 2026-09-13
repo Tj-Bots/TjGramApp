@@ -11520,6 +11520,9 @@
     <string name="TjMediaVideos">Videos</string>
     <string name="TjMediaListItemCount">Items: %1$d</string>
     <string name="TjMediaListEmpty">No items yet</string>
+    <string name="TjMediaCollectionName">List name</string>
+    <string name="TjMediaEditCollection">Edit list</string>
+    <string name="TjMediaCollectionNameRequired">Enter a name for this list.</string>
     <string name="TjMediaListsEmpty">Keep your media organized in lists. Tap + to create your first list.</string>
     <string name="TjMediaFiles">Files</string>
     <string name="TjMediaMusic">Music</string>

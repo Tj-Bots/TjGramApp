@@ -65,7 +65,7 @@ public final class TjMediaCollectionsActivity extends BaseFragment {
             if (position < 0 || position >= rows.size()) return;
             ListRow row = rows.get(position);
             if (!active(row.account)) return;
-            finishFragment(); open.list(row.account, row.summary.name);
+            open.list(row.account, row.summary.name);
         });
         list.setOnItemLongClickListener((view, position) -> {
             if (position < 0 || position >= rows.size()) return false;
@@ -136,6 +136,9 @@ public final class TjMediaCollectionsActivity extends BaseFragment {
             ListRow row = rows.get(position);
             String account = accounts.size() > 1 ? UserObject.getUserName(UserConfig.getInstance(row.account).getCurrentUser()) : "";
             ((org.telegram.ui.Cells.TjMediaCollectionCell) holder.itemView).bind(row.summary, account);
+            ((org.telegram.ui.Cells.TjMediaCollectionCell) holder.itemView).setOptionsAction(() -> {
+                if (active(row.account)) manage(row.account, row.summary.name);
+            });
         }
     }
     private void create() {
@@ -157,15 +160,9 @@ public final class TjMediaCollectionsActivity extends BaseFragment {
     }
     private void edit(int account, String old) {
         if (!active(account)) return;
-        EditTextBoldCursor input = new EditTextBoldCursor(getContext()); input.setSingleLine(true);
-        input.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText));
-        input.setHintTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText));
-        input.setHint(text(R.string.TjMediaCollection)); input.setText(old == null ? "" : old);
-        input.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(128)});
-        input.setPadding(AndroidUtilities.dp(24), AndroidUtilities.dp(12), AndroidUtilities.dp(24), AndroidUtilities.dp(12));
-        showDialog(new AlertDialog.Builder(getContext()).setTitle(text(R.string.TjMediaCollection)).setView(input)
-                .setPositiveButton(LocaleController.getString(R.string.Save), (d, w) -> save(account, old, input.getText().toString()))
-                .setNegativeButton(LocaleController.getString(R.string.Cancel), null).create());
+        String icon = "";
+        for (ListRow row : rows) if (row.account == account && row.summary.name.equals(old)) icon = row.summary.icon;
+        presentFragment(new TjMediaCollectionEditActivity(account, old, icon, ignored -> { if (active(account)) load(); }));
     }
     private void save(int account, String old, String name) {
         if (!active(account)) return;

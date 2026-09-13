@@ -13,7 +13,9 @@ lists = (java / 'ui/TjMediaCollectionsActivity.java').read_text()
 button = details.split('private TextView button(', 1)[1].split('private TextView paragraph', 1)[0]
 assert button.index('setTextIsSelectable(false)') < button.index('setOnClickListener')
 assert 'setFocusable(true)' in button
-assert 'setIsSearchField(true)' in center and 'LinearLayout searchRow' not in center
+assert 'new org.telegram.ui.Components.FragmentSearchField' in center
+assert 'new org.telegram.ui.Components.FilterTabsView' in center
+assert 'setIsSearchField(true)' not in center
 assert 'DiffUtil.calculateDiff' in center and 'adapter.notifyDataSetChanged()' not in center
 assert 'gridTouching' in center and 'getVisibleDialog().isShowing()' in center
 assert 'entry.storeRevision' in center and 'showIndexedDetails(entry)' in center

@@ -15,16 +15,26 @@ db = sqlite3.connect(':memory:')
 db.executescript('''
 CREATE TABLE media(owner INTEGER, collection TEXT, filename TEXT, caption TEXT, date INTEGER, dialog INTEGER, mid INTEGER);
 CREATE TABLE media_collections(owner INTEGER, name TEXT, PRIMARY KEY(owner,name));
+CREATE TABLE media_collection_icons(owner INTEGER, name TEXT, icon TEXT, PRIMARY KEY(owner,name));
+INSERT INTO media_collection_icons VALUES(1,'Movies','star'),(2,'Movies','music');
 CREATE INDEX media_collection_page ON media(owner,collection,date DESC,dialog,mid) WHERE collection<>'';
 INSERT INTO media_collections VALUES(1,'Empty'),(1,'Movies'),(2,'Movies');
 INSERT INTO media VALUES(1,'Movies','old.mkv','',1,5,1),(1,'Movies','','Latest caption',3,5,2),
  (1,'Loose','file.pdf','',2,8,3),(2,'Movies','Other account','',4,5,2),(1,'','Unlisted','',6,5,4);
 ''')
-assert db.execute(query, (1, 1, 1, 1)).fetchall() == [
-    ('Empty', 0, None), ('Loose', 1, 'file.pdf'), ('Movies', 2, 'Latest caption')]
-assert db.execute(query, (2, 2, 2, 2)).fetchall() == [('Movies', 1, 'Other account')]
-plan = '\n'.join(row[3] for row in db.execute('EXPLAIN QUERY PLAN ' + query, (1, 1, 1, 1)))
+assert db.execute(query, (1, 1, 1, 1, 1)).fetchall() == [
+    ('Empty', 0, None, None), ('Loose', 1, 'file.pdf', None), ('Movies', 2, 'Latest caption', 'star')]
+assert db.execute(query, (2, 2, 2, 2, 2)).fetchall() == [('Movies', 1, 'Other account', 'music')]
+plan = '\n'.join(row[3] for row in db.execute('EXPLAIN QUERY PLAN ' + query, (1, 1, 1, 1, 1)))
 assert 'media_collection_page' in plan and 'SEARCH m USING' in plan, plan
+db.execute('BEGIN')
+db.execute("UPDATE media_collection_icons SET name='Renamed' WHERE owner=1 AND name='Movies'")
+assert db.execute("SELECT icon FROM media_collection_icons WHERE owner=1 AND name='Renamed'").fetchone() == ('star',)
+assert db.execute("SELECT icon FROM media_collection_icons WHERE owner=2 AND name='Movies'").fetchone() == ('music',)
+db.rollback()
+assert db.execute("SELECT icon FROM media_collection_icons WHERE owner=1 AND name='Movies'").fetchone() == ('star',)
+db.execute("DELETE FROM media_collection_icons WHERE owner=1 AND name='Movies'")
+assert db.execute('SELECT owner FROM media_collection_icons').fetchall() == [(2,)]
 assert 'queue.postRunnable' in block and 'ownerActive(account, owner)' in block
 assert 'new RecyclerListView' in lists and 'new ScrollView' not in lists
 assert 'add.setOnClickListener(v -> create())' in lists and 'Gravity.BOTTOM' in lists
@@ -34,6 +44,22 @@ assert 'entry.account == message.currentAccount' in center and 'entry.message.ge
 assert 'mediaType + "|" + entry.key' in center
 assert 'TjMediaKind.matches(typeSelection(), org.telegram.messenger.tj.TjMediaKind.of(m))' in center
 assert 'TjMediaKind.matches(mediaType, TjMediaKind.of(record.message))' in store
+editor = (java / 'ui/TjMediaCollectionEditActivity.java').read_text()
+assert 'TjFolderIcons.emoticons()' in editor
+assert 'editCollection(currentAccount, oldName, value, symbol' in editor
+assert 'new TjMediaCollectionEditActivity' in lists
+assert 'finishFragment(); open.list' not in lists
+assert 'openMediaPage(5, account, name)' in center
+assert 'mainTabs.setVisibility(subpage ? View.GONE : View.VISIBLE)' in center
+assert 'if (subpage) return;' in center
+assert 'collectionOwner' in center and 'media_collection_owner' in center
+assert 'new org.telegram.ui.Components.FragmentSearchField' in center
+assert 'new org.telegram.ui.Components.FilterTabsView' in center
+assert 'boundTypeMask == enabledTypes && boundTypesRtl == LocaleController.isRTL' in center
+assert 'typeTabs.getTabsContainer().scrollToPosition(i)' in center
+assert 'Collection icon write failed' in store
+row = (java / 'ui/Cells/TjMediaCollectionCell.java').read_text()
+assert 'extends android.widget.FrameLayout' in row and 'setOptionsAction' in row
 for name in ['SharedAudioCell', 'SharedDocumentCell']:
     cell = (java / f'ui/Cells/{name}.java').read_text()
     explicit = cell.split('Theme.ResourcesProvider resourcesProvider, int account)', 1)[1]

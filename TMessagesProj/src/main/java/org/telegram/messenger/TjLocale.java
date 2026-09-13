@@ -193,6 +193,9 @@ public class TjLocale {
         m.put("TjMediaVideos", "סרטונים");
         m.put("TjMediaListItemCount", "פריטים: %1$d");
         m.put("TjMediaListEmpty", "אין פריטים עדיין");
+        m.put("TjMediaCollectionName", "שם הרשימה");
+        m.put("TjMediaEditCollection", "עריכת רשימה");
+        m.put("TjMediaCollectionNameRequired", "יש להזין שם לרשימה.");
         m.put("TjMediaListsEmpty", "כאן אפשר לסדר את המדיה ברשימות. לחצו על + ליצירת הרשימה הראשונה.");
         m.put("TjMediaFiles", "קבצים");
         m.put("TjMediaMusic", "מוזיקה");
@@ -607,6 +610,9 @@ public class TjLocale {
         m.put("TjMediaVideos", "Видео");
         m.put("TjMediaListItemCount", "Элементов: %1$d");
         m.put("TjMediaListEmpty", "Пока нет элементов");
+        m.put("TjMediaCollectionName", "Название списка");
+        m.put("TjMediaEditCollection", "Изменить список");
+        m.put("TjMediaCollectionNameRequired", "Введите название списка.");
         m.put("TjMediaListsEmpty", "Организуйте медиа в списки. Нажмите +, чтобы создать первый список.");
         TRANSLATIONS.put("ru", m);
 

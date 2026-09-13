@@ -296,6 +296,9 @@
     <string name="TjMediaVideos">סרטונים</string>
     <string name="TjMediaListItemCount">פריטים: %1$d</string>
     <string name="TjMediaListEmpty">אין פריטים עדיין</string>
+    <string name="TjMediaCollectionName">שם הרשימה</string>
+    <string name="TjMediaEditCollection">עריכת רשימה</string>
+    <string name="TjMediaCollectionNameRequired">יש להזין שם לרשימה.</string>
     <string name="TjMediaListsEmpty">כאן אפשר לסדר את המדיה ברשימות. לחצו על + ליצירת הרשימה הראשונה.</string>
     <string name="TjMediaFiles">קבצים</string>
     <string name="TjMediaMusic">מוזיקה</string>

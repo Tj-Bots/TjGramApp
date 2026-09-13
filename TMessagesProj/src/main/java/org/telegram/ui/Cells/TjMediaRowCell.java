@@ -44,7 +44,6 @@ public final class TjMediaRowCell extends LinearLayout {
         image.setRoundRadius(dp(10));
         thumbnail.addView(image, LayoutHelper.createFrame(-1, -1));
         thumbnail.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);
-        addView(thumbnail, LayoutHelper.createLinear(68, 62));
         LinearLayout labels = new LinearLayout(context);
         labels.setOrientation(VERTICAL);
         labels.setPadding(dp(12), 0, dp(12), 0);
@@ -54,14 +53,22 @@ public final class TjMediaRowCell extends LinearLayout {
         subtitle = text(context, 13, Theme.key_windowBackgroundWhiteGrayText);
         subtitle.setMaxLines(2);
         labels.addView(subtitle, LayoutHelper.createLinear(-1, -2, 0, 4, 0, 0));
-        addView(labels, new LinearLayout.LayoutParams(0, -2, 1));
+        // Telegram opts out of platform RTL; child ordering must be explicit.
+        setLayoutDirection(LAYOUT_DIRECTION_LTR);
+        if (LocaleController.isRTL) {
+            addView(labels, new LinearLayout.LayoutParams(0, -2, 1));
+            addView(thumbnail, LayoutHelper.createLinear(68, 62));
+        } else {
+            addView(thumbnail, LayoutHelper.createLinear(68, 62));
+            addView(labels, new LinearLayout.LayoutParams(0, -2, 1));
+        }
     }
 
     private int dp(float value) { return AndroidUtilities.dp(value); }
     private TextView text(Context context, int size, int color) {
         TextView view = new TextView(context);
         view.setTextSize(size); view.setTextColor(Theme.getColor(color));
-        view.setGravity(Gravity.START); view.setTextDirection(TEXT_DIRECTION_FIRST_STRONG);
+        view.setGravity(LocaleController.isRTL ? Gravity.RIGHT : Gravity.LEFT); view.setTextDirection(TEXT_DIRECTION_FIRST_STRONG);
         view.setEllipsize(android.text.TextUtils.TruncateAt.END);
         view.setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO);
         return view;
@@ -70,7 +77,7 @@ public final class TjMediaRowCell extends LinearLayout {
     public void bind(MessageObject message, String name, String source) {
         title.setText(name);
         String size = message.getDocument() == null ? "" : " · " + AndroidUtilities.formatFileSize(message.getDocument().size);
-        String duration = TjMediaKind.of(message) == TjMediaKind.VIDEO
+        String duration = TjMediaKind.of(message) == TjMediaKind.VIDEO && message.getDuration() > 0
                 ? " · " + AndroidUtilities.formatDuration((int) message.getDuration(), false) : "";
         subtitle.setText(source + duration + size);
         int kind = TjMediaKind.of(message);
