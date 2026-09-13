@@ -1095,6 +1095,8 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
     private boolean playerAutoStarted;
     private boolean playerLooping;
     private float seekToProgressPending;
+    private MessageObject tjMediaSeekMessage;
+    private long tjMediaSeekPosition = -1;
     private String shouldSavePositionForCurrentVideo;
     private String shouldSavePositionForCurrentVideoShortTerm;
     private static final HashMap<String, SavedVideoPosition> savedVideoPositions = new HashMap<>();
@@ -4752,6 +4754,10 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
     }
 
     public void setParentActivity(Activity inActivity, BaseFragment fragment, Theme.ResourcesProvider resourcesProvider) {
+        setParentActivity(inActivity, fragment, resourcesProvider, UserConfig.selectedAccount);
+    }
+
+    private void setParentActivity(Activity inActivity, BaseFragment fragment, Theme.ResourcesProvider resourcesProvider, int account) {
         if (activityVisibilityController != null) {
             activityVisibilityController.destroy();
             activityVisibilityController = null;
@@ -4762,7 +4768,7 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
         Theme.createChatResources(activity, false);
         this.resourcesProvider = resourcesProvider;
         this.parentFragment = fragment;
-        currentAccount = UserConfig.selectedAccount;
+        currentAccount = account;
         centerImage.setCurrentAccount(currentAccount);
         leftImage.setCurrentAccount(currentAccount);
         rightImage.setCurrentAccount(currentAccount);
@@ -10184,6 +10190,16 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
     }
 
     private void updatePlayerState(boolean playWhenReady, int playbackState) {
+        if (playbackState == ExoPlayer.STATE_READY && videoPlayer != null
+                && currentMessageObject == tjMediaSeekMessage && tjMediaSeekPosition >= 0) {
+            long position = tjMediaSeekPosition;
+            tjMediaSeekMessage = null;
+            tjMediaSeekPosition = -1;
+            currentMessageObject.forceSeekTo = -1;
+            seekToProgressPending = seekToProgressPending2 = 0;
+            long duration = videoPlayer.getDuration();
+            videoPlayer.seekTo(duration > 0 ? Math.min(position, Math.max(0, duration - 1)) : position);
+        }
         if (playWhenReady && playbackState == ExoPlayer.STATE_READY) tjPlaybackProgress.userPositionChanged();
         if (videoPlayer == null && (photoViewerWebView == null || !photoViewerWebView.isControllable())) {
             return;
@@ -10809,7 +10825,8 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
         } else if (savedLooping != null) {
             playerLooping = savedLooping;
         } else {
-            playerLooping = (currentMessageObject != null && currentMessageObject.getDuration() <= 30) || (pageBlocksAdapter != null && pageBlocksAdapter.isHardwarePlayer(currentIndex));
+            playerLooping = (currentMessageObject != null && currentMessageObject.getDuration() > 0
+                    && currentMessageObject.getDuration() <= 30) || (pageBlocksAdapter != null && pageBlocksAdapter.isHardwarePlayer(currentIndex));
         }
         videoPlayerControlFrameLayout.setSeekBarTransitionEnabled(playerLooping);
         videoPlayer.setLooping(playerLooping);
@@ -11034,6 +11051,11 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
     }
 
     private void releasePlayer(boolean onClose) {
+        if (onClose && tjMediaSeekMessage != null) {
+            tjMediaSeekMessage.forceSeekTo = -1;
+            tjMediaSeekMessage = null;
+            tjMediaSeekPosition = -1;
+        }
         tjSavePlaybackProgress();
         tjPlaybackMessage = null;
         tjPlaybackOwner = 0;
@@ -17137,6 +17159,29 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
         return openPhoto(messageObject, null, null, null, null, null, null, 0, provider, null, dialogId, mergeDialogId, topicId, fullScreenVideo, null, null);
     }
 
+    /** TJ library entry point: bind downloads and viewer observers to the source account, not the selected tab. */
+    public boolean openTjMedia(BaseFragment host, MessageObject message, long positionMs) {
+        if (host == null || host.getParentActivity() == null || message == null || isVisible
+                || message.messageOwner == null || message.messageOwner.ttl_period != 0
+                || message.messageOwner.media == null || message.messageOwner.media.ttl_seconds != 0
+                || checkAnimation() || PipVideoOverlay.isVisible() || DialogObject.isEncryptedDialog(message.getDialogId())
+                || !UserConfig.getInstance(message.currentAccount).isClientActivated()) return false;
+        setParentActivity(null, host, host.getResourceProvider(), message.currentAccount);
+        float previousSeek = message.forceSeekTo;
+        if (positionMs >= 0 && message.isVideo()) {
+            tjMediaSeekMessage = message;
+            tjMediaSeekPosition = positionMs;
+            // Suppress a stale default resume until READY exposes the real duration.
+            message.forceSeekTo = 0;
+        }
+        boolean opened = openPhoto(message, message.getDialogId(), 0, 0, new EmptyPhotoViewerProvider(), false);
+        if (!opened) {
+            message.forceSeekTo = previousSeek;
+            tjMediaSeekMessage = null; tjMediaSeekPosition = -1;
+        }
+        return opened;
+    }
+
     public boolean openPhoto(final TLRPC.FileLocation fileLocation, final PhotoViewerProvider provider) {
         return openPhoto(null, fileLocation, null, null, null, null, null, 0, provider, null, 0, 0, 0, true, null, null);
     }
@@ -17516,6 +17561,9 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
     }
 
     public boolean openPhoto(final MessageObject messageObject, final TLRPC.FileLocation fileLocation, final ImageLocation imageLocation, final ImageLocation videoLocation, final ArrayList<MessageObject> messages, final ArrayList<SecureDocument> documents, final ArrayList<Object> photos, final int index, final PhotoViewerProvider provider, ChatActivity chatActivity, long dialogId, long mDialogId, long topicId, boolean fullScreenVideo, PageBlocksAdapter pageBlocksAdapter, Integer embedSeekTime) {
+        if (messageObject != tjMediaSeekMessage) {
+            tjMediaSeekMessage = null; tjMediaSeekPosition = -1;
+        }
         if (parentActivity == null || isVisible || provider == null && checkAnimation() || messageObject == null && fileLocation == null && messages == null && photos == null && documents == null && imageLocation == null && pageBlocksAdapter == null) {
             return false;
         }

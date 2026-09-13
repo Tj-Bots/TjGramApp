@@ -29,6 +29,7 @@ public final class TjMediaStore extends SQLiteOpenHelper implements Notification
     private boolean searchAvailable;
     private boolean localCatalogAvailable;
     private volatile boolean localCatalogReady;
+    private long lastLocalCatalogNotification;
     private final Runnable localBackfill = this::backfillLocalCatalog;
     public boolean isLocalCatalogReady() { return localCatalogReady; }
     private final Runnable searchBackfill = this::backfillSearch;
@@ -61,7 +62,11 @@ public final class TjMediaStore extends SQLiteOpenHelper implements Notification
         try {
             localCatalogReady = TjMediaLocalIndex.backfill(getWritableDatabase());
             if (!localCatalogReady) queue.postRunnable(localBackfill, 100);
-            else changed();
+            long now = android.os.SystemClock.elapsedRealtime();
+            if (localCatalogReady || now - lastLocalCatalogNotification >= 2000) {
+                lastLocalCatalogNotification = now;
+                changed();
+            }
         } catch (Exception e) { FileLog.e("Tj local catalog backfill failed", e); }
     }
 
@@ -103,8 +108,11 @@ public final class TjMediaStore extends SQLiteOpenHelper implements Notification
         public String title() { return metadata != null ? metadata.name : !localTitle.isEmpty() ? localTitle
                 : TjMediaTitle.parse(message.getDocumentName(), message.messageOwner.message).title; }
         public int seasonOverride = -2, episodeOverride = -2;
-        public int season() { return seasonOverride != -2 ? seasonOverride : TjMediaTitle.parse(message.getDocumentName(), message.messageOwner.message).season; }
-        public int episode() { return episodeOverride != -2 ? episodeOverride : TjMediaTitle.parse(message.getDocumentName(), message.messageOwner.message).episode; }
+        public int indexedSeason = -2, indexedEpisode = -2;
+        public int season() { return seasonOverride != -2 ? seasonOverride : indexedSeason != -2 ? indexedSeason
+                : TjMediaTitle.parse(message.getDocumentName(), message.messageOwner.message).season; }
+        public int episode() { return episodeOverride != -2 ? episodeOverride : indexedEpisode != -2 ? indexedEpisode
+                : TjMediaTitle.parse(message.getDocumentName(), message.messageOwner.message).episode; }
     }
 
     public static final class Page extends ArrayList<Record> {
@@ -812,7 +820,7 @@ public final class TjMediaStore extends SQLiteOpenHelper implements Notification
             byMessage.put(dialog + ":" + mid, record);
         }
         selection.append(')');
-        try (Cursor cursor = db.query("media_local_catalog", new String[]{"dialog", "mid", "title_key", "title", "series", "uncertain", "manual", "year"},
+        try (Cursor cursor = db.query("media_local_catalog", new String[]{"dialog", "mid", "title_key", "title", "series", "uncertain", "manual", "year", "season", "episode"},
                 selection.toString(), new String[]{Long.toString(owner)}, null, null, null)) {
             while (cursor.moveToNext()) {
                 Record record = byMessage.get(cursor.getLong(0) + ":" + cursor.getInt(1));
@@ -821,6 +829,7 @@ public final class TjMediaStore extends SQLiteOpenHelper implements Notification
                 record.localSeries = cursor.getInt(4) != 0; record.localUncertain = cursor.getInt(5) != 0;
                 record.localManual = cursor.getInt(6) != 0;
                 record.localYear = cursor.getInt(7);
+                record.indexedSeason = cursor.getInt(8); record.indexedEpisode = cursor.getInt(9);
             }
         }
     }
@@ -1182,6 +1191,19 @@ public final class TjMediaStore extends SQLiteOpenHelper implements Notification
         boolean local = !title.localKey.isEmpty();
         loadInternal(account, local ? 10 : title.isSeries() ? 8 : 7, "", title.localKey, after, sources,
                 sourceType, 0, local || title.metadata == null ? 0 : title.metadata.id, 50,
+                new EpisodeFilter(season, episode), callback);
+    }
+
+    /** One indexed source for a visible episode thumbnail, not a page of every variant. */
+    public void loadEpisodePreview(int account, Record title, int season, int episode,
+            java.util.Set<Long> sources, int sourceType, Callback<Page> callback) {
+        if (title.catalogKey().isEmpty()) {
+            loadCatalogSources(account, title, season, episode, null, sources, sourceType, callback);
+            return;
+        }
+        boolean local = !title.localKey.isEmpty();
+        loadInternal(account, local ? 10 : title.isSeries() ? 8 : 7, "", title.localKey, null, sources,
+                sourceType, 0, local || title.metadata == null ? 0 : title.metadata.id, 1,
                 new EpisodeFilter(season, episode), callback);
     }
 

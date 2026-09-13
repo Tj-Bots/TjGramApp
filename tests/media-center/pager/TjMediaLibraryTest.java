@@ -14,6 +14,10 @@ public final class TjMediaLibraryTest {
     }
     private static TjMediaLibrary start(boolean scan) {
         ConnectionsManager.requests.clear(); store.reset();
+        try {
+            java.lang.reflect.Field waits = TjMediaLibrary.class.getDeclaredField("accountRetryAt");
+            waits.setAccessible(true); ((java.util.Map<?, ?>) waits.get(null)).clear();
+        } catch (ReflectiveOperationException e) { throw new AssertionError(e); }
         for (int account = 0; account < 3; account++) {
             UserConfig.getInstance(account).owner = 10 + account;
             UserConfig.getInstance(account).active = true;
@@ -38,18 +42,64 @@ public final class TjMediaLibraryTest {
             ConnectionsManager.respond(ConnectionsManager.active().get(0), page(0, 0), null);
         check(guard > 0, "network terminates");
     }
+    private static void makeRetriesDue(TjMediaLibrary library) {
+        try {
+            java.lang.reflect.Field streams = TjMediaLibrary.class.getDeclaredField("streams");
+            streams.setAccessible(true);
+            for (Object stream : (java.util.List<?>) streams.get(library)) {
+                java.lang.reflect.Field retryAt = stream.getClass().getDeclaredField("retryAt");
+                retryAt.setAccessible(true); retryAt.setLong(stream, 0);
+            }
+        } catch (ReflectiveOperationException e) { throw new AssertionError(e); }
+    }
     public static void main(String[] args) {
         TjMediaLibrary errorLibrary = start(false);
         TLRPC.TL_error protocolError = new TLRPC.TL_error(); protocolError.text = "FLOOD_WAIT_60"; protocolError.code = 420;
         ConnectionsManager.respond(ConnectionsManager.active().get(0), null, protocolError);
         check("FLOOD_WAIT_60".equals(errorLibrary.errorCode()), "protocol error exposed without hiding cached media");
+        check(errorLibrary.nextAutomaticDelay() > 50000, "server account delay respected");
+        errorLibrary.close();
+        check(org.telegram.messenger.AndroidUtilities.delayed.isEmpty(), "closing preview cancels retry timer");
+        ConnectionsManager.requests.clear();
+        TjMediaLibrary recreated = new TjMediaLibrary(() -> {}, false);
+        recreated.reset(Collections.singletonList(0), Collections.emptyMap(), 1, "caption movie");
+        check(ConnectionsManager.active().isEmpty() && recreated.nextAutomaticDelay() > 50000,
+                "recreating preview preserves the account server wait");
+        recreated.close();
+        errorLibrary = start(false);
+        protocolError.text = "UNFAMILIAR_SERVER_FAILURE"; protocolError.code = 503;
+        ConnectionsManager.respond(ConnectionsManager.active().get(0), null, protocolError);
+        emptyNetwork();
+        check(org.telegram.messenger.AndroidUtilities.delayed.size() == 1, "preview schedules one retry for transient 5xx");
+        errorLibrary.setRetriesPaused(true);
+        check(org.telegram.messenger.AndroidUtilities.delayed.isEmpty(), "hidden preview cancels its retry timer");
+        errorLibrary.setRetriesPaused(false);
+        check(org.telegram.messenger.AndroidUtilities.delayed.size() == 1, "returning to preview restores retry timer");
+        makeRetriesDue(errorLibrary);
+        org.telegram.messenger.AndroidUtilities.delayed.remove(0).run();
+        check(ConnectionsManager.active().size() == 1, "preview retries only failed stream, not healthy history");
+        emptyNetwork();
+        check(!errorLibrary.hasError() && !errorLibrary.hasMore(), "recovered preview completes normally");
         errorLibrary.close();
         errorLibrary = start(false);
         protocolError.text = "private message text should never appear";
+        protocolError.code = 420;
         ConnectionsManager.respond(ConnectionsManager.active().get(0), null, protocolError);
         check("420".equals(errorLibrary.errorCode()), "arbitrary error content is not exposed");
         errorLibrary.close();
         TjMediaLibrary library = start(false);
+        protocolError.text = "CHANNEL_PRIVATE"; protocolError.code = 400;
+        ConnectionsManager.respond(ConnectionsManager.active().get(0), null, protocolError);
+        ConnectionsManager.respond(ConnectionsManager.active().get(0), page(100, 1), null);
+        emptyNetwork(); store.complete(true);
+        check(library.hasError() && library.hasMore(), "failed source remains incomplete");
+        check(library.nextAutomaticDelay() == 500, "healthy source is eligible despite another source failure");
+        library.loadMoreAutomatic();
+        check(ConnectionsManager.active().size() == 1, "automatic continuation skips permanent source failure");
+        emptyNetwork();
+        check(library.nextAutomaticDelay() == -1 && library.hasMore(), "permanent failure does not loop or become complete");
+        library.close();
+        library = start(false);
         check(ConnectionsManager.active().size() == 3, "three initial requests maximum");
         TLRPC.TL_messages_searchGlobal request = (TLRPC.TL_messages_searchGlobal) ConnectionsManager.active().get(0).request;
         check(request.users_only && !request.groups_only && !request.broadcasts_only, "private source filter");

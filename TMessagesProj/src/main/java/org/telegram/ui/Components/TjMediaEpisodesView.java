@@ -20,7 +20,10 @@ public final class TjMediaEpisodesView extends LinearLayout {
     private final Map<Long, Set<Long>> sources;
     private final int sourceType;
     private final Open open;
-    private int season, generation, sourceRequest;
+    private int season, generation, sourceRequest, pageRequest, pageAfter = -1;
+    private String pageSignature;
+    private java.util.function.BooleanSupplier refreshAllowed = () -> true;
+    private Runnable deferRefresh = () -> { };
     private boolean closed;
 
     public TjMediaEpisodesView(Context context, BaseFragment host, TjMediaStore.Record title,
@@ -51,6 +54,7 @@ public final class TjMediaEpisodesView extends LinearLayout {
 
     private static final class NumberState {
         long sources;
+        int previewAccount = -1;
         boolean watched, inProgress;
         void add(TjMediaStore.CatalogNumber value) {
             sources += value.sources; watched |= value.watched; inProgress |= value.inProgress;
@@ -72,8 +76,12 @@ public final class TjMediaEpisodesView extends LinearLayout {
                     if (values == null || !active(account)) failed[0] = true;
                     else {
                         if (values.size() > 20) more[0] = true;
-                        for (TjMediaStore.CatalogNumber value : values)
-                            merged.computeIfAbsent(order(value.number), ignored -> new NumberState()).add(value);
+                        for (TjMediaStore.CatalogNumber value : values) {
+                            NumberState row = merged.computeIfAbsent(order(value.number), ignored -> new NumberState());
+                            row.add(value);
+                            if (row.previewAccount < 0 || accounts.indexOf(account) < accounts.indexOf(row.previewAccount))
+                                row.previewAccount = account;
+                        }
                     }
                     if (--pending[0] != 0) return;
                     if (failed[0]) { callback.done(null, false); return; }
@@ -105,13 +113,36 @@ public final class TjMediaEpisodesView extends LinearLayout {
         });
     }
 
-    private void episodes(int after) {
-        generation++;
-        removeAllViews();
-        row((season < 0 ? text(R.string.TjMediaUnknownEpisode) : text(R.string.TjMediaSeason) + " " + season) + " ▾", () -> seasons(-1));
-        TextView state = row(text(R.string.TjMediaLoading), null);
+    public void refreshCurrentPage(java.util.function.BooleanSupplier allowed, Runnable defer) {
+        refreshAllowed = allowed; deferRefresh = defer;
+        if (!closed && title.isSeries()) episodes(pageAfter, true);
+    }
+
+    private void episodes(int after) { episodes(after, false); }
+
+    private void episodes(int after, boolean background) {
+        final int pageToken = ++pageRequest;
+        pageAfter = after;
+        if (!background) generation++;
+        if (!background) {
+            pageSignature = null;
+            removeAllViews();
+            row(text(R.string.TjMediaLoading), null);
+        }
         numbers(season, after, (values, more) -> {
-            removeView(state);
+            if (pageToken != pageRequest) return;
+            if (background && !refreshAllowed.getAsBoolean()) { deferRefresh.run(); return; }
+            if (background && values == null) return; // Keep usable content on a transient local read failure.
+            StringBuilder signature = new StringBuilder().append(season).append(':').append(after).append(':').append(more);
+            if (values != null) for (Map.Entry<Integer, NumberState> value : values.entrySet()) {
+                NumberState state = value.getValue();
+                signature.append('|').append(value.getKey()).append(':').append(state.sources)
+                        .append(':').append(state.watched).append(':').append(state.inProgress).append(':').append(state.previewAccount);
+            }
+            if (background && signature.toString().equals(pageSignature)) return;
+            pageSignature = signature.toString();
+            removeAllViews();
+            row((season < 0 ? text(R.string.TjMediaUnknownEpisode) : text(R.string.TjMediaSeason) + " " + season) + " ▾", () -> seasons(-1));
             if (values == null) { row(text(R.string.TjMediaRetry), () -> episodes(after)); return; }
             if (values.isEmpty()) row(text(R.string.TjMediaNoIndexedEpisodes), () -> seasons(-1));
             for (Map.Entry<Integer, NumberState> value : values.entrySet()) {
@@ -120,7 +151,23 @@ public final class TjMediaEpisodesView extends LinearLayout {
                 NumberState stateValue = value.getValue();
                 String progress = stateValue.inProgress ? " · " + text(R.string.TjMediaContinue)
                         : stateValue.watched ? " · " + text(R.string.TjMediaWatched) : "";
-                row(label + "\n" + stateValue.sources + " " + text(R.string.TjMediaSources) + progress, () -> sourceAccount(episode));
+                String summary = stateValue.sources + " " + text(R.string.TjMediaSources) + progress;
+                TextView placeholder = row(label + "\n" + summary, () -> sourceAccount(episode));
+                final int selectedSeason = season, request = generation, previewAccount = stateValue.previewAccount;
+                if (previewAccount >= 0) TjMediaStore.getInstance().loadEpisodePreview(previewAccount, title,
+                        selectedSeason, episode, sources.get(owners.get(previewAccount)), sourceType, page -> {
+                            if (closed || request != generation || !active(previewAccount)
+                                    || page == null || page.isEmpty()) return;
+                            int index = indexOfChild(placeholder);
+                            if (index < 0) return;
+                            org.telegram.ui.Cells.TjMediaRowCell cell = new org.telegram.ui.Cells.TjMediaRowCell(getContext());
+                            cell.bind(page.get(0).message, label, summary);
+                            cell.setBackground(Theme.getSelectorDrawable(false));
+                            cell.setOnClickListener(v -> sourceAccount(episode, selectedSeason));
+                            cell.setFocusable(true);
+                            removeViewAt(index);
+                            addView(cell, index, LayoutHelper.createLinear(-1, -2));
+                        });
             }
             if (after >= 0) row(text(R.string.TjMediaFirstEpisodes), () -> episodes(-1));
             if (more && !values.isEmpty()) row(text(R.string.TjMediaLoadMore), () -> episodes(values.lastKey()));
@@ -171,7 +218,7 @@ public final class TjMediaEpisodesView extends LinearLayout {
                 episode, after, sources.get(owners.get(account)), sourceType, page -> {
                     if (request != generation || sourceToken != sourceRequest || !active(account)) return;
                     if (page == null) { error(() -> sources(account, selectedSeason, episode, after)); return; }
-                    ArrayList<CharSequence> names = new ArrayList<>();
+                    ArrayList<String> names = new ArrayList<>();
                     for (TjMediaStore.Record record : page) {
                         MessageObject message = record.message;
                         long did = message.getDialogId();
@@ -181,18 +228,50 @@ public final class TjMediaEpisodesView extends LinearLayout {
                         String sender = "";
                         if (message.messageOwner.from_id instanceof TLRPC.TL_peerUser)
                             sender = UserObject.getUserName(controller.getUser(message.messageOwner.from_id.user_id));
-                        names.add(message.getDocumentName() + "\n" + peer + (sender.isEmpty() ? "" : " · " + sender)
-                                + (message.getDocument() == null ? "" : " · " + AndroidUtilities.formatFileSize(message.getDocument().size))
+                        names.add(peer + (sender.isEmpty() ? "" : " · " + sender)
                                 + (record.watched || record.duration > 0 && record.position >= record.duration * .98 ? " · " + text(R.string.TjMediaWatched)
                                 : record.position > 0 && record.duration > 0 ? " · " + text(R.string.TjMediaContinue) : ""));
                     }
-                    if (page.hasMore) names.add(text(R.string.TjMediaLoadMore));
                     AlertDialog.Builder dialog = new AlertDialog.Builder(getContext()).setTitle(text(R.string.TjMediaVersions));
                     if (names.isEmpty()) dialog.setMessage(text(R.string.TjMediaEmpty));
-                    else dialog.setItems(names.toArray(new CharSequence[0]), (d, index) -> {
-                        if (index == page.size()) sources(account, selectedSeason, episode, page.nextKey);
-                        else open.source(new TjMediaLibrary.Entry(account, owners.get(account), page.get(index).message));
-                    });
+                    else {
+                        RecyclerListView list = new RecyclerListView(getContext());
+                        list.setLayoutManager(new androidx.recyclerview.widget.LinearLayoutManager(getContext()));
+                        list.setAdapter(new RecyclerListView.SelectionAdapter() {
+                            @Override public boolean isEnabled(androidx.recyclerview.widget.RecyclerView.ViewHolder holder) { return true; }
+                            @Override public int getItemCount() { return page.size() + (page.hasMore ? 1 : 0); }
+                            @Override public int getItemViewType(int position) { return position == page.size() ? 1 : 0; }
+                            @Override public androidx.recyclerview.widget.RecyclerView.ViewHolder onCreateViewHolder(android.view.ViewGroup parent, int type) {
+                                android.view.View cell = type == 0 ? new org.telegram.ui.Cells.TjMediaRowCell(getContext())
+                                        : new org.telegram.ui.Cells.TextSettingsCell(getContext());
+                                cell.setLayoutParams(new androidx.recyclerview.widget.RecyclerView.LayoutParams(-1, -2));
+                                return new RecyclerListView.Holder(cell);
+                            }
+                            @Override public void onBindViewHolder(androidx.recyclerview.widget.RecyclerView.ViewHolder holder, int position) {
+                                if (position == page.size()) {
+                                    ((org.telegram.ui.Cells.TextSettingsCell) holder.itemView).setText(text(R.string.TjMediaLoadMore), false);
+                                } else {
+                                    MessageObject message = page.get(position).message;
+                                    String name = message.getDocumentName();
+                                    ((org.telegram.ui.Cells.TjMediaRowCell) holder.itemView).bindVersion(message,
+                                            name.isEmpty() ? page.get(position).title() : name, names.get(position));
+                                }
+                            }
+                        });
+                        AlertDialog[] opened = new AlertDialog[1];
+                        list.setOnItemClickListener((view, index) -> {
+                            if (!active(account) || request != generation || sourceToken != sourceRequest) return;
+                            if (opened[0] != null) opened[0].dismiss();
+                            if (index == page.size()) sources(account, selectedSeason, episode, page.nextKey);
+                            else if (index >= 0 && index < page.size())
+                                open.source(new TjMediaLibrary.Entry(account, owners.get(account), page.get(index).message));
+                        });
+                        int height = Math.min(360, Math.max(120, (int) (AndroidUtilities.displaySize.y / AndroidUtilities.density / 2)));
+                        dialog.setView(list, height);
+                        opened[0] = dialog.setNegativeButton(LocaleController.getString(R.string.Close), null).create();
+                        host.showDialog(opened[0]);
+                        return;
+                    }
                     host.showDialog(dialog.setNegativeButton(LocaleController.getString(R.string.Close), null).create());
                 });
     }

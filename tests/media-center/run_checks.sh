@@ -30,11 +30,13 @@ java -cp "$test_output" TjMediaPageKeyTest
 java -cp "$test_output" TjMediaPageMergeTest
 javac -encoding UTF-8 -d "$test_output/pager" \
   TMessagesProj/src/main/java/org/telegram/messenger/tj/TjMediaLibrary.java \
+  TMessagesProj/src/main/java/org/telegram/messenger/tj/TjMediaRetryPolicy.java \
   TMessagesProj/src/main/java/org/telegram/messenger/tj/TjMediaScanState.java \
   TMessagesProj/src/main/java/org/telegram/messenger/tj/TjMediaKind.java \
   TMessagesProj/src/main/java/org/telegram/messenger/tj/TjVideoFormat.java \
   $(rg --files tests/media-center/pager -g '*.java')
 java -cp "$test_output/pager" TjMediaLibraryTest
+java -cp "$test_output/pager" TjMediaRetryPolicyTest
 java -cp "$test_output/pager" TjMediaDurableScanTest
 java -cp "$test_output/pager" TjMediaKindTest
 javac -encoding UTF-8 -d "$test_output/sources" \
@@ -49,6 +51,7 @@ java -cp "$test_output/coordinator" MediaCoordinatorTest
 python3 tests/media-center/test_store_rules.py
 python3 tests/media-center/test_search_index.py
 python3 tests/media-center/test_local_catalog.py
+python3 tests/media-center/test_episode_numbers.py
 python3 tests/media-center/test_catalog_pages.py
 python3 tests/media-center/test_seek_pages.py
 python3 tests/media-center/test_scan_progress.py

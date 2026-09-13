@@ -19,8 +19,33 @@ assert 'setIsSearchField(true)' not in center
 assert 'DiffUtil.calculateDiff' in center and 'adapter.notifyDataSetChanged()' not in center
 assert 'gridTouching' in center and 'getVisibleDialog().isShowing()' in center
 assert 'entry.storeRevision' in center and 'showIndexedDetails(entry)' in center
-assert 'openOrdinaryMedia(entry)' in center and 'PhotoViewer.EmptyPhotoViewerProvider' in center
-assert 'entry.account != UserConfig.selectedAccount' in center
+playback = (java / 'ui/Components/TjMediaPlayback.java').read_text()
+viewer = (java / 'ui/PhotoViewer.java').read_text()
+assert 'openOrdinaryMedia(entry)' in center and 'TjMediaPlayback.open(this, entry' in center
+assert 'TjMediaPlayback.open(this, source, position)' in details
+assert 'openTjMedia(host, entry.message, positionMs)' in playback
+assert 'setParentActivity(null, host, host.getResourceProvider(), message.currentAccount)' in viewer
+media_entry = viewer.split('public boolean openTjMedia(', 1)[1].split('public boolean openPhoto(', 1)[0]
+assert 'message.messageOwner.ttl_period != 0' in media_entry
+assert 'message.messageOwner.media.ttl_seconds != 0' in media_entry
+assert 'DialogObject.isEncryptedDialog(message.getDialogId())' in media_entry
+assert 'entry.account != UserConfig.selectedAccount' not in center
+assert 'new RecyclerView.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT' in lists
+assert 'swipeMediaType(dx < 0 ? 1 : -1)' in center
+assert '.bindVersion(message,' in episodes
+assert 'signature.toString().equals(pageSignature)' in episodes
+assert 'episodes(pageAfter, true)' in episodes
+assert 'background && !refreshAllowed.getAsBoolean()' in episodes
+assert 'if (pageToken != pageRequest) return;' in episodes
+assert 'removeListener(storeChanged)' in details
+assert 'LayoutHelper.createLinear(-1, heroHeight())' in details
+assert 'key.equals(artworkKey)' in details
+assert 'artworkKey = null;' in details
+assert 'body.addView(nextEpisode, LayoutHelper.createLinear(-1, -2, 16, 0, 16, 8))' in details
+assert 'cancelRunOnUIThread(refreshTask)' in details
+assert 'sourceToken != sourceRequest' in episodes.split('list.setOnItemClickListener', 1)[1]
+assert '!multiTouch && action == android.view.MotionEvent.ACTION_UP' in center
+assert 'actionBar.setSubtitle(accountSummary' in center
 assert 'body.addView(description)' not in center  # No duplicated ordinary-media caption dialog.
 assert 'values.isEmpty()' in episodes.split('private void seasons(', 1)[1].split('private void episodes', 1)[0]
 assert 'account != title.message.currentAccount' in store.split('public void loadCatalogSources', 1)[1]

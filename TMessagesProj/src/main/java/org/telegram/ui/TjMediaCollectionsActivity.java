@@ -125,8 +125,10 @@ public final class TjMediaCollectionsActivity extends BaseFragment {
         @Override public int getItemViewType(int position) { return position == rows.size() ? 1 : 0; }
         @Override public boolean isEnabled(RecyclerView.ViewHolder holder) { return true; }
         @Override public RecyclerView.ViewHolder onCreateViewHolder(ViewGroup parent, int type) {
-            if (type == 1) return new RecyclerListView.Holder(new TextSettingsCell(parent.getContext()));
-            return new RecyclerListView.Holder(new org.telegram.ui.Cells.TjMediaCollectionCell(parent.getContext()));
+            View cell = type == 1 ? new TextSettingsCell(parent.getContext())
+                    : new org.telegram.ui.Cells.TjMediaCollectionCell(parent.getContext());
+            cell.setLayoutParams(new RecyclerView.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+            return new RecyclerListView.Holder(cell);
         }
         @Override public void onBindViewHolder(RecyclerView.ViewHolder holder, int position) {
             if (holder.itemView instanceof TextSettingsCell) {

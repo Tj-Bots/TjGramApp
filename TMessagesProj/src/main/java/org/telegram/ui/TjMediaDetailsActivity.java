@@ -26,15 +26,21 @@ public final class TjMediaDetailsActivity extends BaseFragment implements Notifi
     private final Runnable identify;
     private TextView play, download;
     private TextView titleView;
-    private TextView overviewView, numberingButton;
+    private TextView overviewView;
     private TextView nextEpisode;
     private BackupImageView artwork;
+    private String artworkKey;
+    private FrameLayout hero;
     private TjMediaEpisodesView episodes;
     private LinearLayout episodesContainer;
     private final java.util.List<Integer> accounts;
     private final java.util.Map<Long, java.util.Set<Long>> sources;
     private final int sourceType;
     private boolean destroyed;
+    private boolean resumed, touching, refreshPending;
+    private long lastScrollAt;
+    private final Runnable storeChanged = this::scheduleRefresh;
+    private final Runnable refreshTask = this::refreshState;
 
     public TjMediaDetailsActivity(TjMediaLibrary.Entry entry, TjMediaStore.Record record,
             Runnable identify,
@@ -51,10 +57,22 @@ public final class TjMediaDetailsActivity extends BaseFragment implements Notifi
     @Override public View createView(Context context) {
         actionBar.setBackButtonImage(R.drawable.ic_ab_back);
         actionBar.setTitle(text(R.string.TjMediaDetails));
+        actionBar.createMenu().addItem(1, R.drawable.ic_ab_other)
+                .setContentDescription(LocaleController.getString(R.string.AccDescrMoreOptions));
         actionBar.setActionBarMenuOnItemClick(new ActionBar.ActionBarMenuOnItemClick() {
-            @Override public void onItemClick(int id) { if (id == -1) finishFragment(); }
+            @Override public void onItemClick(int id) {
+                if (id == -1) finishFragment();
+                else if (id == 1) moreActions();
+            }
         });
         ScrollView scroll = new ScrollView(context);
+        scroll.setOnTouchListener((v, event) -> {
+            int action = event.getActionMasked();
+            if (action == android.view.MotionEvent.ACTION_DOWN) touching = true;
+            else if (action == android.view.MotionEvent.ACTION_UP || action == android.view.MotionEvent.ACTION_CANCEL) touching = false;
+            return false;
+        });
+        scroll.getViewTreeObserver().addOnScrollChangedListener(() -> lastScrollAt = android.os.SystemClock.elapsedRealtime());
         scroll.setFillViewport(true);
         scroll.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
         LinearLayout body = new LinearLayout(context);
@@ -63,10 +81,11 @@ public final class TjMediaDetailsActivity extends BaseFragment implements Notifi
         scroll.addView(body);
         fragmentView = scroll;
         String name = record.title();
-        FrameLayout hero = new FrameLayout(context);
+        hero = new FrameLayout(context);
         hero.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundGray));
         BackupImageView image = new BackupImageView(context);
         artwork = image;
+        artworkKey = null;
         image.getImageReceiver().setCurrentAccount(entry.account);
         hero.addView(image, LayoutHelper.createFrame(-1, -1));
         bindArtwork();
@@ -76,12 +95,18 @@ public final class TjMediaDetailsActivity extends BaseFragment implements Notifi
         TextView title = new TextView(context);
         titleView = title;
         title.setText(name); title.setTextColor(0xffffffff); title.setTextSize(28);
+        title.setMaxLines(3); title.setEllipsize(android.text.TextUtils.TruncateAt.END);
         title.setTypeface(AndroidUtilities.bold());
         title.setGravity(LocaleController.isRTL ? Gravity.RIGHT : Gravity.LEFT);
         title.setPadding(dp(20), dp(20), dp(20), dp(20));
         hero.addView(title, LayoutHelper.createFrame(-1, -2, Gravity.BOTTOM));
-        body.addView(hero, LayoutHelper.createLinear(-1, Math.min(360,
-                (int) (AndroidUtilities.displaySize.y / AndroidUtilities.density * .42f))));
+        body.addView(hero, LayoutHelper.createLinear(-1, heroHeight()));
+        TextView technical = paragraph(context, org.telegram.ui.Components.TjMediaFileInfo.summary(entry.message));
+        technical.setTextSize(13);
+        technical.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText));
+        technical.setGravity(Gravity.CENTER);
+        technical.setVisibility(technical.length() == 0 ? View.GONE : View.VISIBLE);
+        body.addView(technical, LayoutHelper.createLinear(-1, -2));
         play = button(context, "", () -> open(resumable() ? record.position : 0));
         play.setTypeface(AndroidUtilities.bold());
         play.setTextColor(Theme.getColor(Theme.key_featuredStickers_buttonText));
@@ -94,10 +119,16 @@ public final class TjMediaDetailsActivity extends BaseFragment implements Notifi
             else loader.loadFile(entry.message.getDocument(), entry.message, FileLoader.PRIORITY_NORMAL, 0);
             updateActions();
         });
-        body.addView(download, LayoutHelper.createLinear(-1, -2, 16, 0, 16, 8));
+        LinearLayout actions = new LinearLayout(context);
+        actions.setLayoutDirection(LocaleController.isRTL ? View.LAYOUT_DIRECTION_RTL : View.LAYOUT_DIRECTION_LTR);
+        actions.addView(download, new LinearLayout.LayoutParams(0, -1, 1));
+        TextView lists = button(context, text(R.string.TjMediaListsTab), this::manageItem);
+        LinearLayout.LayoutParams listParams = new LinearLayout.LayoutParams(0, -1, 1);
+        listParams.leftMargin = dp(4); listParams.rightMargin = dp(4);
+        actions.addView(lists, listParams);
+        body.addView(actions, LayoutHelper.createLinear(-1, -2, 16, 0, 16, 8));
         nextEpisode = button(context, text(R.string.TjMediaNextEpisode), () -> { if (episodes != null) episodes.openNext(); });
-        body.addView(nextEpisode, LayoutHelper.createLinear(-1, -2));
-        body.addView(button(context, text(R.string.TjMediaManageItem), this::manageItem));
+        body.addView(nextEpisode, LayoutHelper.createLinear(-1, -2, 16, 0, 16, 8));
         overviewView = paragraph(context, "");
         body.addView(overviewView);
         if (TjMediaTitle.parse(entry.message.getDocumentName(), entry.message.messageOwner.message).episodeConflict)
@@ -106,42 +137,79 @@ public final class TjMediaDetailsActivity extends BaseFragment implements Notifi
         episodesContainer.setOrientation(LinearLayout.VERTICAL);
         body.addView(episodesContainer, LayoutHelper.createLinear(-1, -2));
         refreshEpisodes();
-        numberingButton = button(context, text(R.string.TjMediaEditEpisode), this::editNumbering);
-        body.addView(numberingButton);
-        body.addView(button(context, text(R.string.TjMediaLocalIdentify), this::editLocalTitle));
-        body.addView(button(context, text(R.string.TjMediaIdentify), () -> {
-            finishFragment(false);
-            AndroidUtilities.runOnUIThread(identify);
-        }));
-        String caption = TjMediaStore.displayCaption(entry.message);
-        if (caption != null && !caption.isEmpty()) expandable(body, context, text(R.string.TjMediaOriginalCaption), caption);
-        TLRPC.Document document = entry.message.getDocument();
-        String file = entry.message.getDocumentName();
-        expandable(body, context, text(R.string.TjMediaFileDetails), (file == null ? "" : file)
-                + (document == null ? "" : "\n" + AndroidUtilities.formatFileSize(document.size))
-                + "\n" + sourceName());
-        body.addView(button(context, text(R.string.TjMediaOpenSource), () -> open(-1)));
         updateActions();
         return fragmentView;
     }
 
+    private void moreActions() {
+        if (getParentActivity() == null || !entry.isAccountAvailable()) return;
+        showDialog(new AlertDialog.Builder(getParentActivity())
+                .setItems(new CharSequence[]{text(R.string.TjMediaManageItem), text(R.string.TjMediaEditEpisode),
+                        text(R.string.TjMediaLocalIdentify), text(R.string.TjMediaIdentify),
+                        text(R.string.TjMediaOriginalCaption), text(R.string.TjMediaFileDetails), text(R.string.TjMediaOpenSource)}, (dialog, which) -> {
+                    if (which == 0) manageItem();
+                    else if (which == 1) editNumbering();
+                    else if (which == 2) editLocalTitle();
+                    else if (which == 3) {
+                        finishFragment(false);
+                        AndroidUtilities.runOnUIThread(identify);
+                    } else if (which == 6) open(-1);
+                    else {
+                        String value = which == 4 ? TjMediaStore.displayCaption(entry.message)
+                                : entry.message.getDocumentName() + "\n\n"
+                                + org.telegram.ui.Components.TjMediaFileInfo.summary(entry.message) + "\n\n" + sourceName();
+                        showDialog(new AlertDialog.Builder(getParentActivity())
+                                .setTitle(text(which == 4 ? R.string.TjMediaOriginalCaption : R.string.TjMediaFileDetails))
+                                .setMessage(value == null || value.isEmpty() ? text(R.string.TjMediaEmpty) : value)
+                                .setPositiveButton(LocaleController.getString(R.string.Close), null).create());
+                    }
+                }).create());
+    }
+
+    private int heroHeight() {
+        boolean hasArtwork = false;
+        if (!entry.message.hasMediaSpoilers()) {
+            hasArtwork = record.metadata != null && TjConfig.hasMediaMetadataCredential(entry.account)
+                    && record.metadata.backdropUrl() != null && !record.metadata.backdropUrl().isEmpty();
+            hasArtwork |= FileLoader.getClosestPhotoSizeWithSize(entry.message.photoThumbs, 640, false, null, true) != null;
+            if (!hasArtwork && entry.message.getDocument() != null)
+                hasArtwork = FileLoader.getClosestPhotoSizeWithSize(entry.message.getDocument().thumbs, 640, false, null, true) != null;
+        }
+        int height = hasArtwork ? Math.min(360, (int) (AndroidUtilities.displaySize.y / AndroidUtilities.density * .42f)) : 176;
+        return titleView == null ? height : Math.max(height, (int) (titleView.getLineHeight() * 3 / AndroidUtilities.density) + 40);
+    }
+
     private void bindArtwork() {
         if (artwork == null) return;
-        artwork.getImageReceiver().cancelLoadImage();
-        artwork.setImageDrawable(null);
+        if (hero != null && hero.getLayoutParams() != null) {
+            int height = dp(heroHeight());
+            if (hero.getLayoutParams().height != height) {
+                hero.getLayoutParams().height = height; hero.requestLayout();
+            }
+        }
+        String url = null;
+        ImageLocation location = null;
         if (!entry.message.hasMediaSpoilers()) {
             if (record.metadata != null && TjConfig.hasMediaMetadataCredential(entry.account)) {
-                artwork.setImage(record.metadata.backdropUrl(), "640_360", null);
-            } else {
+                url = record.metadata.backdropUrl();
+                if (url != null && url.isEmpty()) url = null;
+            }
+            if (url == null) {
                 TLRPC.PhotoSize thumb = FileLoader.getClosestPhotoSizeWithSize(entry.message.photoThumbs, 640, false, null, true);
-                ImageLocation location = thumb == null ? null : ImageLocation.getForObject(thumb, entry.message.photoThumbsObject);
+                location = thumb == null ? null : ImageLocation.getForObject(thumb, entry.message.photoThumbsObject);
                 if (location == null && entry.message.getDocument() != null) {
                     thumb = FileLoader.getClosestPhotoSizeWithSize(entry.message.getDocument().thumbs, 640, false, null, true);
                     if (thumb != null) location = ImageLocation.getForDocument(thumb, entry.message.getDocument());
                 }
-                if (location != null) artwork.setImage(location, "640_360", (android.graphics.drawable.Drawable) null, entry.message);
             }
         }
+        String key = url != null ? url : location == null ? "" : location.getKey(entry.message, null, false);
+        if (key != null && key.equals(artworkKey)) return;
+        artworkKey = key;
+        artwork.getImageReceiver().cancelLoadImage();
+        artwork.setImageDrawable(null);
+        if (url != null) artwork.setImage(url, "640_360", null);
+        else if (location != null) artwork.setImage(location, "640_360", (android.graphics.drawable.Drawable) null, entry.message);
     }
 
     private String sourceName() {
@@ -316,7 +384,15 @@ public final class TjMediaDetailsActivity extends BaseFragment implements Notifi
         if (episodes != null) episodes.close();
         episodes = null;
         episodesContainer.removeAllViews();
-        if (record.catalogKey().isEmpty()) return;
+        if (record.catalogKey().isEmpty()) {
+            if (record.isSeries() || record.season() >= 0 || record.episode() >= 0) {
+                episodesContainer.addView(button(episodesContainer.getContext(),
+                        text(R.string.TjMediaEpisode) + " " + (record.episode() >= 0 ? record.episode() : "—"),
+                        () -> open(resumable() ? record.position : 0)));
+                episodesContainer.addView(button(episodesContainer.getContext(), text(R.string.TjMediaLocalIdentify), this::editLocalTitle));
+            }
+            return;
+        }
         episodes = new TjMediaEpisodesView(episodesContainer.getContext(), this, record, accounts, sources, sourceType,
                 source -> TjMediaStore.getInstance().state(source.message, state -> {
                     if (!destroyed && source.isAccountAvailable()) open(source,
@@ -334,7 +410,6 @@ public final class TjMediaDetailsActivity extends BaseFragment implements Notifi
             overviewView.setText(overview);
             overviewView.setVisibility(overview.isEmpty() ? View.GONE : View.VISIBLE);
         }
-        if (numberingButton != null) numberingButton.setVisibility(record.isSeries() ? View.VISIBLE : View.GONE);
         play.setText("▶  " + text(resumable() ? R.string.TjMediaContinue : R.string.TjMediaPlay));
         if (record.isSeries() && record.season() >= 0 && record.episode() >= 0)
             play.append(" · " + text(R.string.TjMediaSeason) + " " + record.season() + " · " + text(R.string.TjMediaEpisode) + " " + record.episode());
@@ -353,6 +428,10 @@ public final class TjMediaDetailsActivity extends BaseFragment implements Notifi
 
     private void open(TjMediaLibrary.Entry source, long position) {
         if (!source.isAccountAvailable()) return;
+        if (position >= 0) {
+            org.telegram.ui.Components.TjMediaPlayback.open(this, source, position);
+            return;
+        }
         Bundle args = new Bundle();
         long dialog = source.message.getDialogId();
         if (dialog > 0) args.putLong("user_id", dialog); else args.putLong("chat_id", -dialog);
@@ -364,18 +443,46 @@ public final class TjMediaDetailsActivity extends BaseFragment implements Notifi
 
     @Override public void onResume() {
         super.onResume();
+        resumed = true;
         if (!entry.isAccountAvailable()) { finishFragment(); return; }
+        scheduleRefresh();
+    }
+
+    private void scheduleRefresh() {
+        if (!resumed || destroyed || refreshPending) return;
+        refreshPending = true;
+        AndroidUtilities.runOnUIThread(refreshTask, 1000);
+    }
+
+    private boolean interactionActive() {
+        return touching || android.os.SystemClock.elapsedRealtime() - lastScrollAt < 500
+                || getVisibleDialog() != null && getVisibleDialog().isShowing();
+    }
+
+    private void refreshState() {
+        refreshPending = false;
+        if (!resumed || destroyed || !entry.isAccountAvailable()) return;
+        if (interactionActive()) { scheduleRefresh(); return; }
         TjMediaStore.getInstance().state(entry.message, updated -> {
-            if (!destroyed && updated != null && entry.isAccountAvailable()) {
+            if (resumed && !destroyed && updated != null && entry.isAccountAvailable()) {
+                if (interactionActive()) { scheduleRefresh(); return; }
                 boolean regroup = record.season() != updated.season() || record.episode() != updated.episode()
                         || !record.catalogKey().equals(updated.catalogKey());
                 record = updated; updateActions(); bindArtwork();
                 if (regroup) refreshEpisodes();
+                else if (episodes != null) episodes.refreshCurrentPage(() -> resumed && !destroyed && !interactionActive(), this::scheduleRefresh);
             }
         });
     }
 
+    @Override public void onPause() {
+        resumed = false; touching = false; refreshPending = false;
+        AndroidUtilities.cancelRunOnUIThread(refreshTask);
+        super.onPause();
+    }
+
     @Override public boolean onFragmentCreate() {
+        TjMediaStore.getInstance().addListener(storeChanged);
         NotificationCenter center = NotificationCenter.getInstance(entry.account);
         center.addObserver(this, NotificationCenter.fileLoaded);
         center.addObserver(this, NotificationCenter.fileLoadFailed);
@@ -390,6 +497,8 @@ public final class TjMediaDetailsActivity extends BaseFragment implements Notifi
 
     @Override public void onFragmentDestroy() {
         destroyed = true; if (episodes != null) episodes.close();
+        AndroidUtilities.cancelRunOnUIThread(refreshTask);
+        TjMediaStore.getInstance().removeListener(storeChanged);
         NotificationCenter center = NotificationCenter.getInstance(entry.account);
         center.removeObserver(this, NotificationCenter.fileLoaded);
         center.removeObserver(this, NotificationCenter.fileLoadFailed);

@@ -371,6 +371,7 @@
     <string name="TjMediaKeyError">מפתח TMDB חסר או אינו תקין. עדכן אותו בהגדרות המדיה.</string>
     <string name="TjMediaRateLimit">TMDB מגביל כעת בקשות. נסה שוב מאוחר יותר.</string>
     <string name="TjMediaLookupError">לא ניתן לקבל את פרטי הכותר. המדיה שלך עדיין זמינה.</string>
+    <string name="TjMediaPlaybackError">לא ניתן לפתוח את המדיה. אם פתוח נגן צף, סגור אותו ונסה שוב.</string>
     <string name="TjMediaSeasons">עונות ופרקים</string>
     <string name="TjMediaNextEpisode">הפרק הבא הזמין</string>
     <string name="TjMediaNoNextEpisode">לא נמצא באינדקס פרק ממוספר מאוחר יותר במקורות שנבחרו. סרוק את המקורות כדי למצוא פרקים נוספים, או בדוק את מספרי הפרקים.</string>

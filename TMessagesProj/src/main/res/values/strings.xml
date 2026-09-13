@@ -11595,6 +11595,7 @@
     <string name="TjMediaKeyError">The TMDB credential is missing or invalid. Update it in media settings.</string>
     <string name="TjMediaRateLimit">TMDB is limiting requests. Please try again later.</string>
     <string name="TjMediaLookupError">Could not retrieve title information. Your media is still available.</string>
+    <string name="TjMediaPlaybackError">Could not open this media. Close any active floating player and try again.</string>
     <string name="TjMediaSeasons">Seasons and episodes</string>
     <string name="TjMediaNextEpisode">Next available episode</string>
     <string name="TjMediaNoNextEpisode">No later numbered episode is indexed in the selected sources. Scan your sources to find more, or check the episode numbers.</string>

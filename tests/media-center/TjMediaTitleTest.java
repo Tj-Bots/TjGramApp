@@ -41,6 +41,15 @@ public class TjMediaTitleTest {
         check(!TjMediaTitle.parse("Show.S01E04.mkv", "Show עונה 1 פרק 4").episodeConflict);
         check(TjMediaTitle.parse("Show.S01E04E05.mkv", "").episodeConflict);
         check(TjMediaTitle.parse("Show.S01E04-E05.mkv", "").episodeConflict);
+        TjMediaTitle abbreviated = TjMediaTitle.parse("upload.mkv", "קופה ראשית ע5 פ4 1080p");
+        check(abbreviated.title.equals("קופה ראשית"));
+        check(abbreviated.season == 5 && abbreviated.episode == 4);
+        check(TjMediaTitle.parse("Show Season 2 Episode 4.mkv", "").episode == 4);
+        check(TjMediaTitle.parse("Show Season 2 Ep 4.mkv", "").season == 2);
+        check(TjMediaTitle.parse("Название Сезон 2 Серия 4.mkv", "").episode == 4);
+        check(TjMediaTitle.parse("Show S02E04.mkv", "Show Season 2 Episode 5").episodeConflict);
+        check(TjMediaTitle.parse("Show S02E04.mkv", "Show ע2 פ4").episode == 4);
+        check(TjMediaTitle.parse("שם מתעתע5 פ4.mkv", "").season == -1);
         System.out.println(checks + " media title checks passed");
     }
 }

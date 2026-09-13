@@ -36,8 +36,10 @@ also packaged and installed locally; universal release packaging remains a CI ch
   while its query/focus is active. Child collection scope cannot switch owners or
   overwrite the parent screen's saved filters. A file still
   belongs to one named list. Existing file-based names remain discoverable.
-  Ordinary media opens through native viewers/player; unavailable documents and
-  cross-account photos/videos go to their source chat. Identified movies/series
+  Photos/videos use an account-bound native viewer entry point without first
+  opening a chat, including cross-account selections. This route still needs
+  live-account playback verification. Unavailable ordinary documents can open
+  their source chat. Identified movies/series
   use full-screen details. Long-press a library item for its management actions.
 
 ### Sources and scanning
@@ -72,6 +74,13 @@ Protocol error identifiers are separated from local read/write failures; arbitra
 server text is not displayed. A particular device's server failure still requires
 its actual error code to diagnose.
 
+Transient source failures use bounded delayed retries while healthy sources continue.
+Server flood waits are shared by immutable owner ID between preview and scanning
+within the process. Permission failures and exhausted retries remain manually
+retryable; failed local writes never advance a checkpoint. Flood-wait deadlines
+are not persisted across process death. Preview retry timers stop while its screen
+is paused, and retry failed streams rather than fetching further healthy history.
+
 ### Local catalog, with no TMDB requirement
 
 Filename/caption hints identify local movie/series titles. Known season/episode or
@@ -80,13 +89,29 @@ numbers/names and generic filenames stay unresolved, and remain accessible in
 the ordinary library. Mixed channels are never assumed to contain one show.
 
 Full-screen movie/series details contain artwork/thumbnail fallback, play/resume,
-download/cancel, source information and expandable original caption/file details.
+download/cancel and lists, with identification, original caption/file information
+and source-chat navigation in the overflow menu. A missing backdrop uses a compact
+header; repeated unchanged store updates do not restart its artwork load.
 Series expose paged seasons, distinct numbered episodes, source counts, watch-state
 indicators and next **available indexed** episode. Sources retain account, chat,
 known sender, filename, size and per-file resume state. Next-episode navigation
 skips gaps and seasons containing only unknown-numbered sources; it does not
 invent unavailable episodes or autoplay them. The primary play label identifies
 the selected source's season/episode when known.
+
+Version selection uses recycled thumbnail rows with source/uploader and separate
+reported dimensions, duration and size. Unknown values are omitted, not inferred
+as verified HDR/codec properties. Background episode updates retain selected season
+and page, defer during interaction, and reject stale request results.
+
+The derived naming index has its own revision. Naming upgrades restart only its
+128-row background backfill, preserve manual assignments and watch state, keep
+existing results visible, and resume the same pass after reopening the database.
+
+`test_episode_numbers.py` exercises the production SQL expressions for episode
+summaries: duplicate versions, sparse next-episode numbering, unknown numbers last,
+manual overrides, per-source watch states and account/chat/title isolation. It runs
+on desktop SQLite, not Android message deserialization or a live Telegram session.
 
 Manual local title/type/year and numbering corrections work without credentials.
 Changing local identity detaches old external metadata but preserves the file,
@@ -164,12 +189,15 @@ serialized Telegram-message, Android UI or real-account verification.
 `TMessagesProj_App/src/androidTest/java/org/telegram/ui/TjMediaUiSmoke.java` is an
 opt-in, signed-out emulator harness, not shipped in the application. On API 35 it
 captured the permanent search/tabs, separate list editor, icon palette and a
-synthetic list row in LTR and forced RTL. It checked search Back consumption,
+synthetic list row in LTR and built-in Hebrew. It checked search Back consumption,
 child-fragment creation/return, and absence of duplicate child bottom navigation.
-The screenshots were visually inspected. Forced RTL uses English UI strings plus
-a Hebrew sample row; it is not a full Hebrew locale, dark theme or large-font test.
-The synthetic row is injected into the editor solely for layout inspection; real
-list persistence is covered separately by SQL tests, not by this signed-out run.
+The screenshots were visually inspected. The latest verified run also exercised
+content swipes to Videos in both languages without leaving the media fragment,
+and asserted full-width rows in the actual collection directory adapter. A subsequent
+run also passed reverse/boundary swipes in both languages. A built-in Dark Blue run
+also passed and its header/details screenshots were inspected. Large-font coverage
+remains pending. Synthetic rows are injected solely for layout inspection;
+real list persistence is covered separately by SQL tests, not this signed-out run.
 
 See [SCALE_BASELINE.md](SCALE_BASELINE.md) for measured desktop SQL results and their
 limits. [REDESIGN.md](REDESIGN.md) and [SERIES_DESIGN.md](SERIES_DESIGN.md) preserve
@@ -177,9 +205,10 @@ the approved design rationale and distinguish it from implementation evidence.
 
 ### Remaining verification and product boundaries
 
-- Native Hebrew/English, light/dark, small screens, large text, rotation, TalkBack,
-  playback/PiP, download recovery and real Telegram scan completeness need device
-  testing. Compilation does not establish these behaviors.
+- Light and built-in Dark Blue English/Hebrew layouts and content swipe boundaries were exercised on
+  a signed-out API 35 emulator. Other themes, large text, rotation, TalkBack,
+  playback/PiP, download recovery and real Telegram scan completeness still need
+  device testing. Layout fixtures do not establish those behaviors.
 - No official expected-episode catalog or “complete series” claim. Multi-episode
   files are flagged as ambiguous, not split into invented playback offsets.
 - Local keys use normalized name/type/year; unrelated same-name/year content or

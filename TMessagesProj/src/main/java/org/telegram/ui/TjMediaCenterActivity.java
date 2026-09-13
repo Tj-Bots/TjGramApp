@@ -76,7 +76,6 @@ public class TjMediaCenterActivity extends BaseFragment implements MainTabsActiv
     private Adapter adapter;
     private EditTextBoldCursor search;
     private TextView status;
-    private TextView accountButton;
     private TextView typeButton;
     private TextView sourceButton;
     private final HashMap<Long, Set<Long>> sources = new HashMap<>();
@@ -170,6 +169,7 @@ public class TjMediaCenterActivity extends BaseFragment implements MainTabsActiv
         if (library != null) library.close();
         actionBar.setTitle(subpage ? libraryView == 5 ? collection : viewNames()[libraryView] : text(R.string.TjMediaCenter));
         actionBar.setBackButtonImage(R.drawable.ic_ab_back);
+        actionBar.setTitleActionRunnable(this::chooseFilters);
         actionBar.createMenu().addItem(1, R.drawable.msg_settings).setContentDescription(LocaleController.getString(R.string.Settings));
         actionBar.setActionBarMenuOnItemClick(new ActionBar.ActionBarMenuOnItemClick() {
             @Override public void onItemClick(int id) {
@@ -216,16 +216,6 @@ public class TjMediaCenterActivity extends BaseFragment implements MainTabsActiv
         search.setText(searchQuery);
         root.addView(searchField, LayoutHelper.createLinear(-1, 48, 12, 8, 12, 6));
         actionBar.createMenu().addItem(3, R.drawable.menu_tag_filter).setContentDescription(text(R.string.TjMediaFilters));
-        accountButton = label(context);
-        accountButton.setMinHeight(AndroidUtilities.dp(28));
-        accountButton.setTextSize(13);
-        accountButton.setPadding(AndroidUtilities.dp(16), 0, AndroidUtilities.dp(16), 0);
-        accountButton.setGravity(LocaleController.isRTL ? Gravity.RIGHT : Gravity.LEFT);
-        accountButton.setOnClickListener(v -> chooseAccounts());
-        accountButton.setEnabled(!(subpage && collectionAccount >= 0));
-        LinearLayout scopeRow = new LinearLayout(context);
-        scopeRow.setLayoutDirection(LocaleController.isRTL ? View.LAYOUT_DIRECTION_RTL : View.LAYOUT_DIRECTION_LTR);
-        scopeRow.addView(accountButton, new LinearLayout.LayoutParams(0, -2, 1));
         scanStatus = label(context);
         scanStatus.setTextSize(12); scanStatus.setMaxWidth(AndroidUtilities.dp(170));
         scanStatus.setMaxLines(2); scanStatus.setEllipsize(android.text.TextUtils.TruncateAt.END);
@@ -235,8 +225,7 @@ public class TjMediaCenterActivity extends BaseFragment implements MainTabsActiv
             else if (scanner != null && scanner.hasError() && !scanner.isLoading()) scanner.loadMore();
             else { stopScan(); refresh(); }
         });
-        scopeRow.addView(scanStatus, LayoutHelper.createLinear(-2, -2));
-        root.addView(scopeRow, LayoutHelper.createLinear(-1, -2));
+        root.addView(scanStatus, LayoutHelper.createLinear(-1, -2));
         mainTabs = new MainTabsLayout(context, getResourceProvider());
         mainTabs.setClipChildren(false);
         mainTabs.setLayoutDirection(LocaleController.isRTL ? View.LAYOUT_DIRECTION_RTL : View.LAYOUT_DIRECTION_LTR);
@@ -295,10 +284,38 @@ public class TjMediaCenterActivity extends BaseFragment implements MainTabsActiv
         sourceButton = label(context);
         viewButton = label(context);
         RecyclerListView list = new RecyclerListView(context) {
+            private float downX, downY;
+            private boolean horizontal, vertical, multiTouch;
             @Override public boolean dispatchTouchEvent(android.view.MotionEvent event) {
-                if (event.getActionMasked() == android.view.MotionEvent.ACTION_DOWN) gridTouching = true;
-                else if (event.getActionMasked() == android.view.MotionEvent.ACTION_UP
-                        || event.getActionMasked() == android.view.MotionEvent.ACTION_CANCEL) gridTouching = false;
+                int action = event.getActionMasked();
+                if (action == android.view.MotionEvent.ACTION_DOWN) {
+                    gridTouching = true;
+                    downX = event.getX(); downY = event.getY(); horizontal = vertical = multiTouch = false;
+                }
+                float dx = event.getX() - downX, dy = event.getY() - downY;
+                if (event.getPointerCount() > 1) { vertical = true; multiTouch = true; }
+                if (action == android.view.MotionEvent.ACTION_MOVE && !horizontal && !vertical) {
+                    int slop = android.view.ViewConfiguration.get(getContext()).getScaledTouchSlop();
+                    if (Math.abs(dy) > slop && Math.abs(dy) >= Math.abs(dx)) vertical = true;
+                    else if (typeStrip.getVisibility() == View.VISIBLE && Math.abs(dx) > slop * 2
+                            && Math.abs(dx) > Math.abs(dy) * 1.5f) {
+                        horizontal = true;
+                        android.view.MotionEvent cancel = android.view.MotionEvent.obtain(event);
+                        cancel.setAction(android.view.MotionEvent.ACTION_CANCEL);
+                        super.dispatchTouchEvent(cancel); cancel.recycle();
+                        getParent().requestDisallowInterceptTouchEvent(true);
+                    }
+                }
+                if (action == android.view.MotionEvent.ACTION_UP || action == android.view.MotionEvent.ACTION_CANCEL) {
+                    gridTouching = false;
+                    if (horizontal) {
+                        if (!multiTouch && action == android.view.MotionEvent.ACTION_UP && Math.abs(dx) >= AndroidUtilities.dp(48))
+                            swipeMediaType(dx < 0 ? 1 : -1);
+                        horizontal = false;
+                        return true;
+                    }
+                }
+                if (horizontal) return true;
                 return super.dispatchTouchEvent(event);
             }
             @Override protected void onSizeChanged(int w, int h, int oldw, int oldh) {
@@ -483,9 +500,22 @@ public class TjMediaCenterActivity extends BaseFragment implements MainTabsActiv
         CharSequence[] filters = fixedAccount
                 ? new CharSequence[]{text(R.string.TjMediaSources), text(R.string.TjMediaType), text(R.string.TjMediaView)}
                 : new CharSequence[]{text(R.string.TjMediaAccounts), text(R.string.TjMediaSources), text(R.string.TjMediaType), text(R.string.TjMediaView)};
+        TjMediaLibrary failedLibrary = scanner != null && scanner.hasError() ? scanner
+                : library != null && library.hasError() ? library : null;
+        final int retryIndex = filters.length;
+        if (failedLibrary != null) {
+            filters = java.util.Arrays.copyOf(filters, filters.length + 1);
+            filters[retryIndex] = text(R.string.TjMediaRetry);
+        }
         showDialog(new org.telegram.ui.ActionBar.BottomSheet.Builder(getParentActivity())
                 .setTitle(text(R.string.TjMediaFilters))
                 .setItems(filters, (dialog, selection) -> {
+                    if (selection == retryIndex && failedLibrary != null) {
+                        showDialog(new AlertDialog.Builder(getParentActivity()).setMessage(libraryError(failedLibrary))
+                                .setPositiveButton(LocaleController.getString(R.string.Retry), (d, which) -> failedLibrary.loadMore())
+                                .setNegativeButton(LocaleController.getString(R.string.Cancel), null).create());
+                        return;
+                    }
                     int which = selection + (fixedAccount ? 1 : 0);
                     if (which == 0) chooseAccounts();
                     else if (which == 1) chooseSources();
@@ -875,9 +905,9 @@ public class TjMediaCenterActivity extends BaseFragment implements MainTabsActiv
         if (libraryView == 9 && home != null && (rowsChanged || homeLoading != renderedHomeLoading))
             home.bind(visible, localRecords, homeLoading);
         renderedHomeLoading = homeLoading;
-        accountButton.setText((accounts.size() == 1
+        String accountSummary = accounts.size() == 1
                 ? UserObject.getUserName(UserConfig.getInstance(accounts.get(0)).getCurrentUser())
-                : text(R.string.TjMediaAccounts) + " · " + accounts.size()) + " ▾");
+                : text(R.string.TjMediaAccounts) + " · " + accounts.size();
         typeButton.setText(typeNames()[mediaType]);
         viewButton.setText(viewNames()[libraryView] + (libraryView == 5 ? " · " + collection : ""));
         int selectedSources = 0;
@@ -886,8 +916,10 @@ public class TjMediaCenterActivity extends BaseFragment implements MainTabsActiv
         for (Set<Long> selected : sourceFolders.values()) folderCount += selected.size();
         sourceButton.setText(folderCount > 0 ? text(R.string.TjMediaSelectFolders) + " · " + folderCount
                 : !sources.isEmpty() ? text(R.string.TjMediaSelectChats) + " · " + selectedSources : sourceNames()[sourceType]);
+        actionBar.setSubtitle(accountSummary + " · " + sourceButton.getText() + " ▾");
         boolean loading = libraryView == 0 || libraryView == 9 ? library.isLoading() || localPending > 0 : localPending > 0;
-        boolean error = libraryView == 0 || libraryView == 9 ? library.hasError() || localError : localError;
+        boolean error = libraryView == 0 || libraryView == 9
+                ? localError || library.hasWriteError() || visible.isEmpty() && library.hasError() : localError;
         boolean more = libraryView == 0 || libraryView == 9 ? library.hasMore() || !localCursors.isEmpty() : !localCursors.isEmpty();
         boolean titlePage = libraryView == 7 || libraryView == 8;
         if (titlePage) more = catalogMore;
@@ -907,7 +939,7 @@ public class TjMediaCenterActivity extends BaseFragment implements MainTabsActiv
             status.setText(status.getText() + " · " + text(R.string.TjMediaLocalCatalogUpdating));
         scanStatus.setVisibility(scanner != null || autoMatcher != null || org.telegram.messenger.tj.TjMediaScanCoordinator.getInstance().isRequested() ? View.VISIBLE : View.GONE);
         if (scanner != null) {
-            scanStatus.setText(scanner.hasError() && !scanner.isLoading() ? libraryError(scanner)
+            scanStatus.setText(scanner.hasError() && !scanner.isLoading() && scanner.nextAutomaticDelay() < 0 ? libraryError(scanner)
                     : String.format(java.util.Locale.getDefault(), text(R.string.TjMediaScanProgress), scanner.scannedCount()));
             scanStatus.setEnabled(true);
         } else if (org.telegram.messenger.tj.TjMediaScanCoordinator.getInstance().isRequested()) {
@@ -1171,6 +1203,10 @@ public class TjMediaCenterActivity extends BaseFragment implements MainTabsActiv
 
     private void openSource(TjMediaLibrary.Entry entry, long startPosition) {
         if (!entry.isAccountAvailable()) { refresh(); return; }
+        if (startPosition >= 0) {
+            org.telegram.ui.Components.TjMediaPlayback.open(this, entry, startPosition);
+            return;
+        }
         Bundle args = new Bundle();
         long dialog = entry.message.getDialogId();
         if (dialog > 0) args.putLong("user_id", dialog);
@@ -1309,7 +1345,21 @@ public class TjMediaCenterActivity extends BaseFragment implements MainTabsActiv
     }
 
     @Override public boolean isSwipeBackEnabled(android.view.MotionEvent event) {
+        if (typeStrip != null && typeStrip.getVisibility() == View.VISIBLE) return false;
         return (search == null || search.length() == 0 && !search.hasFocus()) && super.isSwipeBackEnabled(event);
+    }
+
+    private void swipeMediaType(int direction) {
+        if (typeTabs == null || typeStrip.getVisibility() != View.VISIBLE) return;
+        for (int i = 0; i < typeTabs.getTabsCount(); i++) {
+            if (typeTabs.getTab(i).id != mediaType) continue;
+            int next = i + direction;
+            if (next >= 0 && next < typeTabs.getTabsCount()) {
+                mediaType = typeTabs.getTab(next).id;
+                reload();
+            }
+            return;
+        }
     }
 
     private void openOrdinaryMedia(TjMediaLibrary.Entry entry) {
@@ -1318,12 +1368,8 @@ public class TjMediaCenterActivity extends BaseFragment implements MainTabsActiv
         int kind = org.telegram.messenger.tj.TjMediaKind.of(message);
         if (kind == org.telegram.messenger.tj.TjMediaKind.PHOTO || kind == org.telegram.messenger.tj.TjMediaKind.GIF
                 || kind == org.telegram.messenger.tj.TjMediaKind.VIDEO) {
-            // PhotoViewer is bound to the active Telegram account. Cross-account media
-            // must enter its own chat instead of requesting files under the wrong owner.
-            if (entry.account != UserConfig.selectedAccount) { openSource(entry, 0); return; }
-            PhotoViewer viewer = PhotoViewer.getInstance();
-            viewer.setParentActivity(this);
-            if (viewer.openPhoto(message, message.getDialogId(), 0, 0, new PhotoViewer.EmptyPhotoViewerProvider(), false)) return;
+            org.telegram.ui.Components.TjMediaPlayback.open(this, entry, -1);
+            return;
         } else if (message.isMusic() || message.isVoice()) {
             if (playAudio(message)) return;
         } else {
@@ -1706,6 +1752,7 @@ public class TjMediaCenterActivity extends BaseFragment implements MainTabsActiv
     @Override public void onResume() {
         super.onResume();
         viewResumed = true;
+        if (library != null) library.setRetriesPaused(false);
         if (screenOwner != 0 && screenOwner != UserConfig.getInstance(currentAccount).getClientUserId()) { finishFragment(); return; }
         pendingStoreUpdate = true;
         scheduleAutomaticRefresh();
@@ -1728,6 +1775,7 @@ public class TjMediaCenterActivity extends BaseFragment implements MainTabsActiv
 
     @Override public void onPause() {
         viewResumed = false;
+        if (library != null) library.setRetriesPaused(true);
         AndroidUtilities.cancelRunOnUIThread(automaticRefresh);
         refreshScheduled = false;
         stopMatching();

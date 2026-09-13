@@ -9,7 +9,10 @@ import java.util.regex.Pattern;
 public final class TjMediaTitle {
     private static final Pattern EPISODE = Pattern.compile("(?i)(?<![\\p{L}\\d])s(\\d{1,3})[ ._-]*e(\\d{1,4})(?!\\d)|(?<!\\d)(\\d{1,3})x(\\d{1,4})(?!\\d)");
     private static final Pattern YEAR = Pattern.compile("(?<!\\d)((?:19|20)\\d{2})(?!\\d)");
-    private static final Pattern HEBREW_EPISODE = Pattern.compile("עונה\\s*(\\d{1,3})[\\s,._:-]*פרק\\s*(\\d{1,4})(?!\\d)");
+    private static final Pattern HEBREW_EPISODE = Pattern.compile("(?<![\\p{L}\\d])(?:עונה|ע)\\s*(\\d{1,3})[\\s,._:-]*(?:פרק|פ)\\s*(\\d{1,4})(?!\\d)");
+    private static final Pattern ENGLISH_EPISODE = Pattern.compile("(?i)(?<![\\p{L}\\d])season[ ._-]*(\\d{1,3})[\\s,._:-]*(?:episode|ep)[ ._-]*(\\d{1,4})(?!\\d)");
+    private static final Pattern RUSSIAN_EPISODE = Pattern.compile("(?iu)(?<![\\p{L}\\d])сезон\\s*(\\d{1,3})[\\s,._:-]*серия\\s*(\\d{1,4})(?!\\d)");
+    private static final Pattern[] EPISODE_PATTERNS = {EPISODE, HEBREW_EPISODE, ENGLISH_EPISODE, RUSSIAN_EPISODE};
     private static final Pattern QUALITY = Pattern.compile("(?i)(?<![\\p{L}\\d])(2160p|1080p|720p|480p|4k)(?![\\p{L}\\d])");
     private static final Pattern MULTI_EPISODE = Pattern.compile("(?i)s\\d{1,3}[ ._-]*e\\d{1,4}(?:e|[-+]e?)\\d{1,4}");
     private static final Pattern EXTENSION = Pattern.compile("(?i)\\.(mkv|mp4|avi|mov|webm|m4v|ts|mp3|flac|pdf|zip)$");
@@ -38,29 +41,24 @@ public final class TjMediaTitle {
                 || firstLine.startsWith("https://") ? file : firstLine;
         candidate = EXTENSION.matcher(candidate).replaceFirst("");
         String combined = text + "\n" + file;
-        Matcher episodeMatch = EPISODE.matcher(combined);
         int season = -1;
         int episode = -1;
-        if (episodeMatch.find()) {
-            season = Integer.parseInt(episodeMatch.group(1) != null ? episodeMatch.group(1) : episodeMatch.group(3));
-            episode = Integer.parseInt(episodeMatch.group(2) != null ? episodeMatch.group(2) : episodeMatch.group(4));
-        } else {
-            Matcher hebrewEpisode = HEBREW_EPISODE.matcher(combined);
-            if (hebrewEpisode.find()) {
-                season = Integer.parseInt(hebrewEpisode.group(1));
-                episode = Integer.parseInt(hebrewEpisode.group(2));
+        for (Pattern pattern : EPISODE_PATTERNS) {
+            Matcher match = pattern.matcher(combined);
+            if (match.find()) {
+                season = Integer.parseInt(match.group(1) != null ? match.group(1) : match.group(3));
+                episode = Integer.parseInt(match.group(2) != null ? match.group(2) : match.group(4));
+                break;
             }
         }
         boolean conflict = false;
         // Repeated identical labels are harmless. Conflicting filename/caption
         // labels or multiple episode labels must not silently pick the first.
-        for (Pattern pattern : new Pattern[]{EPISODE, HEBREW_EPISODE}) {
+        for (Pattern pattern : EPISODE_PATTERNS) {
             Matcher labels = pattern.matcher(combined);
             while (labels.find()) {
-                int s = Integer.parseInt(pattern == HEBREW_EPISODE ? labels.group(1)
-                        : labels.group(1) != null ? labels.group(1) : labels.group(3));
-                int e = Integer.parseInt(pattern == HEBREW_EPISODE ? labels.group(2)
-                        : labels.group(2) != null ? labels.group(2) : labels.group(4));
+                int s = Integer.parseInt(labels.group(1) != null ? labels.group(1) : labels.group(3));
+                int e = Integer.parseInt(labels.group(2) != null ? labels.group(2) : labels.group(4));
                 if (s != season || e != episode) conflict = true;
             }
         }
@@ -79,7 +77,7 @@ public final class TjMediaTitle {
         Matcher qualityMatch = QUALITY.matcher(combined);
         String quality = qualityMatch.find() ? qualityMatch.group(1).toUpperCase(Locale.ROOT) : "";
         int end = candidate.length();
-        for (Pattern pattern : new Pattern[]{EPISODE, HEBREW_EPISODE, YEAR, QUALITY}) {
+        for (Pattern pattern : new Pattern[]{EPISODE, HEBREW_EPISODE, ENGLISH_EPISODE, RUSSIAN_EPISODE, YEAR, QUALITY}) {
             Matcher boundary = pattern.matcher(candidate);
             while (boundary.find()) {
                 if (boundary.start() > 0) {

@@ -30,6 +30,20 @@ db.execute("UPDATE media SET season_override=2,episode_override=9 WHERE owner=1 
 row = db.execute("SELECT CASE WHEN m.season_override=-2 THEN c.season ELSE m.season_override END, CASE WHEN m.episode_override=-2 THEN c.episode ELSE m.episode_override END FROM media m JOIN media_local_catalog c USING(owner,dialog,mid) WHERE m.owner=1 AND m.mid=1").fetchone()
 assert row == (2, 9)
 db.commit()
+# A parser upgrade restarts only the derived cursor, once; subsequent opens resume it.
+db.execute('UPDATE media_local_revision SET revision=1 WHERE id=1')
+db.execute('UPDATE media_local_progress SET last_row=300 WHERE id=1')
+for statement in ddl:
+    db.execute(statement)
+assert db.execute('SELECT last_row FROM media_local_progress').fetchone()[0] == 0
+assert db.execute('SELECT revision FROM media_local_revision').fetchone()[0] == 2
+assert db.execute('SELECT COUNT(*) FROM media_local_catalog WHERE manual=1').fetchone()[0] == 408
+assert db.execute('SELECT played,season_override,episode_override FROM media WHERE owner=1 AND mid=1').fetchone() == (400, 2, 9)
+db.execute('UPDATE media_local_progress SET last_row=128 WHERE id=1')
+for statement in ddl:
+    db.execute(statement)
+assert db.execute('SELECT last_row FROM media_local_progress').fetchone()[0] == 128
+db.commit()
 db.execute('BEGIN')
 db.execute('DELETE FROM media WHERE owner=1')
 assert db.execute('SELECT COUNT(*) FROM media_local_catalog WHERE owner=1').fetchone()[0] == 0
@@ -39,6 +53,7 @@ db.execute('DELETE FROM media WHERE owner=1')
 assert db.execute('SELECT COUNT(*) FROM media_local_catalog WHERE owner=2').fetchone()[0] == 204
 assert db.execute('PRAGMA integrity_check').fetchone()[0] == 'ok'
 assert 'LIMIT 128' in source and 'setTransactionSuccessful' in source
+assert 'now - lastLocalCatalogNotification >= 2000' in store
 assert 'current.getLong(0) == media.getAsLong("document")' in source
 assert 'readLocalRecords(getReadableDatabase(), result, owner)' in store
 assert 'GROUP BY ' in store and ' LIMIT 101' in store

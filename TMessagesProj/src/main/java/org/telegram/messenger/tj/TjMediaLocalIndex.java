@@ -26,6 +26,12 @@ final class TjMediaLocalIndex {
         db.execSQL("CREATE TRIGGER IF NOT EXISTS media_catalog_move AFTER UPDATE OF catalog_key ON media_local_catalog WHEN old.catalog_key<>new.catalog_key BEGIN DELETE FROM media_catalog_titles WHERE title_key=old.catalog_key AND NOT EXISTS (SELECT 1 FROM media_local_catalog WHERE catalog_key=old.catalog_key); END");
         db.execSQL("CREATE TABLE IF NOT EXISTS media_local_progress (id INTEGER PRIMARY KEY CHECK(id=1), last_row INTEGER NOT NULL)");
         db.execSQL("INSERT OR IGNORE INTO media_local_progress VALUES(1,0)");
+        // Version only the rebuildable naming data, not media, manual corrections or watch state.
+        // Advance the revision atomically with resetting the cursor: reopening resumes the same pass.
+        db.execSQL("CREATE TABLE IF NOT EXISTS media_local_revision (id INTEGER PRIMARY KEY CHECK(id=1), revision INTEGER NOT NULL)");
+        db.execSQL("INSERT OR IGNORE INTO media_local_revision VALUES(1,0)");
+        db.execSQL("UPDATE media_local_progress SET last_row=0 WHERE id=1 AND EXISTS (SELECT 1 FROM media_local_revision WHERE id=1 AND revision<2)");
+        db.execSQL("UPDATE media_local_revision SET revision=2 WHERE id=1 AND revision<2");
         db.execSQL("CREATE TRIGGER IF NOT EXISTS media_local_delete AFTER DELETE ON media BEGIN DELETE FROM media_local_catalog WHERE owner=old.owner AND dialog=old.dialog AND mid=old.mid; END");
     }
 

@@ -57,6 +57,10 @@ public final class TjMediaLibrary {
     private long scannedCount;
     private int pendingWrites;
     private final ArrayList<PendingPage> failedWrites = new ArrayList<>();
+    // UI-thread-only, shared by preview and scan instances; fragment recreation must not bypass FLOOD_WAIT.
+    private static final java.util.HashMap<Long, Long> accountRetryAt = new java.util.HashMap<>();
+    private final Runnable previewRetry = this::retryPreview;
+    private boolean retriesPaused;
 
     /** Keep a network page intact so retries can carry its own durable cursor. */
     private static final class PendingPage {
@@ -95,6 +99,9 @@ public final class TjMediaLibrary {
         boolean complete;
         boolean failed;
         String errorCode;
+        int failureCount;
+        long retryAt = Long.MAX_VALUE;
+        boolean deferredByFlood;
         boolean queued;
         boolean writing;
         boolean refreshLane;
@@ -127,6 +134,7 @@ public final class TjMediaLibrary {
     /** Empty per-owner source sets mean all chats; source type: all/private/groups/channels. */
     public void reset(List<Integer> accounts, Map<Long, Set<Long>> sources, int sourceType, String query) {
         cancelRequests();
+        accountRetryAt.entrySet().removeIf(entry -> entry.getValue() <= System.currentTimeMillis());
         closed = false;
         entries.clear();
         keys.clear();
@@ -187,8 +195,64 @@ public final class TjMediaLibrary {
     }
 
     public void loadMore() {
+        loadMore(false);
+    }
+
+    public void loadMoreAutomatic() {
+        loadMore(true);
+    }
+
+    private void schedulePreviewRetry() {
+        AndroidUtilities.cancelRunOnUIThread(previewRetry);
+        if (closed || indexOnly || retriesPaused || hasWriteError()) return;
+        long now = System.currentTimeMillis(), earliest = Long.MAX_VALUE;
+        for (Stream stream : streams) {
+            if (stream.complete || stream.loading || !(stream.failed || stream.deferredByFlood)) continue;
+            earliest = Math.min(earliest, Math.max(stream.failed ? stream.retryAt : now,
+                    accountRetryAt.getOrDefault(stream.ownerId, 0L)));
+        }
+        if (earliest != Long.MAX_VALUE)
+            AndroidUtilities.runOnUIThread(previewRetry, Math.max(500, earliest - now));
+    }
+
+    private void retryPreview() {
+        if (closed || indexOnly || retriesPaused || hasWriteError()) return;
+        if (pendingWrites == 0) {
+            long now = System.currentTimeMillis();
+            for (Stream stream : streams) {
+                if (!stream.complete && !stream.loading && !stream.writing
+                        && (stream.failed || stream.deferredByFlood)
+                        && (!stream.failed || now >= stream.retryAt)
+                        && now >= accountRetryAt.getOrDefault(stream.ownerId, 0L)) stream.queued = true;
+            }
+            pump();
+            listener.onChanged();
+        }
+        schedulePreviewRetry();
+    }
+
+    public void setRetriesPaused(boolean paused) {
+        retriesPaused = paused;
+        schedulePreviewRetry();
+    }
+
+    /** -1 means no automatic work; failed sources remain incomplete and inspectable. */
+    public long nextAutomaticDelay() {
+        if (closed || hasWriteError()) return -1;
+        long now = System.currentTimeMillis(), earliest = Long.MAX_VALUE;
+        for (Stream stream : streams) {
+            if (stream.complete || stream.loading || stream.writing) continue;
+            long eligible = Math.max(stream.failed ? stream.retryAt : now,
+                    accountRetryAt.getOrDefault(stream.ownerId, 0L));
+            earliest = Math.min(earliest, eligible);
+        }
+        return earliest == Long.MAX_VALUE ? -1 : Math.max(500, earliest - now);
+    }
+
+    private void loadMore(boolean automatic) {
         if (closed || pendingWrites > 0) return;
         if (!failedWrites.isEmpty()) {
+            if (automatic) return;
             ArrayList<PendingPage> retry = new ArrayList<>(failedWrites);
             failedWrites.clear();
             for (PendingPage page : retry) if (page.ownerActive()) {
@@ -200,9 +264,15 @@ public final class TjMediaLibrary {
             return;
         }
         for (Stream stream : streams) {
-            if (!stream.loading && !stream.writing && !stream.complete) stream.queued = true;
+            long now = System.currentTimeMillis();
+            if (!stream.loading && !stream.writing && !stream.complete
+                    && now >= accountRetryAt.getOrDefault(stream.ownerId, 0L)
+                    && (!automatic || !stream.failed || now >= stream.retryAt)) stream.queued = true;
+            else if (!stream.complete && now < accountRetryAt.getOrDefault(stream.ownerId, 0L)) stream.deferredByFlood = true;
         }
         pump();
+        schedulePreviewRetry();
+        listener.onChanged();
     }
 
     private void pump() {
@@ -213,7 +283,13 @@ public final class TjMediaLibrary {
             for (Stream candidate : streams) if (candidate.loading) active++;
             if (active >= 3) break;
             if (!stream.queued || stream.loading || stream.writing) continue;
+            if (System.currentTimeMillis() < accountRetryAt.getOrDefault(stream.ownerId, 0L)) {
+                stream.queued = false;
+                stream.deferredByFlood = true;
+                continue;
+            }
             stream.queued = false;
+            stream.deferredByFlood = false;
             request(stream);
         }
     }
@@ -327,11 +403,21 @@ public final class TjMediaLibrary {
                         // Only protocol identifiers, never arbitrary server text or peer data.
                         stream.errorCode = error != null && error.text != null && error.text.matches("[A-Z_0-9]{1,64}")
                                 ? error.text : error == null ? "UNEXPECTED_RESPONSE" : Integer.toString(error.code);
+                        long delay = TjMediaRetryPolicy.delay(stream.errorCode, ++stream.failureCount);
+                        if (delay < 0 && error != null && error.code >= 500 && error.code <= 599)
+                            delay = TjMediaRetryPolicy.delay(Integer.toString(error.code), stream.failureCount);
+                        stream.retryAt = delay < 0 ? Long.MAX_VALUE : System.currentTimeMillis() + delay;
+                        if (TjMediaRetryPolicy.serverWait(stream.errorCode) > 0)
+                            accountRetryAt.put(stream.ownerId, Math.max(accountRetryAt.getOrDefault(stream.ownerId, 0L), stream.retryAt));
                         pump();
+                        schedulePreviewRetry();
                         listener.onChanged();
                         return;
                     }
                     TLRPC.messages_Messages page = (TLRPC.messages_Messages) response;
+                    stream.failureCount = 0;
+                    stream.retryAt = Long.MAX_VALUE;
+                    stream.errorCode = null;
                     controller.putUsers(page.users, false);
                     controller.putChats(page.chats, false);
                     MessagesStorage.getInstance(stream.account).putUsersAndChats(page.users, page.chats, true, true);
@@ -483,6 +569,7 @@ public final class TjMediaLibrary {
 
     private void cancelRequests() {
         generation++;
+        AndroidUtilities.cancelRunOnUIThread(previewRetry);
         for (Stream stream : streams) {
             if (stream.requestId != 0) {
                 ConnectionsManager.getInstance(stream.account).cancelRequest(stream.requestId, true);

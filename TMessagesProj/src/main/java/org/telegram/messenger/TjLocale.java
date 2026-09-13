@@ -153,6 +153,7 @@ public class TjLocale {
         m.put("TjMediaKeyError", "מפתח TMDB חסר או אינו תקין. עדכן אותו בהגדרות המדיה.");
         m.put("TjMediaRateLimit", "TMDB מגביל כעת בקשות. נסה שוב מאוחר יותר.");
         m.put("TjMediaLookupError", "לא ניתן לקבל את פרטי הכותר. המדיה שלך עדיין זמינה.");
+        m.put("TjMediaPlaybackError", "לא ניתן לפתוח את המדיה. אם פתוח נגן צף, סגור אותו ונסה שוב.");
         m.put("TjMediaView", "תצוגת ספרייה");
         m.put("TjMediaBrowse", "מדיה בטלגרם");
         m.put("TjMediaContinue", "המשך ניגון");
@@ -614,6 +615,7 @@ public class TjLocale {
         m.put("TjMediaEditCollection", "Изменить список");
         m.put("TjMediaCollectionNameRequired", "Введите название списка.");
         m.put("TjMediaListsEmpty", "Организуйте медиа в списки. Нажмите +, чтобы создать первый список.");
+        m.put("TjMediaPlaybackError", "Не удалось открыть медиа. Если открыт плавающий проигрыватель, закройте его и попробуйте снова.");
         TRANSLATIONS.put("ru", m);
 
         m = new HashMap<>();

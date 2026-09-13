@@ -32,7 +32,7 @@ public final class TjMediaScanCoordinator implements NotificationCenter.Notifica
     private TjMediaLibrary scanner;
     private int sourceType;
     private final Runnable next = () -> {
-        if (scanner != null && !scanner.isLoading() && !scanner.hasError()) scanner.loadMore();
+        if (scanner != null && !scanner.isLoading() && !scanner.hasWriteError()) scanner.loadMoreAutomatic();
     };
 
     private TjMediaScanCoordinator() { }
@@ -119,8 +119,11 @@ public final class TjMediaScanCoordinator implements NotificationCenter.Notifica
 
     private void changed() {
         AndroidUtilities.cancelRunOnUIThread(next);
-        if (scanner != null && !scanner.isLoading() && !scanner.hasError()) {
-            if (scanner.hasMore()) AndroidUtilities.runOnUIThread(next, 500);
+        if (scanner != null && !scanner.isLoading() && !scanner.hasWriteError()) {
+            if (scanner.hasMore()) {
+                long delay = scanner.nextAutomaticDelay();
+                if (delay >= 0) AndroidUtilities.runOnUIThread(next, delay);
+            }
             else {
                 // Folder jobs remain subscribed after catching up, so new members
                 // can start work without rescanning already-committed history.

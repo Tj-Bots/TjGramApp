@@ -75,6 +75,7 @@ public final class TjMediaRowCell extends LinearLayout {
     }
 
     public void bind(MessageObject message, String name, String source) {
+        subtitle.setMaxLines(2);
         title.setText(name);
         String size = message.getDocument() == null ? "" : " · " + AndroidUtilities.formatFileSize(message.getDocument().size);
         String duration = TjMediaKind.of(message) == TjMediaKind.VIDEO && message.getDuration() > 0
@@ -100,5 +101,14 @@ public final class TjMediaRowCell extends LinearLayout {
             if (location != null) image.setImage(location, "90_90", (android.graphics.drawable.Drawable) null, message);
         }
         setContentDescription(name + ", " + TjLocale.getString(label) + ", " + source + duration + size);
+    }
+
+    /** Version picker: keep reported file attributes separate from the chat/uploader. */
+    public void bindVersion(MessageObject message, String name, String source) {
+        bind(message, name, source);
+        String technical = org.telegram.ui.Components.TjMediaFileInfo.summary(message);
+        subtitle.setMaxLines(4);
+        subtitle.setText(source + (technical.isEmpty() ? "" : "\n" + technical));
+        setContentDescription(name + ", " + subtitle.getText());
     }
 }
