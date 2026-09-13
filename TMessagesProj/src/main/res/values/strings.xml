@@ -11449,6 +11449,15 @@
     <string name="TjAccessibilityDeletedMessage">Deleted message, kept locally</string>
     <string name="TjAccessibilityViewedOnce">One-time media marked as viewed</string>
     <string name="TjNoEditHistory">No locally saved edits</string>
+    <string name="TjHistoryMediaNotLocal">The original media is not saved on this device. A preview may still be available.</string>
+    <string name="TjOfflineAccounts">Local accounts</string>
+    <string name="TjOfflineAccountsDesc">Read saved chats after signing out. No connection or new messages.</string>
+    <string name="TjOfflineReadOnly">Local archive · Read only</string>
+    <string name="TjKeepAccountLocal">Keep chats and downloaded media on this device</string>
+    <string name="TjOfflineSaveFailed">Could not save the local archive. Your local data was not deleted. Free up storage and try again, or sign out without keeping a copy.</string>
+    <string name="TjOfflineEmpty">No locally saved content here yet.</string>
+    <string name="TjOfflineLoadMore">Load more</string>
+    <string name="TjOfflineDelete">Delete this local archive? Its saved copy and files will be removed from this device. Active accounts and other archives will not be affected.</string>
     <string name="TjEditRevision">Revision %1$d</string>
     <string name="TjExtras">Extras</string>
     <string name="TjLocalPremium">Local Premium</string>

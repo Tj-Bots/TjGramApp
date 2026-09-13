@@ -7949,6 +7949,13 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             return;
         }
         mediaHeaderVisible = visible;
+        // The shared-media search occupies the profile menu's trailing slot. The TJ info
+        // action must leave that slot as soon as the media header takes over, including
+        // during interrupted scroll animations.
+        if (tjInfoItem != null) {
+            tjInfoItem.setVisibility(visible ? View.GONE : View.VISIBLE);
+            tjInfoItem.setEnabled(!visible);
+        }
         if (headerAnimatorSet != null) {
             headerAnimatorSet.cancel();
         }

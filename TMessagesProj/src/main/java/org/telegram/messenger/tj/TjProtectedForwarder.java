@@ -53,7 +53,10 @@ public final class TjProtectedForwarder {
     private static boolean canReupload(int account, MessageObject message, MessagesController controller) {
         if (!TjConfig.protectedForwarding() || message == null || message.messageOwner == null ||
                 message.messageOwner instanceof TLRPC.TL_messageService ||
-                message.isVoiceOnce() || message.isRoundOnce()) {
+                message.type == MessageObject.TYPE_PAID_MEDIA || message.isVoiceOnce() || message.isRoundOnce()
+                || org.telegram.messenger.DialogObject.isEncryptedDialog(message.getDialogId())
+                || message.getDialogId() == org.telegram.messenger.UserObject.VERIFY
+                || message.messageOwner.media != null && message.messageOwner.media.ttl_seconds != 0) {
             return false;
         }
         boolean protectedSource = message.messageOwner.tjDeleted || message.messageOwner.noforwards ||

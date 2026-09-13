@@ -831,6 +831,13 @@ public class FilterTabsView extends FrameLayout {
     private int allTabsWidth;
 
     private int additionalTabWidth;
+    private boolean fillAvailableWidth;
+
+    /** Opt-in for non-chat tab strips, which do not have a default chat-folder tab. */
+    public void setFillAvailableWidth(boolean value) {
+        fillAvailableWidth = value;
+        requestLayout();
+    }
 
     private boolean animatingIndicator;
     private float animatingIndicatorProgress;
@@ -1594,6 +1601,17 @@ public class FilterTabsView extends FrameLayout {
                 }
                 updateTabsWidths();
                 invalidated = false;
+            } else if (fillAvailableWidth) {
+                int contentWidth = 0;
+                for (Tab tab : tabs) contentWidth += tab.getWidth(false) + dp(TAB_PADDING_WIDTH);
+                int extra = Math.max(0, (width - contentWidth) / tabs.size());
+                if (additionalTabWidth != extra) {
+                    additionalTabWidth = extra;
+                    ignoreLayout = true;
+                    adapter.notifyDataSetChanged();
+                    ignoreLayout = false;
+                }
+                updateTabsWidths();
             }
         }
         super.onMeasure(widthMeasureSpec, heightMeasureSpec);

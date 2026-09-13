@@ -168,7 +168,7 @@ public final class TjMediaStore extends SQLiteOpenHelper implements Notification
             revisions.incrementAndGet(account);
             long previous = observedOwners[account];
             observedOwners[account] = 0;
-            if (previous != 0) queue.postRunnable(() -> {
+            if (previous != 0 && !TjOfflineAccounts.isRetaining(account)) queue.postRunnable(() -> {
                 try { clearOwner(getWritableDatabase(), previous); }
                 catch (Exception e) { FileLog.e("Tj media logout cleanup failed", e); }
                 changed();

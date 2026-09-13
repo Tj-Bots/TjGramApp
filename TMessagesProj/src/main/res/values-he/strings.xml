@@ -225,6 +225,15 @@
     <string name="TjAccessibilityDeletedMessage">הודעה שנמחקה ונשמרה במכשיר</string>
     <string name="TjAccessibilityViewedOnce">מדיה חד־פעמית שסומנה כנצפתה</string>
     <string name="TjNoEditHistory">אין עריכות שנשמרו מקומית</string>
+    <string name="TjHistoryMediaNotLocal">המדיה המקורית לא שמורה במכשיר. ייתכן שתצוגה מקדימה עדיין זמינה.</string>
+    <string name="TjOfflineAccounts">חשבונות מקומיים</string>
+    <string name="TjOfflineAccountsDesc">צפייה בשיחות שנשמרו גם אחרי התנתקות. ללא חיבור או הודעות חדשות.</string>
+    <string name="TjOfflineReadOnly">ארכיון מקומי · לצפייה בלבד</string>
+    <string name="TjKeepAccountLocal">השאר שיחות ומדיה שהורדה במכשיר</string>
+    <string name="TjOfflineSaveFailed">לא ניתן לשמור את הארכיון המקומי. הנתונים המקומיים לא נמחקו. פנה מקום ונסה שוב, או התנתק ללא שמירת עותק.</string>
+    <string name="TjOfflineEmpty">עדיין אין כאן תוכן שנשמר מקומית.</string>
+    <string name="TjOfflineLoadMore">טען עוד</string>
+    <string name="TjOfflineDelete">למחוק את הארכיון המקומי הזה? העותק השמור וקבציו יימחקו מהמכשיר. חשבונות פעילים וארכיונים אחרים לא יושפעו.</string>
     <string name="TjEditRevision">גרסה %1$d</string>
     <string name="TjExtras">תוספות</string>
     <string name="TjLocalPremium">פרימיום מקומי</string>

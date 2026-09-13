@@ -2544,6 +2544,10 @@ public class LoginActivity extends BaseFragment implements NotificationCenter.No
             if (activityMode == MODE_LOGIN) {
                 qrLoginButton = addTjLoginButton(context, R.string.TjLoginQr);
                 botLoginButton = addTjLoginButton(context, R.string.TjLoginBot);
+                if (org.telegram.messenger.tj.TjOfflineAccounts.hasArchives()) {
+                    TextView offline = addTjLoginButton(context, R.string.TjOfflineAccounts);
+                    offline.setOnClickListener(v -> presentFragment(new TjOfflineAccountsActivity()));
+                }
             }
 
             if (bottomMargin > 0 && !AndroidUtilities.isSmallScreen()) {

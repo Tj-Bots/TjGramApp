@@ -32,6 +32,15 @@ public class TjLocale {
         m = new HashMap<>();
         m.put("TjLoginStart", "נא להזין את מספר הטלפון שלך\nאו **להתחבר באמצעות מפתח גישה**");
         m.put("TjEstimatedLastSeen", "הצג זמן משוער של הפעילות האחרונה");
+        m.put("TjHistoryMediaNotLocal", "המדיה המקורית לא שמורה במכשיר. ייתכן שתצוגה מקדימה עדיין זמינה.");
+        m.put("TjOfflineAccounts", "חשבונות מקומיים");
+        m.put("TjOfflineAccountsDesc", "צפייה בשיחות שנשמרו גם אחרי התנתקות. ללא חיבור או הודעות חדשות.");
+        m.put("TjOfflineReadOnly", "ארכיון מקומי · לצפייה בלבד");
+        m.put("TjKeepAccountLocal", "השאר שיחות ומדיה שהורדה במכשיר");
+        m.put("TjOfflineSaveFailed", "לא ניתן לשמור את הארכיון המקומי. הנתונים המקומיים לא נמחקו. פנה מקום ונסה שוב, או התנתק ללא שמירת עותק.");
+        m.put("TjOfflineEmpty", "עדיין אין כאן תוכן שנשמר מקומית.");
+        m.put("TjOfflineLoadMore", "טען עוד");
+        m.put("TjOfflineDelete", "למחוק את הארכיון המקומי הזה? העותק השמור וקבציו יימחקו מהמכשיר. חשבונות פעילים וארכיונים אחרים לא יושפעו.");
         m.put("TjLoginOptions", "דרכים נוספות להתחבר");
         m.put("TjLoginQr", "התחברות באמצעות QR");
         m.put("TjLoginBot", "התחברות לחשבון בוט");

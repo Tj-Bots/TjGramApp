@@ -257,6 +257,7 @@ public class TjMediaCenterActivity extends BaseFragment implements MainTabsActiv
         tabsBackground.setPadding(AndroidUtilities.dp(DialogsActivity.MAIN_TABS_MARGIN - 0.334f));
         mainTabs.setBackground(tabsBackground);
         typeTabs = new org.telegram.ui.Components.FilterTabsView(context, getResourceProvider());
+        typeTabs.setFillAvailableWidth(true);
         boundTypeMask = -1;
         typeStrip = typeTabs;
         typeTabs.setDelegate(new org.telegram.ui.Components.FilterTabsView.FilterTabsViewDelegate() {

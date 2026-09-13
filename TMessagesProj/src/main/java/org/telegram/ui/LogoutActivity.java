@@ -164,7 +164,11 @@ public class LogoutActivity extends BaseFragment {
         AlertDialog.Builder builder = new AlertDialog.Builder(context);
         builder.setMessage(LocaleController.getString(R.string.AreYouSureLogout));
         builder.setTitle(LocaleController.getString(R.string.LogOut));
-        builder.setPositiveButton(LocaleController.getString(R.string.LogOut), (dialogInterface, i) -> MessagesController.getInstance(currentAccount).performLogout(1));
+        org.telegram.ui.Cells.CheckBoxCell keepLocal = new org.telegram.ui.Cells.CheckBoxCell(context, 1);
+        keepLocal.setText(org.telegram.messenger.TjLocale.getString(R.string.TjKeepAccountLocal), "", true, false);
+        keepLocal.setOnClickListener(v -> keepLocal.setChecked(!keepLocal.isChecked(), true));
+        builder.setView(keepLocal);
+        builder.setPositiveButton(LocaleController.getString(R.string.LogOut), (dialogInterface, i) -> MessagesController.getInstance(currentAccount).performLogout(1, keepLocal.isChecked()));
         builder.setNegativeButton(LocaleController.getString(R.string.Cancel), null);
         AlertDialog alertDialog = builder.create();
         TextView button = (TextView) alertDialog.getButton(DialogInterface.BUTTON_POSITIVE);

@@ -16191,7 +16191,35 @@ public class MessagesController extends BaseController implements NotificationCe
         }
     }
 
+    private boolean tjLogoutExporting;
+
     public void performLogout(int type) {
+        performLogout(type, true);
+    }
+
+    public void performLogout(int type, boolean keepLocal) {
+        if (tjLogoutExporting) return;
+        long owner = getUserConfig().getClientUserId();
+        if (keepLocal && owner != 0) {
+            tjLogoutExporting = true;
+            org.telegram.messenger.tj.TjOfflineAccounts.capture(currentAccount, success -> {
+                tjLogoutExporting = false;
+                if (owner != getUserConfig().getClientUserId()) return;
+                if (success) {
+                    performLogoutInternal(type, true);
+                } else {
+                    NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.showBulletin,
+                            org.telegram.ui.Components.Bulletin.TYPE_ERROR,
+                            TjLocale.getString(R.string.TjOfflineSaveFailed));
+                }
+            });
+        } else {
+            performLogoutInternal(type, false);
+        }
+    }
+
+    private void performLogoutInternal(int type, boolean keepLocal) {
+        org.telegram.messenger.tj.TjOfflineAccounts.setRetaining(currentAccount, keepLocal);
         long tjOwnerUserId = getUserConfig().getClientUserId();
         if (type == 1) {
             unregistedPush();
@@ -16209,7 +16237,7 @@ public class MessagesController extends BaseController implements NotificationCe
         } else {
             getConnectionsManager().cleanup(type == 2);
         }
-        org.telegram.messenger.tj.TjMessageArchive.getInstance().clearOwner(tjOwnerUserId, null);
+        if (!keepLocal) org.telegram.messenger.tj.TjMessageArchive.getInstance().clearOwner(tjOwnerUserId, null);
         getUserConfig().clearConfig();
         SharedPrefsHelper.cleanupAccount(currentAccount);
 

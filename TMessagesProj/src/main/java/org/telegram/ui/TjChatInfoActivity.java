@@ -12,6 +12,7 @@ import androidx.recyclerview.widget.RecyclerView;
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.ChatObject;
 import org.telegram.messenger.LocaleController;
+import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.R;
 import org.telegram.messenger.TjLocale;
 import org.telegram.tgnet.TLRPC;
@@ -35,7 +36,7 @@ import java.util.ArrayList;
  * whatever the person is actually allowed to see and nothing more: the moderation entries only
  * appear for people who can moderate, and the permissions list is read-only unless they can edit.
  */
-public class TjChatInfoActivity extends BaseFragment {
+public class TjChatInfoActivity extends BaseFragment implements NotificationCenter.NotificationCenterDelegate {
 
     private static final int TYPE_HEADER = 0;
     private static final int TYPE_ROW = 1;
@@ -59,6 +60,9 @@ public class TjChatInfoActivity extends BaseFragment {
     private TLRPC.Chat currentChat;
     private TLRPC.ChatFull chatInfo;
     private RecyclerListView listView;
+    private Integer fetchedAdminCount;
+    private boolean requestedAdminCount;
+    private boolean destroyed;
 
     private static class Item {
         final int type;
@@ -100,7 +104,69 @@ public class TjChatInfoActivity extends BaseFragment {
         if (chatInfo == null) {
             chatInfo = getMessagesController().getChatFull(chatId);
         }
+        getNotificationCenter().addObserver(this, NotificationCenter.chatInfoDidLoad);
+        getMessagesController().loadFullChat(chatId, classGuid, true);
         return super.onFragmentCreate();
+    }
+
+    @Override
+    public void onFragmentDestroy() {
+        destroyed = true;
+        getNotificationCenter().removeObserver(this, NotificationCenter.chatInfoDidLoad);
+        super.onFragmentDestroy();
+    }
+
+    @Override
+    public void didReceivedNotification(int id, int account, Object... args) {
+        if (id == NotificationCenter.chatInfoDidLoad && args[0] instanceof TLRPC.ChatFull) {
+            TLRPC.ChatFull info = (TLRPC.ChatFull) args[0];
+            if (info.id == chatId) {
+                chatInfo = info;
+                refreshRows();
+                loadAdminCount();
+            }
+        }
+    }
+
+    private void refreshRows() {
+        if (destroyed || listView == null) return;
+        buildItems();
+        listView.getAdapter().notifyDataSetChanged();
+    }
+
+    /** A missing optional server field is unknown, not zero administrators. */
+    static Integer knownAdminCount(TLRPC.Chat chat, TLRPC.ChatFull info) {
+        if (info == null) return null;
+        if (ChatObject.isChannel(chat)) {
+            return (info.flags & 2) != 0 || info.admins_count > 0 ? info.admins_count : null;
+        }
+        if (!(info.participants instanceof TLRPC.TL_chatParticipants)) return null;
+        int count = 0;
+        for (TLRPC.ChatParticipant participant : info.participants.participants) {
+            if (participant instanceof TLRPC.TL_chatParticipantCreator
+                    || participant instanceof TLRPC.TL_chatParticipantAdmin) count++;
+        }
+        return count;
+    }
+
+    private void loadAdminCount() {
+        if (page != PAGE_INFO || requestedAdminCount || destroyed
+                || !ChatObject.isChannel(currentChat) || knownAdminCount(currentChat, chatInfo) != null) return;
+        requestedAdminCount = true;
+        long ownerId = getUserConfig().getClientUserId();
+        TLRPC.TL_channels_getParticipants request = new TLRPC.TL_channels_getParticipants();
+        request.channel = getMessagesController().getInputChannel(chatId);
+        request.filter = new TLRPC.TL_channelParticipantsAdmins();
+        request.limit = 1; // Only the total is needed, not the entire admin roster.
+        int requestId = getConnectionsManager().sendRequest(request, (response, error) ->
+                AndroidUtilities.runOnUIThread(() -> {
+                    if (destroyed || ownerId != getUserConfig().getClientUserId()) return;
+                    if (response instanceof TLRPC.TL_channels_channelParticipants) {
+                        fetchedAdminCount = ((TLRPC.TL_channels_channelParticipants) response).count;
+                        refreshRows();
+                    }
+                }));
+        getConnectionsManager().bindRequestToGuid(requestId, classGuid);
     }
 
     private boolean isChannel() {
@@ -139,6 +205,7 @@ public class TjChatInfoActivity extends BaseFragment {
         listView.setAdapter(new Adapter());
         listView.setOnItemClickListener((view, position) -> onItemClick(position));
         root.addView(listView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
+        loadAdminCount();
         return root;
     }
 
@@ -214,8 +281,10 @@ public class TjChatInfoActivity extends BaseFragment {
             items.add(new Item(TYPE_ROW, ID_PERMISSIONS, TjLocale.getString(R.string.TjChatPermissions),
                     permissionsSummary(), R.drawable.msg_permissions, true));
         }
+        Integer adminCount = knownAdminCount(currentChat, chatInfo);
+        if (adminCount == null) adminCount = fetchedAdminCount;
         items.add(new Item(TYPE_ROW, ID_ADMINS, LocaleController.getString(R.string.ChannelAdministrators),
-                count(chatInfo == null ? 0 : chatInfo.admins_count), R.drawable.msg_admins, true));
+                adminCount == null ? "—" : LocaleController.formatNumber(adminCount, ','), R.drawable.msg_admins, true));
         items.add(new Item(TYPE_ROW, ID_MEMBERS,
                 LocaleController.getString(channel ? R.string.ChannelSubscribers : R.string.ChannelMembers),
                 count(chatInfo == null ? currentChat.participants_count : chatInfo.participants_count),

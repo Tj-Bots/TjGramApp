@@ -4,142 +4,215 @@ import android.content.Context;
 import android.text.TextUtils;
 import android.view.Gravity;
 import android.view.View;
-import android.widget.FrameLayout;
+import android.view.ViewGroup;
 import android.widget.LinearLayout;
-import android.widget.ScrollView;
 import android.widget.TextView;
-
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
 import org.telegram.messenger.AndroidUtilities;
+import org.telegram.messenger.DialogObject;
+import org.telegram.messenger.FileLoader;
+import org.telegram.messenger.FlagSecureReason;
+import org.telegram.messenger.ImageLocation;
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.MessageObject;
 import org.telegram.messenger.R;
 import org.telegram.messenger.TjLocale;
+import org.telegram.messenger.Utilities;
+import org.telegram.messenger.tj.TjConfig;
 import org.telegram.messenger.tj.TjMessageArchive;
 import org.telegram.ui.ActionBar.ActionBar;
 import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.ActionBar.Theme;
+import org.telegram.ui.Cells.ChatActionCell;
+import org.telegram.ui.Cells.ChatMessageCell;
 import org.telegram.ui.Components.LayoutHelper;
-
+import org.telegram.ui.Components.SizeNotifierFrameLayout;
+import java.io.File;
 import java.util.ArrayList;
 
-/** Displays locally archived versions of one edited message. */
+/** Read-only owner-scoped archive bubbles, never a live ChatActivity. */
 public class TjMessageHistoryActivity extends BaseFragment {
     private final MessageObject currentMessage;
-    private LinearLayout container;
+    private final long ownerId;
+    private final ArrayList<Revision> revisions = new ArrayList<>();
+    private RecyclerView listView;
+    private TextView emptyView;
+    private FlagSecureReason secureReason;
+    private boolean destroyed;
+    private int generation;
+
+    static final class Revision {
+        MessageObject message;
+        String localPath;
+        long date;
+        int number;
+    }
 
     public TjMessageHistoryActivity(MessageObject currentMessage) {
         this.currentMessage = currentMessage;
+        setCurrentAccount(currentMessage.currentAccount);
+        ownerId = getUserConfig().getClientUserId();
     }
 
-    @Override
-    public View createView(Context context) {
+    @Override public View createView(Context context) {
         actionBar.setBackButtonImage(R.drawable.ic_ab_back);
         actionBar.setAllowOverlayTitle(true);
         actionBar.setTitle(TjLocale.getString(R.string.TjEditHistory));
-        actionBar.setSubtitle("#" + currentMessage.getId());
         actionBar.setActionBarMenuOnItemClick(new ActionBar.ActionBarMenuOnItemClick() {
-            @Override
-            public void onItemClick(int id) {
-                if (id == -1) {
-                    finishFragment();
-                }
-            }
+            @Override public void onItemClick(int id) { if (id == -1) finishFragment(); }
         });
-
-        FrameLayout root = new FrameLayout(context);
-        root.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundGray));
+        SizeNotifierFrameLayout root = new SizeNotifierFrameLayout(context);
+        root.setBackgroundImage(Theme.getCachedWallpaperNonBlocking(), false);
+        root.setBackgroundColor(Theme.getColor(Theme.key_chat_wallpaper));
         fragmentView = root;
-        ScrollView scroll = new ScrollView(context);
-        container = new LinearLayout(context);
-        container.setOrientation(LinearLayout.VERTICAL);
-        container.setPadding(AndroidUtilities.dp(12), AndroidUtilities.dp(12),
-                AndroidUtilities.dp(12), AndroidUtilities.dp(12));
-        scroll.addView(container, LayoutHelper.createScroll(LayoutHelper.MATCH_PARENT,
-                LayoutHelper.WRAP_CONTENT, Gravity.TOP));
-        root.addView(scroll, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT,
-                LayoutHelper.MATCH_PARENT));
+        listView = new RecyclerView(context);
+        LinearLayoutManager manager = new LinearLayoutManager(context);
+        manager.setStackFromEnd(true);
+        listView.setLayoutManager(manager);
+        listView.setItemAnimator(null);
+        listView.setPadding(0, AndroidUtilities.dp(8), 0, AndroidUtilities.dp(8));
+        listView.setClipToPadding(false);
+        listView.setAdapter(new HistoryAdapter());
+        root.addView(listView, LayoutHelper.createFrame(-1, -1));
+        emptyView = new TextView(context);
+        emptyView.setGravity(Gravity.CENTER);
+        emptyView.setTextSize(15);
+        emptyView.setTextColor(Theme.getColor(Theme.key_chat_serviceText));
+        emptyView.setText(LocaleController.getString(R.string.Loading));
+        emptyView.setPadding(AndroidUtilities.dp(16), AndroidUtilities.dp(12), AndroidUtilities.dp(16), AndroidUtilities.dp(12));
+        emptyView.setBackground(Theme.createRoundRectDrawable(AndroidUtilities.dp(16), Theme.getColor(Theme.key_chat_serviceBackground)));
+        root.addView(emptyView, LayoutHelper.createFrame(-2, -2, Gravity.CENTER, 24, 0, 24, 0));
+        if (getParentActivity() != null) {
+            secureReason = new FlagSecureReason(getParentActivity().getWindow(), () ->
+                    DialogObject.isEncryptedDialog(currentMessage.getDialogId())
+                    || currentMessage.messageOwner.media != null && currentMessage.messageOwner.media.ttl_seconds != 0
+                    || getMessagesController().isChatNoForwards(-currentMessage.getDialogId()) && !TjConfig.allowProtectedScreenshots());
+        }
         loadHistory();
-        return fragmentView;
+        return root;
+    }
+
+    private boolean valid(int request) {
+        return !destroyed && request == generation && ownerId == getUserConfig().getClientUserId();
     }
 
     private void loadHistory() {
-        TjMessageArchive.getInstance().getRevisions(getCurrentAccount(), currentMessage.getDialogId(),
-                currentMessage.getId(), this::showHistory);
+        int request = ++generation;
+        TjMessageArchive.getInstance().getRevisions(currentAccount, currentMessage.getDialogId(), currentMessage.getId(), snapshots -> {
+            if (!valid(request)) return;
+            // File checks are off the UI thread and only resolve each version's own attachment.
+            Utilities.globalQueue.postRunnable(() -> {
+                ArrayList<Revision> loaded = new ArrayList<>();
+                for (TjMessageArchive.Snapshot snapshot : snapshots) {
+                    if (snapshot.message == null || snapshot.ownerUserId != ownerId || snapshot.accountId != currentAccount) continue;
+                    Revision revision = new Revision();
+                    revision.number = loaded.size() + 1;
+                    revision.date = (snapshot.editDate > 0 ? snapshot.editDate : snapshot.message.date) * 1000L;
+                    revision.localPath = existingFile(snapshot.message.attachPath);
+                    if (revision.localPath == null) {
+                        File file = FileLoader.getInstance(currentAccount).getPathToMessage(snapshot.message);
+                        if (file != null && file.isFile()) revision.localPath = file.getAbsolutePath();
+                    }
+                    // These are deserialized archive copies, not the live message.
+                    snapshot.message.date = (int) (revision.date / 1000L);
+                    snapshot.message.edit_date = 0;
+                    snapshot.message.flags &= ~32768;
+                    revision.message = new MessageObject(currentAccount, snapshot.message, true, true);
+                    if (revision.localPath != null) {
+                        revision.message.messageOwner.attachPath = revision.localPath;
+                        revision.message.attachPathExists = true;
+                        revision.message.mediaExists = true;
+                    }
+                    loaded.add(revision);
+                }
+                AndroidUtilities.runOnUIThread(() -> {
+                    if (!valid(request) || listView == null) return;
+                    revisions.clear();
+                    revisions.addAll(loaded);
+                    listView.getAdapter().notifyDataSetChanged();
+                    emptyView.setText(TjLocale.getString(R.string.TjNoEditHistory));
+                    emptyView.setVisibility(loaded.isEmpty() ? View.VISIBLE : View.GONE);
+                });
+            });
+        });
     }
 
-    private void showHistory(ArrayList<TjMessageArchive.Snapshot> revisions) {
-        if (container == null || getContext() == null) {
-            return;
+    private static String existingFile(String path) {
+        return !TextUtils.isEmpty(path) && new File(path).isFile() ? path : null;
+    }
+
+    @Override public void onResume() {
+        super.onResume();
+        if (secureReason != null) secureReason.attach();
+    }
+
+    @Override public void onPause() {
+        super.onPause();
+        if (secureReason != null) secureReason.detach();
+    }
+
+    @Override public void onFragmentDestroy() {
+        destroyed = true;
+        generation++;
+        if (secureReason != null) secureReason.detach();
+        super.onFragmentDestroy();
+    }
+
+    private class HistoryAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
+        @Override public int getItemCount() { return revisions.size(); }
+        @Override public RecyclerView.ViewHolder onCreateViewHolder(ViewGroup parent, int type) {
+            RevisionCell cell = new RevisionCell(parent.getContext());
+            cell.setLayoutParams(new RecyclerView.LayoutParams(-1, -2));
+            return new RecyclerView.ViewHolder(cell) {};
         }
-        container.removeAllViews();
-        if (revisions.isEmpty()) {
-            addEmpty();
-            return;
-        }
-        for (int i = revisions.size() - 1; i >= 0; i--) {
-            addRevision(revisions.get(i), i + 1);
+        @Override public void onBindViewHolder(RecyclerView.ViewHolder holder, int position) {
+            ((RevisionCell) holder.itemView).bind(revisions.get(position));
         }
     }
 
-    private void addEmpty() {
-        TextView view = new TextView(getContext());
-        view.setText(TjLocale.getString(R.string.TjNoEditHistory));
-        view.setTextSize(15);
-        view.setGravity(Gravity.CENTER);
-        view.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText2));
-        container.addView(view, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 120));
-    }
+    private class RevisionCell extends LinearLayout {
+        private final ChatActionCell date;
+        private final ChatMessageCell bubble;
+        private final TextView notice;
+        private Revision revision;
 
-    private void addRevision(TjMessageArchive.Snapshot snapshot, int number) {
-        LinearLayout card = new LinearLayout(getContext());
-        card.setOrientation(LinearLayout.VERTICAL);
-        card.setPadding(AndroidUtilities.dp(16), AndroidUtilities.dp(12),
-                AndroidUtilities.dp(16), AndroidUtilities.dp(12));
-        card.setBackground(Theme.getSelectorDrawable(true));
-        card.setClickable(true);
-        card.setFocusable(true);
-
-        TextView title = new TextView(getContext());
-        title.setText(TjLocale.formatString(R.string.TjEditRevision, number));
-        title.setTextSize(13);
-        title.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlueText));
-        card.addView(title, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT,
-                LayoutHelper.WRAP_CONTENT));
-
-        TextView body = new TextView(getContext());
-        String text = snapshot.message.message;
-        if (TextUtils.isEmpty(text)) {
-            MessageObject object = new MessageObject(getCurrentAccount(), snapshot.message, false, true);
-            text = mediaLabel(object);
+        RevisionCell(Context context) {
+            super(context);
+            setOrientation(VERTICAL);
+            date = new ChatActionCell(context);
+            addView(date, LayoutHelper.createLinear(-1, -2));
+            bubble = new ChatMessageCell(context, currentAccount, false, null, null) {
+                @Override protected void onMeasure(int width, int height) {
+                    super.onMeasure(width, height);
+                    if (revision != null && revision.localPath != null && revision.message.isPhoto()
+                            && !revision.message.needDrawBluredPreview() && !revision.message.hasMediaSpoilers()) {
+                        getPhotoImage().setImage(ImageLocation.getForPath(revision.localPath), "800_800",
+                                null, null, null, 0, null, revision.message, 1);
+                    }
+                }
+            };
+            bubble.setDelegate(new ChatMessageCell.ChatMessageCellDelegate() {});
+            bubble.setFullyDraw(true);
+            addView(bubble, LayoutHelper.createLinear(-1, -2));
+            notice = new TextView(context);
+            notice.setText(TjLocale.getString(R.string.TjHistoryMediaNotLocal));
+            notice.setTextSize(12);
+            notice.setTextColor(Theme.getColor(Theme.key_chat_serviceText));
+            notice.setGravity(Gravity.CENTER);
+            notice.setPadding(AndroidUtilities.dp(12), AndroidUtilities.dp(6), AndroidUtilities.dp(12), AndroidUtilities.dp(6));
+            notice.setBackground(Theme.createRoundRectDrawable(AndroidUtilities.dp(12), Theme.getColor(Theme.key_chat_serviceBackground)));
+            addView(notice, LayoutHelper.createLinear(-1, -2, 16, 4, 16, 8));
         }
-        body.setText(text);
-        body.setTextSize(16);
-        body.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText));
-        body.setMaxLines(8);
-        body.setEllipsize(TextUtils.TruncateAt.END);
-        card.addView(body, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT,
-                LayoutHelper.WRAP_CONTENT, 0, 6, 0, 0));
 
-        TextView date = new TextView(getContext());
-        date.setText(LocaleController.getInstance().getFormatterStats().format(snapshot.capturedAt));
-        date.setTextSize(12);
-        date.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText2));
-        card.addView(date, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT,
-                LayoutHelper.WRAP_CONTENT, 0, 6, 0, 0));
-
-        card.setOnClickListener(v -> presentFragment(new MessageInfoActivity(
-                new MessageObject(getCurrentAccount(), snapshot.message, false, true))));
-        container.addView(card, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT,
-                LayoutHelper.WRAP_CONTENT, 0, 0, 0, 8));
-    }
-
-    private String mediaLabel(MessageObject message) {
-        if (message.isPhoto()) return LocaleController.getString(R.string.AttachPhoto);
-        if (message.isVideo()) return LocaleController.getString(R.string.AttachVideo);
-        if (message.isVoice()) return LocaleController.getString(R.string.AttachAudio);
-        if (message.isMusic()) return LocaleController.getString(R.string.AttachMusic);
-        if (message.isSticker() || message.isAnimatedSticker()) return LocaleController.getString(R.string.AttachSticker);
-        if (message.getDocument() != null) return LocaleController.getString(R.string.AttachDocument);
-        return LocaleController.getString(R.string.Message);
+        void bind(Revision value) {
+            revision = value;
+            date.setCustomText(TjLocale.formatString(R.string.TjEditRevision, value.number) + " · "
+                    + LocaleController.getInstance().getFormatterStats().format(value.date));
+            bubble.forceResetMessageObject();
+            bubble.setMessageObject(value.message, null, false, false, false);
+            boolean attachment = value.message.isPhoto() || value.message.getDocument() != null;
+            notice.setVisibility(attachment && value.localPath == null ? VISIBLE : GONE);
+        }
     }
 }
