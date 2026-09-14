@@ -226,7 +226,11 @@ public class TjWatchActivity extends BaseFragment {
     private void applyMode() {
         if (listView == null) return;
         if (gridMode) {
-            listView.setLayoutManager(new GridLayoutManager(getParentActivity(), 3));
+            listView.setLayoutManager(new GridLayoutManager(getParentActivity(), 3) {
+                // The app declares no RTL support and mirrors by hand, so the manager has to be
+                // told; left to itself it fills a Hebrew grid from the left like an English one.
+                @Override protected boolean isLayoutRTL() { return LocaleController.isRTL; }
+            });
             listView.setPadding(dp(6), dp(6), dp(6), dp(24));
             if (listView.getAdapter() != adapter) listView.setAdapter(adapter);
         } else {
@@ -234,6 +238,34 @@ public class TjWatchActivity extends BaseFragment {
             listView.setPadding(0, dp(2), 0, dp(24));
             if (listView.getAdapter() != shelfAdapter) listView.setAdapter(shelfAdapter);
         }
+    }
+
+    /**
+     * Back goes back inside the screen before it leaves it. Opening a category replaces what the
+     * list shows rather than pushing a screen, so without this a single step out of a category
+     * threw the whole of Watch away and landed on the chat list.
+     */
+    @Override
+    public boolean onBackPressed(boolean invoked) {
+        if (actionBar != null && actionBar.isSearchFieldVisible()) {
+            if (invoked) actionBar.closeSearchField(true);
+            return false;
+        }
+        if (gridMode) {
+            if (invoked) selectGenre(null);
+            return false;
+        }
+        return super.onBackPressed(invoked);
+    }
+
+    /**
+     * No sliding this screen away. Browsing is done by dragging sideways, and every row here moves
+     * that way, so the gesture that closes the screen was firing on rows people were only reading.
+     * The screens opened from here keep it.
+     */
+    @Override
+    public boolean isSwipeBackEnabled(android.view.MotionEvent event) {
+        return false;
     }
 
     @Override
@@ -254,12 +286,14 @@ public class TjWatchActivity extends BaseFragment {
         kindRow.setBackground(Theme.createRoundRectDrawable(dp(17),
                 Theme.getColor(Theme.key_windowBackgroundWhite)));
         kindRow.setPadding(dp(3), dp(3), dp(3), dp(3));
-        kindRow.addView(segment(context, TjLocale.getString(R.string.TjWatchAll), KIND_ALL),
-                LayoutHelper.createLinear(0, -1, 1f));
-        kindRow.addView(segment(context, TjLocale.getString(R.string.TjMediaMovies), KIND_MOVIES),
-                LayoutHelper.createLinear(0, -1, 1f));
-        kindRow.addView(segment(context, TjLocale.getString(R.string.TjMediaSeries), KIND_SERIES),
-                LayoutHelper.createLinear(0, -1, 1f));
+        // Added back to front in a language read that way, since nothing here is mirrored for us.
+        int[] order = LocaleController.isRTL ? new int[]{KIND_SERIES, KIND_MOVIES, KIND_ALL}
+                : new int[]{KIND_ALL, KIND_MOVIES, KIND_SERIES};
+        for (int value : order) {
+            kindRow.addView(segment(context, TjLocale.getString(value == KIND_ALL ? R.string.TjWatchAll
+                            : value == KIND_MOVIES ? R.string.TjMediaMovies : R.string.TjMediaSeries), value),
+                    LayoutHelper.createLinear(0, -1, 1f));
+        }
         styleKinds();
         return kindRow;
     }
@@ -356,13 +390,21 @@ public class TjWatchActivity extends BaseFragment {
             return;
         }
         ((View) genreRow.getParent()).setVisibility(View.VISIBLE);
-        genreRow.addView(chip(context, TjLocale.getString(R.string.TjWatchAllGenres), null),
-                LayoutHelper.createLinear(-2, 32, 0, 0, 6, 0));
+        ArrayList<View> chips = new ArrayList<>();
+        chips.add(chip(context, TjLocale.getString(R.string.TjWatchAllGenres), null));
         for (Genre genre : genres) {
-            if (!fits(genre)) continue;
-            genreRow.addView(chip(context, genre.name, genre), LayoutHelper.createLinear(-2, 32, 0, 0, 6, 0));
+            if (fits(genre)) chips.add(chip(context, genre.name, genre));
         }
+        // Nothing here is mirrored for us, so the first chip is added last when the row is read
+        // from the right, and the row is scrolled to that end once it has a width.
+        if (LocaleController.isRTL) java.util.Collections.reverse(chips);
+        for (View view : chips) genreRow.addView(view, LayoutHelper.createLinear(-2, 32, 0, 0, 6, 0));
         styleChips();
+        if (LocaleController.isRTL) {
+            View parent = (View) genreRow.getParent();
+            // scrollTo rather than fullScroll: the latter also hands focus to a chip.
+            parent.post(() -> parent.scrollTo(genreRow.getWidth(), 0));
+        }
     }
 
     private TextView chip(Context context, String label, Genre genre) {
@@ -458,14 +500,17 @@ public class TjWatchActivity extends BaseFragment {
         for (int a = 0; a < shown; a += 2) {
             LinearLayout row = new LinearLayout(context);
             row.setOrientation(LinearLayout.HORIZONTAL);
+            ArrayList<View> cells = new ArrayList<>();
             for (int b = a; b < Math.min(a + 2, shown); b++) {
                 TjWatchHistory.Entry entry = entries.get(b);
                 ResumeCell cell = new ResumeCell(context);
                 cell.bind(entry);
                 cell.setOnClickListener(v -> resume(entry));
                 cell.setOnLongClickListener(v -> { askToForget(entry); return true; });
-                row.addView(cell, LayoutHelper.createLinear(0, 56, 1f, 4, 0, 4, 0));
+                cells.add(cell);
             }
+            if (LocaleController.isRTL) java.util.Collections.reverse(cells);
+            for (View cell : cells) row.addView(cell, LayoutHelper.createLinear(0, 56, 1f, 4, 0, 4, 0));
             // An odd last card keeps its half of the row rather than stretching across it.
             if (Math.min(a + 2, shown) - a == 1) {
                 row.addView(new View(context), LayoutHelper.createLinear(0, 56, 1f));
@@ -774,19 +819,22 @@ public class TjWatchActivity extends BaseFragment {
             title.setTypeface(AndroidUtilities.getTypeface("fonts/rmedium.ttf"));
             title.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText));
             title.setGravity(LocaleController.isRTL ? Gravity.RIGHT : Gravity.LEFT);
-            head.addView(title, LayoutHelper.createLinear(0, -2, 1f));
 
             chevron = new ImageView(context);
             chevron.setImageResource(R.drawable.msg_arrowright);
             chevron.setScaleType(ImageView.ScaleType.CENTER);
             chevron.setColorFilter(new PorterDuffColorFilter(
                     Theme.getColor(Theme.key_windowBackgroundWhiteGrayText2), PorterDuff.Mode.SRC_IN));
+            // It points the way the reader is going, and sits at the end of the line they finish on.
             if (LocaleController.isRTL) chevron.setScaleX(-1);
-            head.addView(chevron, LayoutHelper.createLinear(20, 20));
+            if (LocaleController.isRTL) head.addView(chevron, LayoutHelper.createLinear(20, 20));
+            head.addView(title, LayoutHelper.createLinear(0, -2, 1f));
+            if (!LocaleController.isRTL) head.addView(chevron, LayoutHelper.createLinear(20, 20));
             addView(head, LayoutHelper.createLinear(-1, -2));
 
             row = new RecyclerListView(context);
-            row.setLayoutManager(new LinearLayoutManager(context, LinearLayoutManager.HORIZONTAL, false));
+            row.setLayoutManager(new LinearLayoutManager(context, LinearLayoutManager.HORIZONTAL,
+                    LocaleController.isRTL));
             row.setClipToPadding(false);
             row.setPadding(dp(10), 0, dp(10), 0);
             row.setHorizontalScrollBarEnabled(false);

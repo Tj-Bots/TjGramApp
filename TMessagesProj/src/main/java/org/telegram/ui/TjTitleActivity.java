@@ -263,6 +263,7 @@ public class TjTitleActivity extends BaseFragment {
     private void buildSeasonChips() {
         if (seasonRow == null) return;
         seasonRow.removeAllViews();
+        ArrayList<View> chips = new ArrayList<>();
         for (int season : seasons) {
             TextView chip = new TextView(seasonRow.getContext());
             chip.setTextSize(14);
@@ -274,9 +275,18 @@ public class TjTitleActivity extends BaseFragment {
             chip.setTag(season);
             chip.setOnClickListener(v -> selectSeason((Integer) v.getTag()));
             ScaleStateListAnimator.apply(chip, 0.04f, 1.2f);
-            seasonRow.addView(chip, LayoutHelper.createLinear(-2, 34, 6, 0, 0, 0));
+            chips.add(chip);
         }
+        // The app declares no right-to-left support and mirrors by hand, so season one is added
+        // last in a language read from the right, and the row starts at that end.
+        if (LocaleController.isRTL) java.util.Collections.reverse(chips);
+        for (View chip : chips) seasonRow.addView(chip, LayoutHelper.createLinear(-2, 34, 6, 0, 0, 0));
         paintSeasonChips();
+        if (LocaleController.isRTL && seasonRow.getParent() instanceof android.widget.HorizontalScrollView) {
+            View parent = (View) seasonRow.getParent();
+            // scrollTo rather than fullScroll: the latter also hands focus to a chip.
+            parent.post(() -> parent.scrollTo(seasonRow.getWidth(), 0));
+        }
     }
 
     private void paintSeasonChips() {
@@ -336,8 +346,6 @@ public class TjTitleActivity extends BaseFragment {
         still.setRoundRadius(dp(6));
         String stillUrl = TjTmdb.stillUrl(episode.still);
         if (!stillUrl.isEmpty()) still.setImage(stillUrl, "300_170", (android.graphics.drawable.Drawable) null);
-        row.addView(still, LayoutHelper.createLinear(104, 59));
-
         LinearLayout texts = new LinearLayout(context);
         texts.setOrientation(LinearLayout.VERTICAL);
         TextView title = text(context, 15, Theme.key_windowBackgroundWhiteBlackText);
@@ -354,14 +362,22 @@ public class TjTitleActivity extends BaseFragment {
             overview.setText(episode.overview);
             texts.addView(overview, LayoutHelper.createLinear(-1, -2, 0, 2, 0, 0));
         }
-        row.addView(texts, LayoutHelper.createLinear(0, -2, 1f, 12, 0, 8, 0));
-
         android.widget.ImageView play = new android.widget.ImageView(context);
         play.setImageResource(R.drawable.msg_played);
         play.setScaleType(android.widget.ImageView.ScaleType.CENTER);
         play.setColorFilter(new android.graphics.PorterDuffColorFilter(
                 Theme.getColor(Theme.key_windowBackgroundWhiteBlueHeader), android.graphics.PorterDuff.Mode.SRC_IN));
-        row.addView(play, LayoutHelper.createLinear(32, 32));
+
+        // The picture starts the line and the play mark ends it, whichever way the line runs.
+        if (LocaleController.isRTL) {
+            row.addView(play, LayoutHelper.createLinear(32, 32));
+            row.addView(texts, LayoutHelper.createLinear(0, -2, 1f, 8, 0, 12, 0));
+            row.addView(still, LayoutHelper.createLinear(104, 59));
+        } else {
+            row.addView(still, LayoutHelper.createLinear(104, 59));
+            row.addView(texts, LayoutHelper.createLinear(0, -2, 1f, 12, 0, 8, 0));
+            row.addView(play, LayoutHelper.createLinear(32, 32));
+        }
         return row;
     }
 
