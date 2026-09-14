@@ -274,6 +274,15 @@
     <string name="TjCategories">קטגוריות</string>
     <string name="TjWatchSearchHint">חפש סרט או סדרה</string>
     <string name="TjWatchAll">הכל</string>
+    <string name="TjWatchTitle">צפייה</string>
+    <string name="TjWatchNeedsKey">כדי לעיין בסרטים ובסדרות צריך מפתח TMDB משלך. הוא חינמי, נשמר במכשיר הזה בלבד, ושום דבר מהחשבון שלך לא נשלח איתו.</string>
+    <string name="TjWatchAddKey">הוספת מפתח</string>
+    <string name="TjWatchOffline">לא הצלחנו להגיע לקטלוג. בדוק את החיבור ונסה שוב.</string>
+    <string name="TjWatchNoEpisodes">אין פרקים רשומים לעונה הזו.</string>
+    <string name="TjWatchNoFile">עדיין לא נמצא קובץ במכשיר הזה. סרוק את הצ׳אט שבו הוא אמור להיות, ממרכז המדיה.</string>
+    <string name="TjWatchChooseFile">איזה עותק?</string>
+    <string name="TjWatchSpecials">מיוחדים</string>
+    <string name="TjWatchMinutes">דק׳</string>
     <string name="TjWatchTitles">כותרים</string>
     <string name="TjWatchContinue">המשך צפייה</string>
     <string name="TjWatchNothing">עדיין אין כאן כלום. סרוק צ׳אט במרכז המדיה והסרטים והסדרות שבו יופיעו כאן.</string>

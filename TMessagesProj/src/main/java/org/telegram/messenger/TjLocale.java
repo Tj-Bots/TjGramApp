@@ -439,6 +439,15 @@ public class TjLocale {
         m.put("TjCategories", "קטגוריות");
         m.put("TjWatchSearchHint", "חפש סרט או סדרה");
         m.put("TjWatchAll", "הכל");
+        m.put("TjWatchTitle", "צפייה");
+        m.put("TjWatchNeedsKey", "כדי לעיין בסרטים ובסדרות צריך מפתח TMDB משלך. הוא חינמי, נשמר במכשיר הזה בלבד, ושום דבר מהחשבון שלך לא נשלח איתו.");
+        m.put("TjWatchAddKey", "הוספת מפתח");
+        m.put("TjWatchOffline", "לא הצלחנו להגיע לקטלוג. בדוק את החיבור ונסה שוב.");
+        m.put("TjWatchNoEpisodes", "אין פרקים רשומים לעונה הזו.");
+        m.put("TjWatchNoFile", "עדיין לא נמצא קובץ במכשיר הזה. סרוק את הצ׳אט שבו הוא אמור להיות, ממרכז המדיה.");
+        m.put("TjWatchChooseFile", "איזה עותק?");
+        m.put("TjWatchSpecials", "מיוחדים");
+        m.put("TjWatchMinutes", "דק׳");
         m.put("TjWatchTitles", "כותרים");
         m.put("TjWatchContinue", "המשך צפייה");
         m.put("TjWatchNothing", "עדיין אין כאן כלום. סרוק צ׳אט במרכז המדיה והסרטים והסדרות שבו יופיעו כאן.");

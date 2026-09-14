@@ -11498,6 +11498,15 @@
     <string name="TjCategories">Categories</string>
     <string name="TjWatchSearchHint">Search a film or a series</string>
     <string name="TjWatchAll">All</string>
+    <string name="TjWatchTitle">Watch</string>
+    <string name="TjWatchNeedsKey">Browsing films and series needs a TMDB key of your own. It is free, it stays on this device, and nothing about your account is ever sent with it.</string>
+    <string name="TjWatchAddKey">Add a key</string>
+    <string name="TjWatchOffline">Could not reach the catalogue. Check the connection and try again.</string>
+    <string name="TjWatchNoEpisodes">No episodes listed for this season.</string>
+    <string name="TjWatchNoFile">Nothing found on this device for that one yet. Scan the chat it would be in, from the media centre.</string>
+    <string name="TjWatchChooseFile">Which copy?</string>
+    <string name="TjWatchSpecials">Specials</string>
+    <string name="TjWatchMinutes">min</string>
     <string name="TjWatchTitles">Titles</string>
     <string name="TjWatchContinue">Carry on watching</string>
     <string name="TjWatchNothing">Nothing here yet. Scan a chat in the media centre and its films and series will appear.</string>
