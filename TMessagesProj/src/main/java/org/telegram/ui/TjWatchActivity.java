@@ -16,6 +16,7 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 
 import androidx.recyclerview.widget.GridLayoutManager;
+import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import org.json.JSONArray;
@@ -45,6 +46,7 @@ import org.telegram.ui.Components.ScaleStateListAnimator;
 import org.telegram.ui.Components.TjTmdbKeyDialog;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 
 /**
  * Browsing what there is to watch, which starts with the catalogue of everything rather than with
@@ -80,12 +82,29 @@ public class TjWatchActivity extends BaseFragment {
         Genre(String name) { this.name = name; }
     }
 
+    /** One row of the home screen: a name, and what is filed under it. */
+    private static final class Shelf {
+        final String title;
+        final Genre genre;
+        final ArrayList<Item> items = new ArrayList<>();
+        final TjTmdb seriesClient = new TjTmdb(), movieClient = new TjTmdb();
+        boolean asked;
+        int pending;
+
+        Shelf(String title, Genre genre) { this.title = title; this.genre = genre; }
+    }
+
     private static final int MENU_HISTORY = 1, MENU_SETTINGS = 2;
+    /** How many genre rows the home screen offers before it becomes a list of lists. */
+    private static final int MAX_SHELVES = 12;
 
     /** Everything, or only one half of it. Netflix's first question, and a reasonable one. */
     private static final int KIND_ALL = 0, KIND_MOVIES = 1, KIND_SERIES = 2;
 
     private final ArrayList<Item> items = new ArrayList<>();
+    private final ArrayList<Item> incoming = new ArrayList<>();
+    private final HashSet<String> seen = new HashSet<>();
+    private final ArrayList<Shelf> shelves = new ArrayList<>();
     private final ArrayList<Genre> genres = new ArrayList<>();
     private final TjTmdb series = new TjTmdb();
     private final TjTmdb movies = new TjTmdb();
@@ -95,6 +114,11 @@ public class TjWatchActivity extends BaseFragment {
     private FrameLayout root;
     private RecyclerListView listView;
     private Adapter adapter;
+    private ShelfAdapter shelfAdapter;
+    private Shelf trendingShelf;
+    private boolean gridMode;
+    private int page = 1;
+    private boolean loadingMore, moreSeries, moreMovies;
     private ActionBarMenuItem searchItem;
     private TextView status;
     private View gate;
@@ -164,27 +188,52 @@ public class TjWatchActivity extends BaseFragment {
         content.addView(status, LayoutHelper.createLinear(-1, -2));
 
         listView = new RecyclerListView(context);
-        listView.setLayoutManager(new GridLayoutManager(context, 3));
         listView.setClipToPadding(false);
-        listView.setPadding(dp(6), dp(6), dp(6), dp(24));
         listView.setVerticalScrollBarEnabled(false);
         adapter = new Adapter();
-        listView.setAdapter(adapter);
+        shelfAdapter = new ShelfAdapter();
         listView.setOnItemClickListener((view, position) -> {
-            if (position < 0 || position >= items.size()) return;
-            Item item = items.get(position);
-            presentFragment(new TjTitleActivity(item.id, item.series, item.name));
+            if (!gridMode || position < 0 || position >= items.size()) return;
+            open(items.get(position));
+        });
+        listView.setOnScrollListener(new RecyclerView.OnScrollListener() {
+            @Override public void onScrolled(RecyclerView view, int dx, int dy) {
+                if (dy <= 0) return;
+                checkLoadMore();
+            }
         });
         content.addView(listView, LayoutHelper.createLinear(-1, -1));
+        applyMode();
 
         if (!TjTmdb.available(currentAccount)) {
             showGate(context);
         } else {
-            trending();
+            buildShelves();
             loadGenres();
         }
         refreshContinue();
         return fragmentView;
+    }
+
+    private void open(Item item) {
+        presentFragment(new TjTitleActivity(item.id, item.series, item.name));
+    }
+
+    /**
+     * The home screen is rows you read across; a search or a chosen genre is a grid you read down.
+     * Both live in the same list, so switching is a layout and an adapter rather than a screen.
+     */
+    private void applyMode() {
+        if (listView == null) return;
+        if (gridMode) {
+            listView.setLayoutManager(new GridLayoutManager(getParentActivity(), 3));
+            listView.setPadding(dp(6), dp(6), dp(6), dp(24));
+            if (listView.getAdapter() != adapter) listView.setAdapter(adapter);
+        } else {
+            listView.setLayoutManager(new LinearLayoutManager(getParentActivity()));
+            listView.setPadding(0, dp(2), 0, dp(24));
+            if (listView.getAdapter() != shelfAdapter) listView.setAdapter(shelfAdapter);
+        }
     }
 
     @Override
@@ -229,6 +278,8 @@ public class TjWatchActivity extends BaseFragment {
             // A genre only one half of the catalogue knows about goes with that half.
             if (selectedGenre != null && !fits(selectedGenre)) selectedGenre = null;
             buildGenreChips();
+            // Every row is about one half of the catalogue, so they are all asked again.
+            if (trendingShelf != null) { trendingShelf.asked = false; trendingShelf.items.clear(); }
             reload();
         });
         return view;
@@ -293,6 +344,7 @@ public class TjWatchActivity extends BaseFragment {
         if (--genresPending > 0) return;
         java.util.Collections.sort(genres, (a, b) -> a.name.compareToIgnoreCase(b.name));
         buildGenreChips();
+        if (!gridMode) buildShelves();
     }
 
     private void buildGenreChips() {
@@ -321,18 +373,25 @@ public class TjWatchActivity extends BaseFragment {
         view.setPadding(dp(14), 0, dp(14), 0);
         view.setTypeface(AndroidUtilities.getTypeface("fonts/rmedium.ttf"));
         view.setTag(genre);
-        view.setOnClickListener(v -> {
-            selectedGenre = genre;
-            if (searchItem != null && searchItem.isSearchFieldVisible()) actionBar.closeSearchField(true);
-            query = "";
-            // Closing the box queues its own reload; this one is immediate and says the same thing.
-            AndroidUtilities.cancelRunOnUIThread(searchRunnable);
-            styleChips();
-            refreshContinue();
-            reload();
-        });
+        view.setOnClickListener(v -> selectGenre(genre));
         ScaleStateListAnimator.apply(view, 0.05f, 1.2f);
         return view;
+    }
+
+    /**
+     * Opening one genre in full, from its chip or from the name above its row. Whatever was typed
+     * goes with it: a search and a genre are two different questions, and only one is being asked.
+     */
+    private void selectGenre(Genre genre) {
+        selectedGenre = genre;
+        if (searchItem != null && searchItem.isSearchFieldVisible()) actionBar.closeSearchField(true);
+        query = "";
+        // Closing the box queues its own reload; this one is immediate and says the same thing.
+        AndroidUtilities.cancelRunOnUIThread(searchRunnable);
+        styleChips();
+        refreshContinue();
+        reload();
+        if (listView != null) listView.scrollToPosition(0);
     }
 
     private void styleChips() {
@@ -489,7 +548,7 @@ public class TjWatchActivity extends BaseFragment {
             listView.setVisibility(View.VISIBLE);
             status.setVisibility(View.VISIBLE);
             if (searchItem != null) searchItem.setVisibility(View.VISIBLE);
-            trending();
+            buildShelves();
             loadGenres();
             refreshContinue();
         });
@@ -508,11 +567,72 @@ public class TjWatchActivity extends BaseFragment {
     private boolean wantsMovies() { return kind != KIND_SERIES; }
 
     /**
+     * The home screen: what is being watched this week, then a row for each name the catalogue
+     * files things under. Rows are not fetched until they are about to be looked at - twelve of
+     * them at two requests each would be a minute of waiting for rows nobody scrolled to.
+     */
+    private void buildShelves() {
+        shelves.clear();
+        if (trendingShelf == null) trendingShelf = new Shelf(TjLocale.getString(R.string.TjWatchTrending), null);
+        shelves.add(trendingShelf);
+        for (Genre genre : genres) {
+            if (!fits(genre)) continue;
+            shelves.add(new Shelf(genre.name, genre));
+            if (shelves.size() > MAX_SHELVES) break;
+        }
+        if (shelfAdapter != null) shelfAdapter.notifyDataSetChanged();
+        status.setVisibility(View.GONE);
+    }
+
+    /** Fills one row. Which halves it asks depends on what the row is and what is being shown. */
+    private void loadShelf(Shelf shelf) {
+        if (shelf.asked) return;
+        shelf.asked = true;
+        boolean askSeries = wantsSeries() && (shelf.genre == null || shelf.genre.seriesId > 0);
+        boolean askMovies = wantsMovies() && (shelf.genre == null || shelf.genre.movieId > 0);
+        shelf.pending = (askSeries ? 1 : 0) + (askMovies ? 1 : 0);
+        if (shelf.pending == 0) return;
+        if (askSeries) {
+            if (shelf.genre == null) shelf.seriesClient.trending(currentAccount, true, (body, error) -> shelfArrived(shelf, body, true));
+            else shelf.seriesClient.discover(currentAccount, true, shelf.genre.seriesId, (body, error) -> shelfArrived(shelf, body, true));
+        }
+        if (askMovies) {
+            if (shelf.genre == null) shelf.movieClient.trending(currentAccount, false, (body, error) -> shelfArrived(shelf, body, false));
+            else shelf.movieClient.discover(currentAccount, false, shelf.genre.movieId, (body, error) -> shelfArrived(shelf, body, false));
+        }
+    }
+
+    private void shelfArrived(Shelf shelf, JSONObject body, boolean isSeries) {
+        read(body, isSeries, shelf.items, null);
+        if (--shelf.pending > 0) return;
+        shelf.items.sort((a, b) -> Double.compare(b.popularity, a.popularity));
+        if (shelfAdapter != null) shelfAdapter.notifyDataSetChanged();
+    }
+
+    /** Pulls the titles out of one answer, skipping anything already in the list it fills. */
+    private void read(JSONObject body, boolean isSeries, ArrayList<Item> into, HashSet<String> known) {
+        JSONArray results = body == null ? null : body.optJSONArray("results");
+        for (int i = 0; results != null && i < results.length(); i++) {
+            JSONObject object = results.optJSONObject(i);
+            if (object == null) continue;
+            Item item = new Item(object, isSeries);
+            if (item.id <= 0 || item.name.isEmpty()) continue;
+            if (known != null && !known.add((isSeries ? "tv" : "movie") + item.id)) continue;
+            into.add(item);
+        }
+    }
+
+    /**
      * Clears the grid and says how many answers are still owed. A half that is not being asked is
      * told to forget whatever it was fetching, so a late reply cannot land in the new list.
      */
     private void begin(boolean askSeries, boolean askMovies) {
         items.clear();
+        incoming.clear();
+        seen.clear();
+        page = 1;
+        loadingMore = false;
+        moreSeries = moreMovies = false;
         adapter.notifyDataSetChanged();
         status.setText(TjLocale.getString(R.string.TjMediaLoading));
         status.setVisibility(View.VISIBLE);
@@ -522,30 +642,28 @@ public class TjWatchActivity extends BaseFragment {
         if (pending == 0) collect(null, false, TjTmdb.OK);
     }
 
-    private void trending() {
-        boolean askSeries = wantsSeries(), askMovies = wantsMovies();
-        begin(askSeries, askMovies);
-        if (askSeries) series.trending(currentAccount, true, (body, error) -> collect(body, true, error));
-        if (askMovies) movies.trending(currentAccount, false, (body, error) -> collect(body, false, error));
-    }
-
     private void discover(Genre genre) {
         boolean askSeries = wantsSeries() && genre.seriesId > 0;
         boolean askMovies = wantsMovies() && genre.movieId > 0;
         begin(askSeries, askMovies);
-        if (askSeries) series.discover(currentAccount, true, genre.seriesId, (body, error) -> collect(body, true, error));
-        if (askMovies) movies.discover(currentAccount, false, genre.movieId, (body, error) -> collect(body, false, error));
+        if (askSeries) series.discover(currentAccount, true, genre.seriesId, page, (body, error) -> collect(body, true, error));
+        if (askMovies) movies.discover(currentAccount, false, genre.movieId, page, (body, error) -> collect(body, false, error));
     }
 
     private void reload() {
         if (!TjTmdb.available(currentAccount)) return;
         String typed = query.trim();
-        if (typed.isEmpty()) {
-            if (selectedGenre != null) discover(selectedGenre); else trending();
+        // Typing is a question about a title, which no longer belongs to whichever genre was open.
+        if (!typed.isEmpty() && selectedGenre != null) { selectedGenre = null; styleChips(); }
+        gridMode = !typed.isEmpty() || selectedGenre != null;
+        applyMode();
+        if (!gridMode) {
+            series.cancel();
+            movies.cancel();
+            buildShelves();
             return;
         }
-        // Typing is a question about a title, which no longer belongs to whichever genre was open.
-        if (selectedGenre != null) { selectedGenre = null; styleChips(); }
+        if (typed.isEmpty()) { discover(selectedGenre); return; }
         // A person types the episode into the search box as readily as the name. The name is what
         // the catalogue is asked about; the numbers are carried into the title screen.
         String name = TjMediaTitle.parse("", typed).title;
@@ -553,31 +671,191 @@ public class TjWatchActivity extends BaseFragment {
         boolean askSeries = wantsSeries(), askMovies = wantsMovies();
         begin(askSeries, askMovies);
         final String asked = name;
-        if (askSeries) series.search(currentAccount, asked, true, (body, error) -> collect(body, true, error));
-        if (askMovies) movies.search(currentAccount, asked, false, (body, error) -> collect(body, false, error));
+        if (askSeries) series.search(currentAccount, asked, true, page, (body, error) -> collect(body, true, error));
+        if (askMovies) movies.search(currentAccount, asked, false, page, (body, error) -> collect(body, false, error));
+    }
+
+    /** Another page of the same question, once the end of what is shown comes into view. */
+    private void checkLoadMore() {
+        if (!gridMode || loadingMore || pending > 0 || items.isEmpty()) return;
+        boolean askSeries = wantsSeries() && moreSeries;
+        boolean askMovies = wantsMovies() && moreMovies;
+        if (!askSeries && !askMovies) return;
+        RecyclerView.LayoutManager manager = listView.getLayoutManager();
+        if (!(manager instanceof LinearLayoutManager)) return;
+        if (((LinearLayoutManager) manager).findLastVisibleItemPosition() < items.size() - 6) return;
+
+        loadingMore = true;
+        page++;
+        incoming.clear();
+        pending = (askSeries ? 1 : 0) + (askMovies ? 1 : 0);
+        String typed = query.trim();
+        if (selectedGenre != null) {
+            if (askSeries) series.discover(currentAccount, true, selectedGenre.seriesId, page, (body, error) -> collect(body, true, error));
+            if (askMovies) movies.discover(currentAccount, false, selectedGenre.movieId, page, (body, error) -> collect(body, false, error));
+        } else {
+            String name = TjMediaTitle.parse("", typed).title;
+            if (name == null || name.trim().isEmpty()) name = typed;
+            final String asked = name;
+            if (askSeries) series.search(currentAccount, asked, true, page, (body, error) -> collect(body, true, error));
+            if (askMovies) movies.search(currentAccount, asked, false, page, (body, error) -> collect(body, false, error));
+        }
     }
 
     private void collect(JSONObject body, boolean isSeries, int error) {
         if (body != null) {
-            JSONArray results = body.optJSONArray("results");
-            for (int i = 0; results != null && i < results.length(); i++) {
-                JSONObject object = results.optJSONObject(i);
-                if (object == null) continue;
-                Item item = new Item(object, isSeries);
-                if (item.id > 0 && !item.name.isEmpty()) items.add(item);
-            }
+            boolean more = body.optInt("page", 1) < body.optInt("total_pages", 1);
+            if (isSeries) moreSeries = more; else moreMovies = more;
+            read(body, isSeries, incoming, seen);
         }
         if (pending > 0 && --pending > 0) return;
-        // What people are actually watching first. Sorting by score put an obscure title with four
-        // votes above everything anyone came here for.
-        items.sort((a, b) -> Double.compare(b.popularity, a.popularity));
-        adapter.notifyDataSetChanged();
+        // What people are actually watching first, within the page that just arrived. Sorting the
+        // whole list again would shuffle what is already on screen under the reader's thumb.
+        incoming.sort((a, b) -> Double.compare(b.popularity, a.popularity));
+        int from = items.size();
+        items.addAll(incoming);
+        incoming.clear();
+        loadingMore = false;
+        if (from == 0) adapter.notifyDataSetChanged(); else adapter.notifyItemRangeInserted(from, items.size() - from);
         if (!items.isEmpty()) {
             status.setVisibility(View.GONE);
         } else {
             status.setVisibility(View.VISIBLE);
             status.setText(TjLocale.getString(error == TjTmdb.CREDENTIAL ? R.string.TjWatchNeedsKey
                     : error == TjTmdb.NETWORK ? R.string.TjWatchOffline : R.string.TjWatchNothing));
+        }
+    }
+
+    /** The home screen's rows. */
+    private class ShelfAdapter extends RecyclerListView.SelectionAdapter {
+        @Override public int getItemCount() { return shelves.size(); }
+        @Override public boolean isEnabled(RecyclerView.ViewHolder holder) { return false; }
+
+        @Override public RecyclerView.ViewHolder onCreateViewHolder(ViewGroup parent, int viewType) {
+            ShelfCell cell = new ShelfCell(parent.getContext());
+            cell.setLayoutParams(new RecyclerView.LayoutParams(-1, -2));
+            return new RecyclerListView.Holder(cell);
+        }
+
+        @Override public void onBindViewHolder(RecyclerView.ViewHolder holder, int position) {
+            Shelf shelf = shelves.get(position);
+            // Asked for the first time as it comes into view, not when the screen was built.
+            loadShelf(shelf);
+            ((ShelfCell) holder.itemView).bind(shelf);
+        }
+    }
+
+    /**
+     * One row: the name of what is in it, and the artwork read across. The name is the way into the
+     * whole of it - a row shows what happens to fit, and there is always more than that.
+     */
+    private class ShelfCell extends LinearLayout {
+        private final TextView title;
+        private final ImageView chevron;
+        private final RecyclerListView row;
+        private final ArrayList<Item> shown = new ArrayList<>();
+        private Shelf bound;
+
+        ShelfCell(Context context) {
+            super(context);
+            setOrientation(VERTICAL);
+
+            LinearLayout head = new LinearLayout(context);
+            head.setOrientation(HORIZONTAL);
+            head.setGravity(Gravity.CENTER_VERTICAL);
+            head.setPadding(dp(14), dp(12), dp(14), dp(8));
+            head.setBackground(Theme.getSelectorDrawable(false));
+            head.setOnClickListener(v -> {
+                if (bound != null && bound.genre != null) selectGenre(bound.genre);
+            });
+
+            title = new TextView(context);
+            title.setTextSize(15);
+            title.setTypeface(AndroidUtilities.getTypeface("fonts/rmedium.ttf"));
+            title.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText));
+            title.setGravity(LocaleController.isRTL ? Gravity.RIGHT : Gravity.LEFT);
+            head.addView(title, LayoutHelper.createLinear(0, -2, 1f));
+
+            chevron = new ImageView(context);
+            chevron.setImageResource(R.drawable.msg_arrowright);
+            chevron.setScaleType(ImageView.ScaleType.CENTER);
+            chevron.setColorFilter(new PorterDuffColorFilter(
+                    Theme.getColor(Theme.key_windowBackgroundWhiteGrayText2), PorterDuff.Mode.SRC_IN));
+            if (LocaleController.isRTL) chevron.setScaleX(-1);
+            head.addView(chevron, LayoutHelper.createLinear(20, 20));
+            addView(head, LayoutHelper.createLinear(-1, -2));
+
+            row = new RecyclerListView(context);
+            row.setLayoutManager(new LinearLayoutManager(context, LinearLayoutManager.HORIZONTAL, false));
+            row.setClipToPadding(false);
+            row.setPadding(dp(10), 0, dp(10), 0);
+            row.setHorizontalScrollBarEnabled(false);
+            row.setNestedScrollingEnabled(false);
+            row.setAdapter(new RecyclerListView.SelectionAdapter() {
+                @Override public int getItemCount() { return shown.size(); }
+                @Override public boolean isEnabled(RecyclerView.ViewHolder holder) { return true; }
+                @Override public RecyclerView.ViewHolder onCreateViewHolder(ViewGroup parent, int viewType) {
+                    ArtCell cell = new ArtCell(parent.getContext());
+                    cell.setLayoutParams(new RecyclerView.LayoutParams(dp(104), -2));
+                    return new RecyclerListView.Holder(cell);
+                }
+                @Override public void onBindViewHolder(RecyclerView.ViewHolder holder, int position) {
+                    ((ArtCell) holder.itemView).bind(shown.get(position));
+                }
+            });
+            row.setOnItemClickListener((view, position) -> {
+                if (position >= 0 && position < shown.size()) open(shown.get(position));
+            });
+            addView(row, LayoutHelper.createLinear(-1, -2, 0, 0, 0, 6));
+        }
+
+        void bind(Shelf shelf) {
+            bound = shelf;
+            title.setText(shelf.title);
+            chevron.setVisibility(shelf.genre == null ? GONE : VISIBLE);
+            shown.clear();
+            shown.addAll(shelf.items);
+            row.getAdapter().notifyDataSetChanged();
+            row.scrollToPosition(0);
+            // An empty row is still on its way; leaving the header alone keeps the screen still.
+            row.setVisibility(shown.isEmpty() ? GONE : VISIBLE);
+        }
+    }
+
+    /** Artwork alone, the way a row of these is read. */
+    static class ArtCell extends FrameLayout {
+        private final BackupImageView image;
+        private final TextView rating;
+
+        ArtCell(Context context) {
+            super(context);
+            setPadding(dp(4), dp(2), dp(4), dp(2));
+            FrameLayout art = new FrameLayout(context);
+            art.setClipToOutline(true);
+            art.setBackground(Theme.createRoundRectDrawable(dp(8), Theme.getColor(Theme.key_windowBackgroundGray)));
+            image = new BackupImageView(context);
+            art.addView(image, LayoutHelper.createFrame(-1, -1));
+            rating = new TextView(context);
+            rating.setTextSize(10);
+            rating.setTextColor(0xffffffff);
+            rating.setTypeface(AndroidUtilities.getTypeface("fonts/rmedium.ttf"));
+            rating.setPadding(dp(5), dp(1), dp(5), dp(2));
+            rating.setBackground(Theme.createRoundRectDrawable(dp(5), 0xcc000000));
+            art.addView(rating, LayoutHelper.createFrame(-2, -2, Gravity.BOTTOM | Gravity.RIGHT, 5, 5, 5, 5));
+            addView(art, LayoutHelper.createFrame(96, 144));
+            ScaleStateListAnimator.apply(this, 0.04f, 1.2f);
+        }
+
+        void bind(Item item) {
+            String poster = TjTmdb.posterUrl(item.poster);
+            image.setImage(poster.isEmpty() ? null : poster, "320_480", (android.graphics.drawable.Drawable) null);
+            if (item.rating > 0) {
+                rating.setVisibility(VISIBLE);
+                rating.setText(String.format(java.util.Locale.US, "\u2605 %.1f", item.rating));
+            } else {
+                rating.setVisibility(GONE);
+            }
+            setContentDescription(item.name);
         }
     }
 

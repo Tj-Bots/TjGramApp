@@ -62,13 +62,15 @@ public class TjWatchSettingsActivity extends BaseFragment {
     private void build() {
         Context context = body.getContext();
         body.removeAllViews();
-        boolean hasKey = TjTmdb.available(currentAccount);
+        // A key of the person's own is a different thing from the shared one the app ships with:
+        // only the first can be removed, and only the second needs explaining.
+        boolean hasKey = TjTmdb.hasOwnCredential(currentAccount);
 
         addHeader(context, TjLocale.getString(R.string.TjMediaMetadata));
 
         TextSettingsCell key = new TextSettingsCell(context);
         key.setTextAndValue(TjLocale.getString(R.string.TjWatchKey),
-                TjLocale.getString(hasKey ? R.string.TjWatchKeySet : R.string.TjWatchKeyMissing), true);
+                TjLocale.getString(hasKey ? R.string.TjWatchKeySet : R.string.TjWatchKeyShared), true);
         key.setOnClickListener(v -> TjTmdbKeyDialog.show(this, this::build));
         addCard(key, true, false);
 
@@ -85,7 +87,8 @@ public class TjWatchSettingsActivity extends BaseFragment {
             addCard(remove, false, true);
         }
 
-        addInfo(context, TjLocale.getString(R.string.TjMediaMetadataInfo) + "\n\n"
+        addInfo(context, TjLocale.getString(hasKey ? R.string.TjMediaMetadataInfo
+                : R.string.TjWatchKeySharedInfo) + "\n\n"
                 + TjLocale.getString(R.string.TjMediaAttribution));
 
         addHeader(context, TjLocale.getString(R.string.TjWatchHistory));

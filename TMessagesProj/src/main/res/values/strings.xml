@@ -11512,6 +11512,9 @@
     <string name="TjWatchContinue">Carry on watching</string>
     <string name="TjWatchForget">Remove</string>
     <string name="TjWatchAllGenres">Every genre</string>
+    <string name="TjWatchTrending">Watched this week</string>
+    <string name="TjWatchKeyShared">Shared key</string>
+    <string name="TjWatchKeySharedInfo">Browsing runs on a key the app ships with, shared by everyone using it. Adding your own makes it yours alone - faster when the shared one is busy, and unaffected if it stops working. It is free, it stays on this device, and nothing about your account is sent with it.</string>
     <string name="TjWatchHistory">Watch history</string>
     <string name="TjWatchHistoryEmpty">Nothing watched from here yet. Whatever you play keeps its place, and comes back on this list.</string>
     <string name="TjWatchHistoryInfo">Kept on this device only, and only for the account that watched. Removing a row forgets where it stopped - the file itself stays in its chat.</string>
@@ -11522,7 +11525,7 @@
     <string name="TjWatchKeySet">Set</string>
     <string name="TjWatchKeyMissing">Not set</string>
     <string name="TjWatchKeyRemove">Remove the key</string>
-    <string name="TjWatchKeyRemoveInfo">Films and series can no longer be browsed until another key is added. The watch history is kept.</string>
+    <string name="TjWatchKeyRemoveInfo">Browsing goes back to the shared key the app ships with. The watch history is kept.</string>
     <string name="TjWatchKeyWhere">Where to get a key</string>
     <string name="TjWatchKeyRejected">TMDB did not accept that key. Check it was copied whole.</string>
     <string name="TjWatchKeyBusy">TMDB is asking to wait a moment. Try again shortly.</string>

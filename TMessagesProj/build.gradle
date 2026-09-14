@@ -142,6 +142,15 @@ android {
 
         multiDexEnabled true
 
+        // The catalogue key the app falls back to when someone has not added one of their own, so
+        // Watch works out of the box. It is a shared key and it is readable by anyone who has the
+        // apk; adding a personal one in the Watch settings replaces it. A fork or a CI secret can
+        // supply a different one through local.properties or the environment without a code change.
+        def tmdbKey = System.getenv('TMDB_KEY')
+        if (tmdbKey == null || tmdbKey.toString().isEmpty()) tmdbKey = getProps('TMDB_KEY')
+        if (tmdbKey == null || tmdbKey.toString().isEmpty()) tmdbKey = '2cedaf6c3e5614115817f6fbfbf11e87'
+        buildConfigField "String", "TJ_TMDB_KEY", "\"" + tmdbKey + "\""
+
         externalNativeBuild {
             cmake {
                 version '3.22.1'

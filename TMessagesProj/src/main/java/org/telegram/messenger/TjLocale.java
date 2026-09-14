@@ -453,6 +453,9 @@ public class TjLocale {
         m.put("TjWatchContinue", "המשך צפייה");
         m.put("TjWatchForget", "הסרה");
         m.put("TjWatchAllGenres", "כל הז׳אנרים");
+        m.put("TjWatchTrending", "נצפים השבוע");
+        m.put("TjWatchKeyShared", "מפתח משותף");
+        m.put("TjWatchKeySharedInfo", "העיון עובד על מפתח שמגיע עם האפליקציה, משותף לכל מי שמשתמש בה. הוספת מפתח משלך הופכת אותו לשלך בלבד - מהיר יותר כשהמשותף עמוס, ולא מושפע אם הוא מפסיק לעבוד. הוא חינמי, נשמר במכשיר הזה בלבד, ושום דבר מהחשבון שלך לא נשלח איתו.");
         m.put("TjWatchHistory", "היסטוריית צפייה");
         m.put("TjWatchHistoryEmpty", "עדיין לא צפית בכלום מכאן. כל מה שתפעיל ישמור את המקום שלו ויחזור לרשימה הזו.");
         m.put("TjWatchHistoryInfo", "נשמר במכשיר הזה בלבד, ורק לחשבון שצפה. הסרת שורה שוכחת את המקום שנעצר בו - הקובץ עצמו נשאר בצ׳אט שלו.");
@@ -463,7 +466,7 @@ public class TjLocale {
         m.put("TjWatchKeySet", "מוגדר");
         m.put("TjWatchKeyMissing", "לא מוגדר");
         m.put("TjWatchKeyRemove", "הסרת המפתח");
-        m.put("TjWatchKeyRemoveInfo", "לא יהיה אפשר לעיין בסרטים ובסדרות עד שיתווסף מפתח אחר. היסטוריית הצפייה נשמרת.");
+        m.put("TjWatchKeyRemoveInfo", "העיון יחזור למפתח המשותף שמגיע עם האפליקציה. היסטוריית הצפייה נשמרת.");
         m.put("TjWatchKeyWhere", "איפה משיגים מפתח");
         m.put("TjWatchKeyRejected", "TMDB לא קיבל את המפתח הזה. בדוק שהועתק במלואו.");
         m.put("TjWatchKeyBusy", "TMDB מבקש להמתין רגע. נסה שוב עוד מעט.");

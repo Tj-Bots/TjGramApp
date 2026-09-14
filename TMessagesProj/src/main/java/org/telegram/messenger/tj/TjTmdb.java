@@ -2,6 +2,7 @@ package org.telegram.messenger.tj;
 
 import org.json.JSONObject;
 import org.telegram.messenger.AndroidUtilities;
+import org.telegram.messenger.BuildConfig;
 import org.telegram.messenger.DispatchQueue;
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.UserConfig;
@@ -57,7 +58,23 @@ public final class TjTmdb {
         return code;
     }
 
+    /**
+     * The key the app is built with, used by anyone who has not added one of their own. It is
+     * shared, so it is also readable by anyone holding the apk and its budget is shared by every
+     * install; a personal key entered in the Watch settings always wins over it.
+     */
+    private static String sharedCredential() {
+        String key = BuildConfig.TJ_TMDB_KEY;
+        return key == null ? "" : key.trim();
+    }
+
+    /** True when there is a key to ask with at all, the user's own or the shared one. */
     public static boolean available(int account) {
+        return TjConfig.hasMediaMetadataCredential(account) || !sharedCredential().isEmpty();
+    }
+
+    /** True when this account entered a key of its own. */
+    public static boolean hasOwnCredential(int account) {
         return TjConfig.hasMediaMetadataCredential(account);
     }
 
@@ -71,9 +88,14 @@ public final class TjTmdb {
     public static String stillUrl(String path) { return imageUrl(path, "w300"); }
 
     public void search(int account, String query, boolean series, Callback callback) {
+        search(account, query, series, 1, callback);
+    }
+
+    public void search(int account, String query, boolean series, int page, Callback callback) {
         Map<String, String> params = new LinkedHashMap<>();
         params.put("query", query == null ? "" : query.trim());
         params.put("include_adult", "false");
+        if (page > 1) params.put("page", Integer.toString(page));
         request(account, "search/" + (series ? "tv" : "movie"), params, callback);
     }
 
@@ -96,11 +118,16 @@ public final class TjTmdb {
 
     /** Everything filed under one of those names, best known first. */
     public void discover(int account, boolean series, int genre, Callback callback) {
+        discover(account, series, genre, 1, callback);
+    }
+
+    public void discover(int account, boolean series, int genre, int page, Callback callback) {
         Map<String, String> params = new LinkedHashMap<>();
         params.put("with_genres", Integer.toString(genre));
         params.put("sort_by", "popularity.desc");
         params.put("include_adult", "false");
         params.put("vote_count.gte", "40");
+        if (page > 1) params.put("page", Integer.toString(page));
         request(account, "discover/" + (series ? "tv" : "movie"), params, callback);
     }
 
@@ -156,6 +183,7 @@ public final class TjTmdb {
             int error = OK;
             if (epoch != generation || !owned(account, owner)) return;
             String credential = TjConfig.mediaMetadataCredential(account, owner);
+            if (credential.isEmpty()) credential = sharedCredential();
             if (credential.isEmpty()) {
                 error = CREDENTIAL;
             } else if (params.containsKey("query") && params.get("query").isEmpty()) {
