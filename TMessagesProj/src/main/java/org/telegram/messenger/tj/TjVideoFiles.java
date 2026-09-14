@@ -87,12 +87,17 @@ public final class TjVideoFiles {
         return false;
     }
 
-    /** The bubble needs real dimensions; the thumbnail is the only hint a raw document gives. */
+    /**
+     * A guess at the shape of the picture. The thumbnail is the only hint a raw document gives,
+     * and it is a good one right up until the thumbnail is the film's poster - which is upright,
+     * while the film is not. Anything taller than it is wide is treated as a poster and ignored,
+     * because a portrait shape here also costs the player its rotate-to-fullscreen button.
+     */
     private static int[] thumbSize(TLRPC.Document document) {
         if (document.thumbs != null) {
             for (int a = 0, count = document.thumbs.size(); a < count; a++) {
                 TLRPC.PhotoSize thumb = document.thumbs.get(a);
-                if (thumb != null && thumb.w > 0 && thumb.h > 0) {
+                if (thumb != null && thumb.w > 0 && thumb.h > 0 && thumb.w > thumb.h) {
                     return new int[]{thumb.w, thumb.h};
                 }
             }

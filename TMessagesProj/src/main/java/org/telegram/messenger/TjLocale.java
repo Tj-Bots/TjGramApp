@@ -439,6 +439,7 @@ public class TjLocale {
         m.put("TjCategories", "קטגוריות");
         m.put("TjWatchSearchHint", "חפש סרט או סדרה");
         m.put("TjWatchAll", "הכל");
+        m.put("TjWatchInDrawer", "צפייה בתפריט הצד");
         m.put("TjWatchTitle", "צפייה");
         m.put("TjWatchNeedsKey", "כדי לעיין בסרטים ובסדרות צריך מפתח TMDB משלך. הוא חינמי, נשמר במכשיר הזה בלבד, ושום דבר מהחשבון שלך לא נשלח איתו.");
         m.put("TjWatchAddKey", "הוספת מפתח");

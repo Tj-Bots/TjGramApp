@@ -311,6 +311,9 @@ public class DrawerLayoutAdapter extends RecyclerListView.SelectionAdapter {
         }
         items.add(new Item(101, LocaleController.getString(R.string.Filters), R.drawable.msg_folders));
         items.add(new Item(102, TjLocale.getString(R.string.TjChatCounters), R.drawable.msg_stats));
+        if (TjConfig.showWatchInDrawer()) {
+            items.add(new Item(107, TjLocale.getString(R.string.TjWatchTitle), R.drawable.msg_played));
+        }
         if (TjConfig.showMediaInDrawer()) {
             items.add(new Item(106, TjLocale.getString(R.string.TjMediaCenter), R.drawable.msg_media));
         }

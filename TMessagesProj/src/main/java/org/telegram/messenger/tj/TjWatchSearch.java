@@ -97,7 +97,7 @@ public final class TjWatchSearch {
                                     message.messageOwner == null ? "" : message.messageOwner.message,
                                     targets, year, season, episode);
                             if (score == TjTitleMatch.REJECT) continue;
-                            if (seen.add(message.getDialogId() + ":" + message.getId())) {
+                            if (seen.add(identity(message))) {
                                 results.add(new Result(message, score));
                             }
                         }
@@ -137,6 +137,17 @@ public final class TjWatchSearch {
                 callback.complete(messages);
             });
         });
+    }
+
+    /**
+     * What makes two results the same thing. The same upload forwarded into fifteen channels is
+     * the same file on Telegram's side and carries the same document id, and listing it fifteen
+     * times is not a choice between copies - it is the same copy fifteen times.
+     */
+    public static String identity(MessageObject message) {
+        TLRPC.Document document = message.getDocument();
+        if (document != null && document.id != 0) return "doc:" + document.id;
+        return "msg:" + message.getDialogId() + ":" + message.getId();
     }
 
     private static boolean isPlayable(MessageObject message) {

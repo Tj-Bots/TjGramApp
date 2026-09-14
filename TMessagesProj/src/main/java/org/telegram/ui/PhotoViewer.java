@@ -10895,8 +10895,12 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
                 for (int a = 0, N = document.attributes.size(); a < N; a++) {
                     TLRPC.DocumentAttribute attribute = document.attributes.get(a);
                     if (attribute instanceof TLRPC.TL_documentAttributeVideo) {
-                        w = attribute.w;
-                        h = attribute.h;
+                        // A file that never declared its size leaves these at zero, and taking
+                        // them anyway hid the fullscreen button on a video that is plainly wide.
+                        if (attribute.w > 0 && attribute.h > 0) {
+                            w = attribute.w;
+                            h = attribute.h;
+                        }
                         break;
                     }
                 }

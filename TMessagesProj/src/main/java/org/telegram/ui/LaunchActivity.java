@@ -8561,6 +8561,10 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
                     mediaCenter.setCurrentAccount(currentAccount);
                     presentFragment(mediaCenter);
                     break;
+                case 107:
+                    drawerLayoutContainer.closeDrawer(false);
+                    presentFragment(new TjWatchActivity());
+                    break;
             }
         });
         final ItemTouchHelper sideMenuTouchHelper = new ItemTouchHelper(new ItemTouchHelper.SimpleCallback(ItemTouchHelper.UP | ItemTouchHelper.DOWN, 0) {

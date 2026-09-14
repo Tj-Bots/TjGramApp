@@ -396,7 +396,7 @@ public class TjTitleActivity extends BaseFragment {
             this.position = position;
             this.score = score;
         }
-        String identity() { return message.getDialogId() + ":" + message.getId(); }
+        String identity() { return org.telegram.messenger.tj.TjWatchSearch.identity(message); }
         long size() { return message.getDocument() == null ? 0 : message.getDocument().size; }
     }
 
