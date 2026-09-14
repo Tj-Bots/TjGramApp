@@ -22,7 +22,22 @@ import java.util.Locale;
 public final class TjWatchSearch {
 
     public interface Callback {
-        void complete(ArrayList<MessageObject> results);
+        void complete(ArrayList<Result> results);
+    }
+
+    /** A file that answered to the name, and how well it answered. */
+    public static final class Result {
+        public final MessageObject message;
+        public final int score;
+
+        Result(MessageObject message, int score) {
+            this.message = message;
+            this.score = score;
+        }
+    }
+
+    private interface RawCallback {
+        void complete(ArrayList<MessageObject> messages);
     }
 
     private static final int LIMIT = 40;
@@ -31,22 +46,35 @@ public final class TjWatchSearch {
     }
 
     /**
+     * @param targets the names the catalogue gave - what it is called here and what it was called
+     *                originally, because a file is as likely to be named either way
+     * @param year    the year the catalogue gave, or 0
      * @param season  the season being looked for, or -1 for a film
      * @param episode the episode being looked for, or -1 for a film
      */
-    public static void search(List<Integer> accounts, String name, int season, int episode, Callback callback) {
-        final ArrayList<MessageObject> results = new ArrayList<>();
+    public static void search(List<Integer> accounts, List<String> targets, int year,
+                              int season, int episode, Callback callback) {
+        final ArrayList<Result> results = new ArrayList<>();
         final HashSet<String> seen = new HashSet<>();
         final ArrayList<String> queries = new ArrayList<>();
-        queries.add(name);
+        for (String target : targets) {
+            if (target != null && !target.trim().isEmpty() && !queries.contains(target.trim())) {
+                queries.add(target.trim());
+            }
+        }
+        if (queries.isEmpty()) {
+            callback.complete(results);
+            return;
+        }
         if (season >= 0 && episode >= 0) {
-            // The episode label is a word in its own right in most filenames, and asking for it
-            // reaches episodes that a search for the name alone would never page down to.
-            queries.add(name + " " + String.format(Locale.US, "S%02dE%02d", season, episode));
+            // The episode label is a word of its own in most filenames, and asking for it reaches
+            // episodes that a search for the name alone would never page down to.
+            queries.add(queries.get(queries.size() - 1) + " "
+                    + String.format(Locale.US, "S%02dE%02d", season, episode));
         }
         final TLRPC.MessagesFilter[] filters = {
                 new TLRPC.TL_inputMessagesFilterVideo(),
-                // Videos posted as plain files are the whole reason the file player exists.
+                // Films posted as plain files are the whole reason the file player exists.
                 new TLRPC.TL_inputMessagesFilterDocument()
         };
         int requests = 0;
@@ -65,8 +93,13 @@ public final class TjWatchSearch {
                     send(account, query, filter, messages -> {
                         for (MessageObject message : messages) {
                             if (!isPlayable(message)) continue;
-                            if (!matches(message, season, episode)) continue;
-                            if (seen.add(message.getDialogId() + ":" + message.getId())) results.add(message);
+                            int score = TjTitleMatch.score(message.getDocumentName(),
+                                    message.messageOwner == null ? "" : message.messageOwner.message,
+                                    targets, year, season, episode);
+                            if (score == TjTitleMatch.REJECT) continue;
+                            if (seen.add(message.getDialogId() + ":" + message.getId())) {
+                                results.add(new Result(message, score));
+                            }
                         }
                         if (--pending[0] == 0) callback.complete(results);
                     });
@@ -75,7 +108,7 @@ public final class TjWatchSearch {
         }
     }
 
-    private static void send(int account, String query, TLRPC.MessagesFilter filter, Callback callback) {
+    private static void send(int account, String query, TLRPC.MessagesFilter filter, RawCallback callback) {
         AccountInstance instance = AccountInstance.getInstance(account);
         TLRPC.TL_messages_searchGlobal request = new TLRPC.TL_messages_searchGlobal();
         request.q = query;
@@ -115,12 +148,4 @@ public final class TjWatchSearch {
         return message.getDocument() != null && TjVideoFiles.isTjMarked(message.getDocument());
     }
 
-    private static boolean matches(MessageObject message, int season, int episode) {
-        if (episode < 0) return true;
-        TjMediaTitle parsed = TjMediaTitle.parse(message.getDocumentName(),
-                message.messageOwner == null ? "" : message.messageOwner.message);
-        if (parsed.episode != episode) return false;
-        // A file that never named its season still belongs to the episode it names.
-        return parsed.season < 0 || season < 0 || parsed.season == season;
-    }
 }

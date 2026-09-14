@@ -60,6 +60,9 @@ public class TjTitleActivity extends BaseFragment {
     private final long id;
     private final boolean series;
     private final String name;
+    /** What the catalogue also calls it, and when it came out - both decide which file is right. */
+    private String originalName = "";
+    private int year;
     private final TjTmdb details = new TjTmdb();
     private final TjTmdb seasonClient = new TjTmdb();
     private final ArrayList<Integer> seasons = new ArrayList<>();
@@ -207,7 +210,11 @@ public class TjTitleActivity extends BaseFragment {
 
             ArrayList<String> meta = new ArrayList<>();
             String date = body.optString(series ? "first_air_date" : "release_date", "");
-            if (date.length() >= 4) meta.add(date.substring(0, 4));
+            if (date.length() >= 4) {
+                meta.add(date.substring(0, 4));
+                try { year = Integer.parseInt(date.substring(0, 4)); } catch (NumberFormatException ignore) { }
+            }
+            originalName = body.optString(series ? "original_name" : "original_title", "");
             double rating = body.optDouble("vote_average", 0);
             if (rating > 0) meta.add(String.format(Locale.US, "★ %.1f", rating));
             if (series) {
@@ -371,13 +378,23 @@ public class TjTitleActivity extends BaseFragment {
         episodeList.addView(watch, LayoutHelper.createLinear(-1, 48, 16, 8, 16, 8));
     }
 
+    /** The names this title is known by. Files are named in either, so both are searched for. */
+    private ArrayList<String> targets() {
+        ArrayList<String> targets = new ArrayList<>();
+        targets.add(name);
+        if (!originalName.isEmpty() && !originalName.equalsIgnoreCase(name)) targets.add(originalName);
+        return targets;
+    }
+
     /** One copy of the thing, from wherever it was found. */
     private static final class Candidate {
         final org.telegram.messenger.MessageObject message;
         final long position;
-        Candidate(org.telegram.messenger.MessageObject message, long position) {
+        final int score;
+        Candidate(org.telegram.messenger.MessageObject message, long position, int score) {
             this.message = message;
             this.position = position;
+            this.score = score;
         }
         String identity() { return message.getDialogId() + ":" + message.getId(); }
         long size() { return message.getDocument() == null ? 0 : message.getDocument().size; }
@@ -401,25 +418,27 @@ public class TjTitleActivity extends BaseFragment {
             try { progress.dismiss(); } catch (Exception ignore) { }
             offer(found);
         };
+        final ArrayList<String> targets = targets();
         for (int account : accounts) {
             TjMediaStore.getInstance().load(account, 0, name, "", null, new HashSet<>(), 0, 0, page -> {
                 if (page != null) {
                     for (TjMediaStore.Record record : page) {
                         if (TjMediaKind.of(record.message) != TjMediaKind.VIDEO) continue;
-                        if (episode >= 0) {
-                            if (record.episode() != episode) continue;
-                            if (record.season() >= 0 && season >= 0 && record.season() != season) continue;
-                        }
-                        Candidate candidate = new Candidate(record.message, record.position);
+                        int score = org.telegram.messenger.tj.TjTitleMatch.score(
+                                record.message.getDocumentName(),
+                                record.message.messageOwner == null ? "" : record.message.messageOwner.message,
+                                targets, year, season, episode);
+                        if (score == org.telegram.messenger.tj.TjTitleMatch.REJECT) continue;
+                        Candidate candidate = new Candidate(record.message, record.position, score);
                         if (seen.add(candidate.identity())) found.add(candidate);
                     }
                 }
                 done.run();
             });
         }
-        org.telegram.messenger.tj.TjWatchSearch.search(accounts, name, season, episode, messages -> {
-            for (org.telegram.messenger.MessageObject message : messages) {
-                Candidate candidate = new Candidate(message, 0);
+        org.telegram.messenger.tj.TjWatchSearch.search(accounts, targets, year, season, episode, results -> {
+            for (org.telegram.messenger.tj.TjWatchSearch.Result result : results) {
+                Candidate candidate = new Candidate(result.message, 0, result.score);
                 if (seen.add(candidate.identity())) found.add(candidate);
             }
             done.run();
@@ -435,9 +454,10 @@ public class TjTitleActivity extends BaseFragment {
                     .setPositiveButton(LocaleController.getString(R.string.OK), null).create());
             return;
         }
+        // The closest match to what was chosen comes first, and among equals the larger copy.
+        found.sort((a, b) -> a.score != b.score ? Integer.compare(b.score, a.score)
+                : Long.compare(b.size(), a.size()));
         if (found.size() == 1) { play(found.get(0)); return; }
-        // Biggest first: for the same episode that is nearly always the better copy.
-        found.sort((a, b) -> Long.compare(b.size(), a.size()));
         CharSequence[] labels = new CharSequence[found.size()];
         for (int i = 0; i < found.size(); i++) {
             Candidate candidate = found.get(i);
@@ -445,9 +465,18 @@ public class TjTitleActivity extends BaseFragment {
                     candidate.message.getDocumentName(),
                     candidate.message.messageOwner == null ? "" : candidate.message.messageOwner.message).quality;
             String source = sourceName(candidate.message);
-            labels[i] = (quality.isEmpty() ? "" : quality + "  \u00b7  ")
-                    + AndroidUtilities.formatFileSize(candidate.size())
-                    + (source.isEmpty() ? "" : "  \u00b7  " + source);
+            // The name the file gives itself is the first thing on the row: two copies of the same
+            // episode differ by quality, but a wrong match differs by name, and that has to be
+            // visible before anything is picked.
+            String described = org.telegram.messenger.tj.TjTitleMatch.describe(
+                    candidate.message.getDocumentName(),
+                    candidate.message.messageOwner == null ? "" : candidate.message.messageOwner.message);
+            StringBuilder line = new StringBuilder(described);
+            line.append('\n');
+            if (!quality.isEmpty()) line.append(quality).append("  \u00b7  ");
+            line.append(AndroidUtilities.formatFileSize(candidate.size()));
+            if (!source.isEmpty()) line.append("  \u00b7  ").append(source);
+            labels[i] = line.toString();
         }
         showDialog(new AlertDialog.Builder(getParentActivity())
                 .setTitle(TjLocale.getString(R.string.TjWatchChooseFile))
