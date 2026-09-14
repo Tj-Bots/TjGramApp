@@ -12,7 +12,15 @@ public final class TjMediaTitle {
     private static final Pattern HEBREW_EPISODE = Pattern.compile("(?<![\\p{L}\\d])(?:עונה|ע)\\s*(\\d{1,3})[\\s,._:-]*(?:פרק|פ)\\s*(\\d{1,4})(?!\\d)");
     private static final Pattern ENGLISH_EPISODE = Pattern.compile("(?i)(?<![\\p{L}\\d])season[ ._-]*(\\d{1,3})[\\s,._:-]*(?:episode|ep)[ ._-]*(\\d{1,4})(?!\\d)");
     private static final Pattern RUSSIAN_EPISODE = Pattern.compile("(?iu)(?<![\\p{L}\\d])сезон\\s*(\\d{1,3})[\\s,._:-]*серия\\s*(\\d{1,4})(?!\\d)");
-    private static final Pattern[] EPISODE_PATTERNS = {EPISODE, HEBREW_EPISODE, ENGLISH_EPISODE, RUSSIAN_EPISODE};
+    // Hebrew is written short as well - "ס5 פ6" - and the same file may arrive named in Arabic.
+    private static final Pattern HEBREW_SHORT_EPISODE = Pattern.compile("(?<![\\p{L}\\d])ס\\s*(\\d{1,3})[\\s,._:-]*פ\\s*(\\d{1,4})(?!\\d)");
+    private static final Pattern ARABIC_EPISODE = Pattern.compile("(?u)(?<![\\p{L}\\d])(?:الموسم|موسم)\\s*(\\d{1,3})[\\s,._:-]*(?:الحلقة|حلقة)\\s*(\\d{1,4})(?!\\d)");
+    private static final Pattern[] EPISODE_PATTERNS = {EPISODE, HEBREW_EPISODE, HEBREW_SHORT_EPISODE,
+            ENGLISH_EPISODE, RUSSIAN_EPISODE, ARABIC_EPISODE};
+    /** A season named on its own, for files that put the season and the episode in different places. */
+    private static final Pattern SEASON_ONLY = Pattern.compile("(?iu)(?<![\\p{L}\\d])(?:season|עונה|الموسم|موسم|сезон)[ ._-]*(\\d{1,3})(?!\\d)|(?<![\\p{L}\\d])s(\\d{1,2})(?![\\d\\p{L}])");
+    /** An episode on its own. Plenty of series are posted one numbered episode to a message. */
+    private static final Pattern EPISODE_ONLY = Pattern.compile("(?iu)(?<![\\p{L}\\d])(?:episode|ep|פרק|الحلقة|حلقة|серия)[ ._:-]*(\\d{1,4})(?!\\d)|(?<![\\p{L}\\d])e(\\d{1,3})(?![\\d\\p{L}])");
     private static final Pattern QUALITY = Pattern.compile("(?i)(?<![\\p{L}\\d])(2160p|1080p|720p|480p|4k)(?![\\p{L}\\d])");
     private static final Pattern MULTI_EPISODE = Pattern.compile("(?i)s\\d{1,3}[ ._-]*e\\d{1,4}(?:e|[-+]e?)\\d{1,4}");
     private static final Pattern EXTENSION = Pattern.compile("(?i)\\.(mkv|mp4|avi|mov|webm|m4v|ts|mp3|flac|pdf|zip)$");
@@ -40,7 +48,8 @@ public final class TjMediaTitle {
         String candidate = firstLine.isEmpty() || firstLine.startsWith("http://")
                 || firstLine.startsWith("https://") ? file : firstLine;
         candidate = EXTENSION.matcher(candidate).replaceFirst("");
-        String combined = text + "\n" + file;
+        String combined = normalizeDigits(text + "\n" + file);
+        candidate = normalizeDigits(candidate);
         int season = -1;
         int episode = -1;
         for (Pattern pattern : EPISODE_PATTERNS) {
@@ -64,6 +73,16 @@ public final class TjMediaTitle {
         }
         if (MULTI_EPISODE.matcher(combined).find()) conflict = true;
         if (conflict) { season = -1; episode = -1; }
+        if (!conflict && episode < 0) {
+            // Nothing said "season N episode M". Take a lone episode number, and a lone season
+            // number if one is written elsewhere in the same message.
+            Matcher lone = EPISODE_ONLY.matcher(combined);
+            if (lone.find()) {
+                episode = number(lone);
+                Matcher loneSeason = SEASON_ONLY.matcher(combined);
+                if (loneSeason.find()) season = number(loneSeason);
+            }
+        }
         Matcher yearMatch = YEAR.matcher(combined);
         int year = 0;
         while (yearMatch.find()) {
@@ -77,7 +96,8 @@ public final class TjMediaTitle {
         Matcher qualityMatch = QUALITY.matcher(combined);
         String quality = qualityMatch.find() ? qualityMatch.group(1).toUpperCase(Locale.ROOT) : "";
         int end = candidate.length();
-        for (Pattern pattern : new Pattern[]{EPISODE, HEBREW_EPISODE, ENGLISH_EPISODE, RUSSIAN_EPISODE, YEAR, QUALITY}) {
+        for (Pattern pattern : new Pattern[]{EPISODE, HEBREW_EPISODE, HEBREW_SHORT_EPISODE, ENGLISH_EPISODE,
+                RUSSIAN_EPISODE, ARABIC_EPISODE, SEASON_ONLY, EPISODE_ONLY, YEAR, QUALITY}) {
             Matcher boundary = pattern.matcher(candidate);
             while (boundary.find()) {
                 if (boundary.start() > 0) {
@@ -92,6 +112,31 @@ public final class TjMediaTitle {
             title = candidate;
         }
         return new TjMediaTitle(title, year, season, episode, quality, conflict);
+    }
+
+    /** The first group that actually matched, so one pattern can carry two shapes of a label. */
+    private static int number(Matcher matcher) {
+        for (int group = 1; group <= matcher.groupCount(); group++) {
+            if (matcher.group(group) != null) return Integer.parseInt(matcher.group(group));
+        }
+        return -1;
+    }
+
+    /**
+     * Arabic and Persian files are numbered in their own digits. Reading the words and then
+     * finding no number is how a whole language of episodes ends up ungrouped.
+     */
+    public static String normalizeDigits(String value) {
+        if (value == null) return "";
+        StringBuilder result = null;
+        for (int i = 0; i < value.length(); i++) {
+            char c = value.charAt(i);
+            char digit = c >= 0x0660 && c <= 0x0669 ? (char) ('0' + c - 0x0660)
+                    : c >= 0x06F0 && c <= 0x06F9 ? (char) ('0' + c - 0x06F0) : c;
+            if (digit != c && result == null) result = new StringBuilder(value.substring(0, i));
+            if (result != null) result.append(digit);
+        }
+        return result == null ? value : result.toString();
     }
 
     public static boolean matches(String filename, String caption, String query) {

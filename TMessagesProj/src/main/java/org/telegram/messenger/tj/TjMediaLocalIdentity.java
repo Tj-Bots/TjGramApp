@@ -26,7 +26,9 @@ public final class TjMediaLocalIdentity {
         // manual alias decision (e.g. translations), not an automatic merge.
         if (file.season >= 0 && text.season >= 0 && !TjMediaTitle.normalizeSearch(file.title)
                 .equals(TjMediaTitle.normalizeSearch(text.title))) conflict = true;
-        boolean series = hint.season >= 0 || hint.episodeConflict;
+        // A numbered episode is a series even when nothing named the season - plenty of channels
+        // post "Episode 12" and leave the season to the channel's own name.
+        boolean series = hint.season >= 0 || hint.episode >= 0 || hint.episodeConflict;
         boolean usable = normalized.length() >= 2 && normalized.length() <= 250
                 && normalized.matches(".*\\p{L}.*") && !conflict
                 && !normalized.matches("(?i)(video|upload|file|movie|episode|פרק|סרטון)(?:\\s*\\d*)?");

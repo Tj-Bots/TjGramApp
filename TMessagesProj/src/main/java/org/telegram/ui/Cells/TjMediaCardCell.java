@@ -5,6 +5,7 @@ import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.view.Gravity;
 import android.widget.FrameLayout;
+import android.view.View;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
@@ -29,8 +30,10 @@ public final class TjMediaCardCell extends LinearLayout {
     private final TextView badge;
     private final TextView title;
     private final TextView subtitle;
+    private final View scrim;
     private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private float progress;
+    private boolean poster;
 
     public TjMediaCardCell(Context context) {
         super(context);
@@ -49,6 +52,14 @@ public final class TjMediaCardCell extends LinearLayout {
         artwork.addView(fallback, LayoutHelper.createFrame(40, 40, Gravity.CENTER));
         image = new BackupImageView(context);
         artwork.addView(image, LayoutHelper.createFrame(-1, -1));
+        // Poster art carries its own titles and bright corners; the badge needs something to sit
+        // on that does not turn into a grey box over a dark poster.
+        scrim = new View(context);
+        scrim.setBackground(new android.graphics.drawable.GradientDrawable(
+                android.graphics.drawable.GradientDrawable.Orientation.TOP_BOTTOM,
+                new int[]{0x00000000, 0x40000000, 0xa6000000}));
+        scrim.setVisibility(GONE);
+        artwork.addView(scrim, LayoutHelper.createFrame(-1, 64, Gravity.BOTTOM));
         badge = new TextView(context);
         badge.setTextSize(11);
         badge.setTextColor(0xffffffff);
@@ -65,6 +76,25 @@ public final class TjMediaCardCell extends LinearLayout {
         subtitle.setSingleLine(true);
         addView(subtitle, LayoutHelper.createLinear(-1, -2));
         setWillNotDraw(false);
+        // The same press response the rest of the app uses, so a poster feels like something you
+        // can pick up rather than a picture that happens to be tappable.
+        org.telegram.ui.Components.ScaleStateListAnimator.apply(this, 0.03f, 1.2f);
+    }
+
+    /**
+     * Poster shape: a title is a 2:3 sheet of artwork with its name underneath, the way every
+     * shelf of films is arranged. A file stays the wide thumbnail it always was.
+     */
+    public void setPoster(boolean value) {
+        if (poster == value) return;
+        poster = value;
+        scrim.setVisibility(value ? VISIBLE : GONE);
+        title.setMinLines(value ? 1 : 2);
+        title.setMaxLines(value ? 2 : 2);
+        title.setTypeface(value ? AndroidUtilities.getTypeface("fonts/rmedium.ttf") : android.graphics.Typeface.DEFAULT);
+        artwork.setBackground(Theme.createRoundRectDrawable(dp(value ? 10 : 12),
+                Theme.getColor(Theme.key_windowBackgroundGray)));
+        requestLayout();
     }
 
     private static int dp(float value) { return AndroidUtilities.dp(value); }
@@ -93,7 +123,7 @@ public final class TjMediaCardCell extends LinearLayout {
                 ? AndroidUtilities.formatFileSize(message.getDocument().size) : kind);
         boolean concealed = message.hasMediaSpoilers();
         if (!concealed && posterUrl != null && !posterUrl.isEmpty() && TjConfig.hasMediaMetadataCredential(message.currentAccount)) {
-            image.setImage(posterUrl, "320_180", null);
+            image.setImage(posterUrl, poster ? "320_480" : "320_180", null);
         } else if (!concealed) {
             TLRPC.PhotoSize thumb = FileLoader.getClosestPhotoSizeWithSize(message.photoThumbs, 320, false, null, true);
             ImageLocation location = thumb == null ? null : ImageLocation.getForObject(thumb, message.photoThumbsObject);
@@ -111,7 +141,7 @@ public final class TjMediaCardCell extends LinearLayout {
 
     @Override protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
         int width = MeasureSpec.getSize(widthMeasureSpec) - getPaddingLeft() - getPaddingRight();
-        artwork.getLayoutParams().height = Math.max(dp(90), width * 9 / 16);
+        artwork.getLayoutParams().height = poster ? width * 3 / 2 : Math.max(dp(90), width * 9 / 16);
         super.onMeasure(widthMeasureSpec, heightMeasureSpec);
     }
 

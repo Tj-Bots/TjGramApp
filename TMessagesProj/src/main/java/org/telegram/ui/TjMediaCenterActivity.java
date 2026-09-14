@@ -1876,10 +1876,27 @@ public class TjMediaCenterActivity extends BaseFragment implements MainTabsActiv
                 ((org.telegram.ui.Cells.TjMediaRowCell) holder.itemView).bind(message, title, source);
                 return;
             }
-            ((TjMediaCardCell) holder.itemView).bind(message, title,
-                    UserObject.getUserName(UserConfig.getInstance(entry.account).getCurrentUser()) + " · " + source,
+            // A catalog page lists titles, not files: posters, and a line that says what the title
+            // is rather than which account it came from.
+            boolean catalog = libraryView == 7 || libraryView == 8;
+            TjMediaCardCell card = (TjMediaCardCell) holder.itemView;
+            card.setPoster(catalog);
+            String subtitle;
+            if (catalog) {
+                StringBuilder line = new StringBuilder(text(record != null && record.isSeries()
+                        ? R.string.TjMediaSeries : R.string.TjMediaMovies));
+                String year = record != null && record.metadata != null && record.metadata.date.length() >= 4
+                        ? record.metadata.date.substring(0, 4)
+                        : record != null && record.localYear > 0 ? String.valueOf(record.localYear) : "";
+                if (!year.isEmpty()) line.append(" · ").append(year);
+                subtitle = line.toString();
+            } else {
+                subtitle = UserObject.getUserName(UserConfig.getInstance(entry.account).getCurrentUser()) + " · " + source;
+            }
+            card.bind(message, title, subtitle,
                     record == null ? 0 : record.position, record == null ? 0 : record.duration,
-                    record == null || record.metadata == null ? null : record.metadata.backdropUrl());
+                    record == null || record.metadata == null ? null
+                            : catalog ? record.metadata.posterUrl() : record.metadata.backdropUrl());
         }
     }
 }

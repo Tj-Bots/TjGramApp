@@ -108,8 +108,11 @@ public final class TjMediaHomeView extends ScrollView {
         shelf(R.string.TjMediaContinue, 1, resume, records);
         shelf(R.string.TjMediaRecentlyAdded, 0, entries, records);
         shelf(R.string.TjMediaFavorites, 3, favorites, records);
-        shelf(R.string.TjMediaMovies, 7, movies, records);
-        shelf(R.string.TjMediaSeries, 8, series, records);
+        // Films and series are browsed by their artwork, the way a shelf of them is arranged
+        // anywhere else. What you were watching keeps the wide still, because that is a place in
+        // a film rather than a film.
+        shelf(R.string.TjMediaMovies, 7, movies, records, true);
+        shelf(R.string.TjMediaSeries, 8, series, records, true);
         post(() -> scrollTo(0, scroll));
     }
 
@@ -126,6 +129,11 @@ public final class TjMediaHomeView extends ScrollView {
     }
 
     private void shelf(int title, int view, List<TjMediaLibrary.Entry> entries, Map<String, TjMediaStore.Record> records) {
+        shelf(title, view, entries, records, false);
+    }
+
+    private void shelf(int title, int view, List<TjMediaLibrary.Entry> entries,
+                       Map<String, TjMediaStore.Record> records, boolean poster) {
         if (entries.isEmpty()) return;
         TextView heading = heading(TjLocale.getString(title) + "  ·  " + TjLocale.getString(R.string.TjMediaSeeAll));
         heading.setOnClickListener(v -> delegate.view(view));
@@ -140,28 +148,43 @@ public final class TjMediaHomeView extends ScrollView {
             @Override public boolean isEnabled(RecyclerView.ViewHolder holder) { return true; }
             @Override public RecyclerView.ViewHolder onCreateViewHolder(ViewGroup parent, int type) {
                 TjMediaCardCell cell = new TjMediaCardCell(parent.getContext());
-                cell.setLayoutParams(new RecyclerView.LayoutParams(AndroidUtilities.dp(220), -1));
+                cell.setPoster(poster);
+                cell.setLayoutParams(new RecyclerView.LayoutParams(AndroidUtilities.dp(poster ? 124 : 220), -1));
                 return new RecyclerListView.Holder(cell);
             }
             @Override public void onBindViewHolder(RecyclerView.ViewHolder holder, int position) {
                 TjMediaLibrary.Entry entry = shown.get(position);
-                bindCard((TjMediaCardCell) holder.itemView, entry, records.get(entry.key));
+                bindCard((TjMediaCardCell) holder.itemView, entry, records.get(entry.key), poster);
             }
         });
         shelf.setOnItemClickListener((v, position) -> { if (position >= 0 && position < shown.size()) delegate.open(shown.get(position)); });
         Parcelable position = shelfPositions.get(view);
         if (position != null) shelf.getLayoutManager().onRestoreInstanceState(position);
         shelves.put(view, shelf);
-        int shelfHeight = Math.max(220, 140 + (int) Math.ceil(65 * getResources().getConfiguration().fontScale));
+        int shelfHeight = poster
+                ? Math.max(256, 186 + (int) Math.ceil(60 * getResources().getConfiguration().fontScale))
+                : Math.max(220, 140 + (int) Math.ceil(65 * getResources().getConfiguration().fontScale));
         content.addView(shelf, LayoutHelper.createLinear(-1, shelfHeight));
     }
 
     private void bindCard(TjMediaCardCell cell, TjMediaLibrary.Entry entry, TjMediaStore.Record record) {
+        bindCard(cell, entry, record, false);
+    }
+
+    private void bindCard(TjMediaCardCell cell, TjMediaLibrary.Entry entry, TjMediaStore.Record record, boolean poster) {
         String name = record != null ? record.title() : entry.message.getDocumentName();
         if (name == null || name.isEmpty()) name = TjMediaStore.displayCaption(entry.message);
         if (name == null || name.isEmpty()) name = TjLocale.getString(R.string.TjMediaCenter);
-        cell.bind(entry.message, name, UserObject.getUserName(UserConfig.getInstance(entry.account).getCurrentUser()),
+        String subtitle = UserObject.getUserName(UserConfig.getInstance(entry.account).getCurrentUser());
+        if (poster && record != null) {
+            String year = record.metadata != null && record.metadata.date.length() >= 4 ? record.metadata.date.substring(0, 4)
+                    : record.localYear > 0 ? String.valueOf(record.localYear) : "";
+            subtitle = TjLocale.getString(record.isSeries() ? R.string.TjMediaSeries : R.string.TjMediaMovies)
+                    + (year.isEmpty() ? "" : " \u00b7 " + year);
+        }
+        cell.bind(entry.message, name, subtitle,
                 record == null ? 0 : record.position, record == null ? 0 : record.duration,
-                record == null || record.metadata == null ? null : record.metadata.backdropUrl());
+                record == null || record.metadata == null ? null
+                        : poster ? record.metadata.posterUrl() : record.metadata.backdropUrl());
     }
 }
