@@ -11510,6 +11510,8 @@
     <string name="TjWatchMinutes">min</string>
     <string name="TjWatchTitles">Titles</string>
     <string name="TjWatchContinue">Carry on watching</string>
+    <string name="TjWatchForget">Remove</string>
+    <string name="TjWatchForgetInfo">Take this off the carry-on-watching shelf? The file itself is not touched.</string>
     <string name="TjWatchNothing">Nothing here yet. Scan a chat in the media centre and its films and series will appear.</string>
     <string name="TjWatchOpen">Watch</string>
     <string name="TjExactMemberCount">Exact member count</string>

@@ -62,7 +62,10 @@ public class TjTitleActivity extends BaseFragment {
     private final String name;
     /** What the catalogue also calls it, and when it came out - both decide which file is right. */
     private String originalName = "";
+    private String posterPath = "";
     private int year;
+    /** Which episode the current search is for, so what gets played can be remembered as that. */
+    private int pendingSeason = -1, pendingEpisode = -1;
     private final TjTmdb details = new TjTmdb();
     private final TjTmdb seasonClient = new TjTmdb();
     private final ArrayList<Integer> seasons = new ArrayList<>();
@@ -202,6 +205,7 @@ public class TjTitleActivity extends BaseFragment {
             }
             String backdropPath = body.optString("backdrop_path", "");
             String posterPath = body.optString("poster_path", "");
+            this.posterPath = posterPath;
             String backdropUrl = TjTmdb.backdropUrl(backdropPath);
             if (backdropUrl.isEmpty()) backdropUrl = TjTmdb.backdropUrl(posterPath);
             if (!backdropUrl.isEmpty()) backdrop.setImage(backdropUrl, "800_450", (android.graphics.drawable.Drawable) null);
@@ -408,6 +412,8 @@ public class TjTitleActivity extends BaseFragment {
      */
     private void watch(int season, int episode) {
         if (getParentActivity() == null) return;
+        pendingSeason = season;
+        pendingEpisode = episode;
         final ArrayList<Candidate> found = new ArrayList<>();
         final HashSet<String> seen = new HashSet<>();
         final AlertDialog progress = new AlertDialog(getParentActivity(), AlertDialog.ALERT_TYPE_SPINNER);
@@ -466,7 +472,10 @@ public class TjTitleActivity extends BaseFragment {
         LinearLayout list = new LinearLayout(context);
         list.setOrientation(LinearLayout.VERTICAL);
         final AlertDialog[] dialog = new AlertDialog[1];
-        for (Candidate candidate : found) list.addView(copyRow(context, candidate, dialog));
+        for (int a = 0; a < found.size(); a++) {
+            if (a > 0) list.addView(separator(context));
+            list.addView(copyRow(context, found.get(a), dialog));
+        }
         ScrollView scroll = new ScrollView(context);
         scroll.addView(list, new FrameLayout.LayoutParams(-1, -2));
         dialog[0] = new AlertDialog.Builder(context)
@@ -474,6 +483,17 @@ public class TjTitleActivity extends BaseFragment {
                 .setView(scroll)
                 .setNegativeButton(LocaleController.getString(R.string.Cancel), null).create();
         showDialog(dialog[0]);
+    }
+
+    /** A hairline between two copies, so three lines of one do not read as part of the next. */
+    private View separator(Context context) {
+        View line = new View(context);
+        line.setBackgroundColor(Theme.getColor(Theme.key_divider));
+        LinearLayout.LayoutParams params = LayoutHelper.createLinear(-1, 1);
+        params.leftMargin = dp(20);
+        params.rightMargin = dp(20);
+        line.setLayoutParams(params);
+        return line;
     }
 
     /**
@@ -571,10 +591,24 @@ public class TjTitleActivity extends BaseFragment {
         return user == null ? "" : org.telegram.messenger.UserObject.getUserName(user);
     }
 
+    /**
+     * Opens the copy, and writes down that it was opened. The position comes from whichever of the
+     * two records is further in: the library knows files it indexed, the watch history knows the
+     * ones that were only ever found by searching.
+     */
     private void play(Candidate candidate) {
         int account = candidate.message.currentAccount;
+        long document = candidate.message.getDocument() == null ? 0 : candidate.message.getDocument().id;
+        long position = Math.max(candidate.position,
+                org.telegram.messenger.tj.TjWatchHistory.positionFor(account, document));
+        org.telegram.messenger.tj.TjWatchHistory.Entry entry = org.telegram.messenger.tj.TjWatchHistory.entryFor(
+                id, series, name, posterPath, year, pendingSeason, pendingEpisode, candidate.message);
+        if (entry != null) {
+            entry.position = position;
+            org.telegram.messenger.tj.TjWatchHistory.remember(entry);
+        }
         org.telegram.ui.Components.TjMediaPlayback.open(this,
                 new TjMediaLibrary.Entry(account, UserConfig.getInstance(account).getClientUserId(), candidate.message),
-                candidate.position);
+                position);
     }
 }

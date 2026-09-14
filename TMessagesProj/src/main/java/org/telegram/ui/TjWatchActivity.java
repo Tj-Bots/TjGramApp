@@ -27,8 +27,10 @@ import org.telegram.messenger.TjLocale;
 import org.telegram.messenger.UserConfig;
 import org.telegram.messenger.Utilities;
 import org.telegram.messenger.tj.TjConfig;
+import org.telegram.messenger.tj.TjMediaLibrary;
 import org.telegram.messenger.tj.TjMediaTitle;
 import org.telegram.messenger.tj.TjTmdb;
+import org.telegram.messenger.tj.TjWatchHistory;
 import org.telegram.ui.ActionBar.ActionBar;
 import org.telegram.ui.ActionBar.AlertDialog;
 import org.telegram.ui.ActionBar.BaseFragment;
@@ -77,6 +79,8 @@ public class TjWatchActivity extends BaseFragment {
     private EditTextBoldCursor search;
     private TextView status;
     private View gate;
+    private LinearLayout continueSection;
+    private LinearLayout continueRow;
     private String query = "";
     private int pending;
     private final Runnable searchRunnable = this::reload;
@@ -102,6 +106,8 @@ public class TjWatchActivity extends BaseFragment {
         root.addView(content, LayoutHelper.createFrame(-1, -1));
 
         content.addView(searchField(context), LayoutHelper.createLinear(-1, 44, 12, 10, 12, 0));
+
+        content.addView(continueSection(context), LayoutHelper.createLinear(-1, -2));
 
         status = new TextView(context);
         status.setTextSize(14);
@@ -129,7 +135,84 @@ public class TjWatchActivity extends BaseFragment {
         } else {
             trending();
         }
+        refreshContinue();
         return fragmentView;
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        // Coming back from a film is exactly when the shelf is wrong: it now has a new position,
+        // or the film finished and should drop off it.
+        refreshContinue();
+    }
+
+    /**
+     * What was left part-way through, in front of everything else. It is the one row on this screen
+     * that is about this device rather than the catalogue, so it only stands while nothing is being
+     * searched for - a search is a question about the catalogue.
+     */
+    private View continueSection(Context context) {
+        continueSection = new LinearLayout(context);
+        continueSection.setOrientation(LinearLayout.VERTICAL);
+        continueSection.setVisibility(View.GONE);
+
+        TextView header = new TextView(context);
+        header.setTextSize(14);
+        header.setTypeface(AndroidUtilities.getTypeface("fonts/rmedium.ttf"));
+        header.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlueHeader));
+        header.setText(TjLocale.getString(R.string.TjWatchContinue));
+        header.setGravity(LocaleController.isRTL ? Gravity.RIGHT : Gravity.LEFT);
+        continueSection.addView(header, LayoutHelper.createLinear(-1, -2, 18, 16, 18, 0));
+
+        android.widget.HorizontalScrollView scroll = new android.widget.HorizontalScrollView(context);
+        scroll.setHorizontalScrollBarEnabled(false);
+        scroll.setClipToPadding(false);
+        scroll.setPadding(dp(12), 0, dp(12), 0);
+        continueRow = new LinearLayout(context);
+        continueRow.setOrientation(LinearLayout.HORIZONTAL);
+        scroll.addView(continueRow, new FrameLayout.LayoutParams(-2, -2));
+        continueSection.addView(scroll, LayoutHelper.createLinear(-1, -2, 0, 8, 0, 4));
+        return continueSection;
+    }
+
+    private void refreshContinue() {
+        if (continueRow == null) return;
+        ArrayList<TjWatchHistory.Entry> entries = query.trim().isEmpty() && gate == null
+                ? TjWatchHistory.unfinished() : new ArrayList<>();
+        continueRow.removeAllViews();
+        continueSection.setVisibility(entries.isEmpty() ? View.GONE : View.VISIBLE);
+        Context context = continueRow.getContext();
+        for (TjWatchHistory.Entry entry : entries) {
+            ResumeCell cell = new ResumeCell(context);
+            cell.bind(entry);
+            cell.setOnClickListener(v -> resume(entry));
+            cell.setOnLongClickListener(v -> { askToForget(entry); return true; });
+            continueRow.addView(cell, LayoutHelper.createLinear(104, -2, 0, 0, 10, 0));
+        }
+    }
+
+    private void resume(TjWatchHistory.Entry entry) {
+        org.telegram.messenger.MessageObject message = entry.message();
+        if (message == null) {
+            TjWatchHistory.forget(entry.key, entry.owner);
+            refreshContinue();
+            return;
+        }
+        org.telegram.ui.Components.TjMediaPlayback.open(this,
+                new TjMediaLibrary.Entry(entry.account, entry.owner, message), entry.position);
+    }
+
+    private void askToForget(TjWatchHistory.Entry entry) {
+        if (getParentActivity() == null) return;
+        showDialog(new AlertDialog.Builder(getParentActivity())
+                .setTitle(entry.name)
+                .setMessage(TjLocale.getString(R.string.TjWatchForgetInfo))
+                .setPositiveButton(TjLocale.getString(R.string.TjWatchForget), (dialog, which) -> {
+                    TjWatchHistory.forget(entry.key, entry.owner);
+                    refreshContinue();
+                })
+                .setNegativeButton(LocaleController.getString(R.string.Cancel), null).create());
     }
 
     /**
@@ -208,6 +291,7 @@ public class TjWatchActivity extends BaseFragment {
                             status.setVisibility(View.VISIBLE);
                             if (search != null) search.setEnabled(true);
                             trending();
+                            refreshContinue();
                         });
                     });
                 })
@@ -234,6 +318,7 @@ public class TjWatchActivity extends BaseFragment {
             @Override public void onTextChanged(CharSequence s, int a, int b, int c) { }
             @Override public void afterTextChanged(android.text.Editable s) {
                 query = s.toString();
+                refreshContinue();
                 AndroidUtilities.cancelRunOnUIThread(searchRunnable);
                 AndroidUtilities.runOnUIThread(searchRunnable, 400);
             }
@@ -311,6 +396,92 @@ public class TjWatchActivity extends BaseFragment {
 
         @Override public void onBindViewHolder(RecyclerView.ViewHolder holder, int position) {
             ((PosterCell) holder.itemView).bind(items.get(position));
+        }
+    }
+
+    /**
+     * One thing left part-way through: its artwork, a bar showing how far in, and - for a series -
+     * which episode it was. Narrower than a search result, because a shelf is read across.
+     */
+    static class ResumeCell extends LinearLayout {
+        private final BackupImageView image;
+        private final TextView name, where;
+        private final View track, bar;
+
+        ResumeCell(Context context) {
+            super(context);
+            setOrientation(VERTICAL);
+            FrameLayout art = new FrameLayout(context);
+            art.setClipToOutline(true);
+            art.setBackground(Theme.createRoundRectDrawable(dp(10), Theme.getColor(Theme.key_windowBackgroundGray)));
+            addView(art, LayoutHelper.createLinear(-1, -2));
+            image = new BackupImageView(context) {
+                @Override protected void onMeasure(int widthSpec, int heightSpec) {
+                    int width = MeasureSpec.getSize(widthSpec);
+                    super.onMeasure(widthSpec, MeasureSpec.makeMeasureSpec(width * 3 / 2, MeasureSpec.EXACTLY));
+                }
+            };
+            art.addView(image, LayoutHelper.createFrame(-1, -2));
+
+            ImageView play = new ImageView(context);
+            play.setImageResource(R.drawable.msg_played);
+            play.setScaleType(ImageView.ScaleType.CENTER);
+            play.setColorFilter(new PorterDuffColorFilter(0xffffffff, PorterDuff.Mode.SRC_IN));
+            play.setBackground(Theme.createRoundRectDrawable(dp(16), 0x66000000));
+            art.addView(play, LayoutHelper.createFrame(32, 32, Gravity.CENTER));
+
+            track = new View(context);
+            track.setBackgroundColor(0x55000000);
+            art.addView(track, LayoutHelper.createFrame(-1, 3, Gravity.BOTTOM));
+            bar = new View(context);
+            bar.setBackgroundColor(Theme.getColor(Theme.key_featuredStickers_addButton));
+            art.addView(bar, LayoutHelper.createFrame(0, 3, Gravity.BOTTOM | Gravity.LEFT));
+
+            name = new TextView(context);
+            name.setTextSize(12);
+            name.setMaxLines(2);
+            name.setEllipsize(android.text.TextUtils.TruncateAt.END);
+            name.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText));
+            name.setGravity(LocaleController.isRTL ? Gravity.RIGHT : Gravity.LEFT);
+            addView(name, LayoutHelper.createLinear(-1, -2, 0, 6, 0, 0));
+
+            where = new TextView(context);
+            where.setTextSize(11);
+            where.setSingleLine(true);
+            where.setEllipsize(android.text.TextUtils.TruncateAt.END);
+            where.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText2));
+            where.setGravity(LocaleController.isRTL ? Gravity.RIGHT : Gravity.LEFT);
+            addView(where, LayoutHelper.createLinear(-1, -2, 0, 1, 0, 6));
+
+            ScaleStateListAnimator.apply(this, 0.03f, 1.2f);
+        }
+
+        void bind(TjWatchHistory.Entry entry) {
+            String poster = TjTmdb.posterUrl(entry.poster);
+            image.setImage(poster.isEmpty() ? null : poster, "320_480", (android.graphics.drawable.Drawable) null);
+            name.setText(entry.name);
+            if (entry.season >= 0 || entry.episode >= 0) {
+                StringBuilder text = new StringBuilder();
+                if (entry.season >= 0) text.append(TjLocale.getString(R.string.TjMediaSeason)).append(' ').append(entry.season);
+                if (entry.episode >= 0) {
+                    if (text.length() > 0) text.append(" · ");
+                    text.append(TjLocale.getString(R.string.TjMediaEpisode)).append(' ').append(entry.episode);
+                }
+                where.setVisibility(VISIBLE);
+                where.setText(text);
+            } else {
+                where.setVisibility(GONE);
+            }
+            final float progress = entry.progress();
+            track.setVisibility(progress > 0 ? VISIBLE : GONE);
+            bar.setVisibility(progress > 0 ? VISIBLE : GONE);
+            // The artwork has no width until it is measured, so the bar is sized against it then.
+            image.post(() -> {
+                ViewGroup.LayoutParams params = bar.getLayoutParams();
+                params.width = (int) (image.getMeasuredWidth() * progress);
+                bar.setLayoutParams(params);
+            });
+            setContentDescription(entry.name);
         }
     }
 

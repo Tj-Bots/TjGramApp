@@ -1105,6 +1105,8 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
     private MessageObject tjPlaybackMessage;
     private long tjPlaybackOwner;
     private final org.telegram.messenger.tj.TjMediaPlaybackProgress tjPlaybackProgress = new org.telegram.messenger.tj.TjMediaPlaybackProgress();
+    /** The picture the player reports for what is on screen now, or 0 before it has reported one. */
+    private int tjPlayerWidth, tjPlayerHeight;
     private float seekToProgressPending2;
     private boolean streamingAlertShown;
     private long startedPlayTime;
@@ -10476,6 +10478,7 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
 
         textureUploaded = false;
         videoSizeSet = false;
+        tjPlayerWidth = tjPlayerHeight = 0;
         videoCrossfadeStarted = false;
         boolean newPlayerCreated = false;
         playerWasReady = false;
@@ -10662,6 +10665,13 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
                             }
                         }
                         videoSizeSet = true;
+                        // TJ: the picture the player reports is the only reliable one for a file
+                        // that was sent as a plain document - its declared size is often missing
+                        // or copied from an upright poster thumbnail. Re-check now that it is
+                        // known, or a landscape film opened from a chat never gets its button.
+                        tjPlayerWidth = videoWidth;
+                        tjPlayerHeight = videoHeight;
+                        checkFullscreenButton();
                     }
                 }
 
@@ -10905,6 +10915,12 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
                     }
                 }
             }
+            if (b == 0 && tjPlayerWidth > 0 && tjPlayerHeight > 0) {
+                // What is actually on screen beats what the document claims. A video sent as a
+                // file is the common case: it declares nothing, or it declares its poster.
+                w = tjPlayerWidth;
+                h = tjPlayerHeight;
+            }
             if (AndroidUtilities.displaySize.y > AndroidUtilities.displaySize.x && w > h) {
                 if (fullscreenButton[b].getVisibility() != View.VISIBLE) {
                     fullscreenButton[b].setVisibility(View.VISIBLE);
@@ -11049,8 +11065,12 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
         // The visible message can change before the previous player is released.
         if (tjPlaybackMessage != null && videoPlayer != null && tjPlaybackOwner != 0
                 && UserConfig.getInstance(tjPlaybackMessage.currentAccount).getClientUserId() == tjPlaybackOwner) {
-            org.telegram.messenger.tj.TjMediaStore.getInstance().progress(tjPlaybackMessage,
-                    tjPlaybackProgress.position(videoPlayer.getCurrentPosition()), videoPlayer.getDuration());
+            long position = tjPlaybackProgress.position(videoPlayer.getCurrentPosition());
+            long duration = videoPlayer.getDuration();
+            org.telegram.messenger.tj.TjMediaStore.getInstance().progress(tjPlaybackMessage, position, duration);
+            // The library only knows files it has indexed. Watching starts from the catalogue and
+            // usually ends up in a chat nobody scanned, so the same position is kept there too.
+            org.telegram.messenger.tj.TjWatchHistory.progress(tjPlaybackMessage, position, duration);
         }
     }
 

@@ -451,6 +451,8 @@ public class TjLocale {
         m.put("TjWatchMinutes", "דק׳");
         m.put("TjWatchTitles", "כותרים");
         m.put("TjWatchContinue", "המשך צפייה");
+        m.put("TjWatchForget", "הסרה");
+        m.put("TjWatchForgetInfo", "להסיר את זה משורת ההמשך? הקובץ עצמו לא נוגעים בו.");
         m.put("TjWatchNothing", "עדיין אין כאן כלום. סרוק צ׳אט במרכז המדיה והסרטים והסדרות שבו יופיעו כאן.");
         m.put("TjWatchOpen", "צפייה");
         m.put("TjExactMemberCount", "מספר חברים מדויק");
