@@ -43,12 +43,23 @@ public final class TjVideoFiles {
         String fileName = null;
         for (int a = 0, count = document.attributes.size(); a < count; a++) {
             TLRPC.DocumentAttribute attribute = document.attributes.get(a);
-            if (attribute instanceof TLRPC.TL_documentAttributeVideo
-                    || attribute instanceof TLRPC.TL_documentAttributeAnimated
+            if (attribute instanceof TLRPC.TL_documentAttributeVideo) {
+                // One of ours from before the poster problem was understood: an upright shape,
+                // copied from a poster thumbnail, which costs the player its rotate button for as
+                // long as that attribute survives. Correct it in place rather than leaving old
+                // files broken until something re-reads them.
+                TLRPC.TL_documentAttributeVideo video = (TLRPC.TL_documentAttributeVideo) attribute;
+                if (isTjMarked(document) && video.h > video.w) {
+                    video.w = DEFAULT_WIDTH;
+                    video.h = DEFAULT_HEIGHT;
+                }
+                return;
+            }
+            if (attribute instanceof TLRPC.TL_documentAttributeAnimated
                     || attribute instanceof TLRPC.TL_documentAttributeAudio
                     || attribute instanceof TLRPC.TL_documentAttributeSticker
                     || attribute instanceof TLRPC.TL_documentAttributeImageSize) {
-                // Already a video, or something that must not be treated as one.
+                // Something that must not be treated as a video.
                 return;
             }
             if (attribute instanceof TLRPC.TL_documentAttributeFilename) {

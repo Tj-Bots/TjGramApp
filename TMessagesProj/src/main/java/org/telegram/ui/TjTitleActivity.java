@@ -454,33 +454,108 @@ public class TjTitleActivity extends BaseFragment {
                     .setPositiveButton(LocaleController.getString(R.string.OK), null).create());
             return;
         }
-        // The closest match to what was chosen comes first, and among equals the larger copy.
-        found.sort((a, b) -> a.score != b.score ? Integer.compare(b.score, a.score)
-                : Long.compare(b.size(), a.size()));
+        // Closest match first, then the better picture, then the larger file of that picture.
+        found.sort((a, b) -> {
+            if (a.score != b.score) return Integer.compare(b.score, a.score);
+            int quality = Integer.compare(qualityRank(b), qualityRank(a));
+            return quality != 0 ? quality : Long.compare(b.size(), a.size());
+        });
         if (found.size() == 1) { play(found.get(0)); return; }
-        CharSequence[] labels = new CharSequence[found.size()];
-        for (int i = 0; i < found.size(); i++) {
-            Candidate candidate = found.get(i);
-            String quality = org.telegram.messenger.tj.TjMediaTitle.parse(
-                    candidate.message.getDocumentName(),
-                    candidate.message.messageOwner == null ? "" : candidate.message.messageOwner.message).quality;
-            String source = sourceName(candidate.message);
-            // The name the file gives itself is the first thing on the row: two copies of the same
-            // episode differ by quality, but a wrong match differs by name, and that has to be
-            // visible before anything is picked.
-            String described = org.telegram.messenger.tj.TjTitleMatch.describe(
-                    candidate.message.getDocumentName(),
-                    candidate.message.messageOwner == null ? "" : candidate.message.messageOwner.message);
-            StringBuilder line = new StringBuilder(described);
-            line.append('\n');
-            if (!quality.isEmpty()) line.append(quality).append("  \u00b7  ");
-            line.append(AndroidUtilities.formatFileSize(candidate.size()));
-            if (!source.isEmpty()) line.append("  \u00b7  ").append(source);
-            labels[i] = line.toString();
-        }
-        showDialog(new AlertDialog.Builder(getParentActivity())
+
+        Context context = getParentActivity();
+        LinearLayout list = new LinearLayout(context);
+        list.setOrientation(LinearLayout.VERTICAL);
+        final AlertDialog[] dialog = new AlertDialog[1];
+        for (Candidate candidate : found) list.addView(copyRow(context, candidate, dialog));
+        ScrollView scroll = new ScrollView(context);
+        scroll.addView(list, new FrameLayout.LayoutParams(-1, -2));
+        dialog[0] = new AlertDialog.Builder(context)
                 .setTitle(TjLocale.getString(R.string.TjWatchChooseFile))
-                .setItems(labels, (dialog, which) -> play(found.get(which))).create());
+                .setView(scroll)
+                .setNegativeButton(LocaleController.getString(R.string.Cancel), null).create();
+        showDialog(dialog[0]);
+    }
+
+    /**
+     * One copy, laid out so the same fact is always in the same place: what the picture is and how
+     * big it is on the first line, the name the file gives itself on the second, where it came
+     * from on the third. Put on one line they run into each other, and in a language read the
+     * other way round they run into each other backwards.
+     */
+    private View copyRow(Context context, Candidate candidate, AlertDialog[] dialog) {
+        String caption = candidate.message.messageOwner == null ? "" : candidate.message.messageOwner.message;
+        String quality = org.telegram.messenger.tj.TjMediaTitle.parse(
+                candidate.message.getDocumentName(), caption).quality;
+        String described = org.telegram.messenger.tj.TjTitleMatch.describe(
+                candidate.message.getDocumentName(), caption);
+        String source = sourceName(candidate.message);
+
+        LinearLayout row = new LinearLayout(context);
+        row.setOrientation(LinearLayout.VERTICAL);
+        row.setPadding(dp(20), dp(10), dp(20), dp(10));
+        row.setBackground(Theme.getSelectorDrawable(false));
+        row.setOnClickListener(v -> {
+            if (dialog[0] != null) dialog[0].dismiss();
+            play(candidate);
+        });
+
+        LinearLayout head = new LinearLayout(context);
+        head.setOrientation(LinearLayout.HORIZONTAL);
+        head.setGravity(Gravity.CENTER_VERTICAL);
+        head.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
+        if (!quality.isEmpty()) {
+            TextView badge = new TextView(context);
+            badge.setText(quality);
+            badge.setTextSize(12);
+            badge.setTypeface(AndroidUtilities.getTypeface("fonts/rmedium.ttf"));
+            badge.setTextColor(Theme.getColor(Theme.key_featuredStickers_buttonText));
+            badge.setPadding(dp(7), dp(2), dp(7), dp(3));
+            badge.setBackground(Theme.createRoundRectDrawable(dp(5),
+                    Theme.getColor(Theme.key_featuredStickers_addButton)));
+            head.addView(badge, LayoutHelper.createLinear(-2, -2, 0, 0, 8, 0));
+        }
+        TextView size = new TextView(context);
+        size.setText(AndroidUtilities.formatFileSize(candidate.size()));
+        size.setTextSize(15);
+        size.setTypeface(AndroidUtilities.getTypeface("fonts/rmedium.ttf"));
+        size.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText));
+        head.addView(size, LayoutHelper.createLinear(-2, -2));
+        row.addView(head, LayoutHelper.createLinear(-1, -2));
+
+        TextView title = new TextView(context);
+        title.setText(described);
+        title.setTextSize(14);
+        title.setMaxLines(2);
+        title.setEllipsize(TextUtils.TruncateAt.END);
+        title.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText));
+        title.setGravity(LocaleController.isRTL ? Gravity.RIGHT : Gravity.LEFT);
+        row.addView(title, LayoutHelper.createLinear(-1, -2, 0, 3, 0, 0));
+
+        if (!source.isEmpty()) {
+            TextView from = new TextView(context);
+            from.setText(source);
+            from.setTextSize(12);
+            from.setSingleLine(true);
+            from.setEllipsize(TextUtils.TruncateAt.END);
+            from.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText2));
+            from.setGravity(LocaleController.isRTL ? Gravity.RIGHT : Gravity.LEFT);
+            row.addView(from, LayoutHelper.createLinear(-1, -2, 0, 2, 0, 0));
+        }
+        return row;
+    }
+
+    /** Bigger picture first, and an unlabelled copy last because nobody knows what it is. */
+    private static int qualityRank(Candidate candidate) {
+        String quality = org.telegram.messenger.tj.TjMediaTitle.parse(
+                candidate.message.getDocumentName(),
+                candidate.message.messageOwner == null ? "" : candidate.message.messageOwner.message).quality;
+        switch (quality.toUpperCase(Locale.ROOT)) {
+            case "2160P": case "4K": return 4;
+            case "1080P": return 3;
+            case "720P": return 2;
+            case "480P": return 1;
+            default: return 0;
+        }
     }
 
     /** Which chat a copy came from, because that is how people tell two copies apart. */
