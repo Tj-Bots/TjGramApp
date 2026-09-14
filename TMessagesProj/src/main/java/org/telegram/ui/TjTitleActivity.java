@@ -371,16 +371,36 @@ public class TjTitleActivity extends BaseFragment {
         episodeList.addView(watch, LayoutHelper.createLinear(-1, 48, 16, 8, 16, 8));
     }
 
+    /** One copy of the thing, from wherever it was found. */
+    private static final class Candidate {
+        final org.telegram.messenger.MessageObject message;
+        final long position;
+        Candidate(org.telegram.messenger.MessageObject message, long position) {
+            this.message = message;
+            this.position = position;
+        }
+        String identity() { return message.getDialogId() + ":" + message.getId(); }
+        long size() { return message.getDocument() == null ? 0 : message.getDocument().size; }
+    }
+
     /**
-     * The one step that touches the chats: everything above came from the catalogue, and this asks
-     * what this device actually holds for the episode that was picked.
+     * The one step that touches the chats. Two places are asked: what this device has already
+     * indexed, which is quick and remembers where playback stopped, and Telegram itself - the same
+     * search a person would type the name into - because the index only ever holds the chats that
+     * happen to have been scanned, which is never all of them.
      */
     private void watch(int season, int episode) {
-        final ArrayList<TjMediaStore.Record> found = new ArrayList<>();
-        final int[] pending = {accounts.size()};
-        if (pending[0] == 0) return;
-        AlertDialog progress = new AlertDialog(getParentActivity(), AlertDialog.ALERT_TYPE_SPINNER);
+        if (getParentActivity() == null) return;
+        final ArrayList<Candidate> found = new ArrayList<>();
+        final HashSet<String> seen = new HashSet<>();
+        final AlertDialog progress = new AlertDialog(getParentActivity(), AlertDialog.ALERT_TYPE_SPINNER);
         progress.show();
+        final int[] pending = {accounts.size() + 1};
+        final Runnable done = () -> {
+            if (--pending[0] > 0) return;
+            try { progress.dismiss(); } catch (Exception ignore) { }
+            offer(found);
+        };
         for (int account : accounts) {
             TjMediaStore.getInstance().load(account, 0, name, "", null, new HashSet<>(), 0, 0, page -> {
                 if (page != null) {
@@ -388,21 +408,25 @@ public class TjTitleActivity extends BaseFragment {
                         if (TjMediaKind.of(record.message) != TjMediaKind.VIDEO) continue;
                         if (episode >= 0) {
                             if (record.episode() != episode) continue;
-                            // A file that never named its season still belongs to the episode it
-                            // names, as long as nothing contradicts the season being asked for.
                             if (record.season() >= 0 && season >= 0 && record.season() != season) continue;
                         }
-                        found.add(record);
+                        Candidate candidate = new Candidate(record.message, record.position);
+                        if (seen.add(candidate.identity())) found.add(candidate);
                     }
                 }
-                if (--pending[0] > 0) return;
-                try { progress.dismiss(); } catch (Exception ignore) { }
-                offer(found);
+                done.run();
             });
         }
+        org.telegram.messenger.tj.TjWatchSearch.search(accounts, name, season, episode, messages -> {
+            for (org.telegram.messenger.MessageObject message : messages) {
+                Candidate candidate = new Candidate(message, 0);
+                if (seen.add(candidate.identity())) found.add(candidate);
+            }
+            done.run();
+        });
     }
 
-    private void offer(ArrayList<TjMediaStore.Record> found) {
+    private void offer(ArrayList<Candidate> found) {
         if (getParentActivity() == null) return;
         if (found.isEmpty()) {
             showDialog(new AlertDialog.Builder(getParentActivity())
@@ -413,28 +437,40 @@ public class TjTitleActivity extends BaseFragment {
         }
         if (found.size() == 1) { play(found.get(0)); return; }
         // Biggest first: for the same episode that is nearly always the better copy.
-        found.sort((a, b) -> Long.compare(size(b), size(a)));
+        found.sort((a, b) -> Long.compare(b.size(), a.size()));
         CharSequence[] labels = new CharSequence[found.size()];
         for (int i = 0; i < found.size(); i++) {
-            TjMediaStore.Record record = found.get(i);
+            Candidate candidate = found.get(i);
             String quality = org.telegram.messenger.tj.TjMediaTitle.parse(
-                    record.message.getDocumentName(), record.message.messageOwner.message).quality;
-            labels[i] = (quality.isEmpty() ? "" : quality + "  ·  ")
-                    + AndroidUtilities.formatFileSize(size(record));
+                    candidate.message.getDocumentName(),
+                    candidate.message.messageOwner == null ? "" : candidate.message.messageOwner.message).quality;
+            String source = sourceName(candidate.message);
+            labels[i] = (quality.isEmpty() ? "" : quality + "  \u00b7  ")
+                    + AndroidUtilities.formatFileSize(candidate.size())
+                    + (source.isEmpty() ? "" : "  \u00b7  " + source);
         }
         showDialog(new AlertDialog.Builder(getParentActivity())
                 .setTitle(TjLocale.getString(R.string.TjWatchChooseFile))
                 .setItems(labels, (dialog, which) -> play(found.get(which))).create());
     }
 
-    private static long size(TjMediaStore.Record record) {
-        return record.message.getDocument() == null ? 0 : record.message.getDocument().size;
+    /** Which chat a copy came from, because that is how people tell two copies apart. */
+    private static String sourceName(org.telegram.messenger.MessageObject message) {
+        long dialogId = message.getDialogId();
+        org.telegram.messenger.MessagesController controller =
+                org.telegram.messenger.MessagesController.getInstance(message.currentAccount);
+        if (dialogId < 0) {
+            org.telegram.tgnet.TLRPC.Chat chat = controller.getChat(-dialogId);
+            return chat == null ? "" : chat.title;
+        }
+        org.telegram.tgnet.TLRPC.User user = controller.getUser(dialogId);
+        return user == null ? "" : org.telegram.messenger.UserObject.getUserName(user);
     }
 
-    private void play(TjMediaStore.Record record) {
-        int account = record.message.currentAccount;
+    private void play(Candidate candidate) {
+        int account = candidate.message.currentAccount;
         org.telegram.ui.Components.TjMediaPlayback.open(this,
-                new TjMediaLibrary.Entry(account, UserConfig.getInstance(account).getClientUserId(), record.message),
-                record.position);
+                new TjMediaLibrary.Entry(account, UserConfig.getInstance(account).getClientUserId(), candidate.message),
+                candidate.position);
     }
 }
