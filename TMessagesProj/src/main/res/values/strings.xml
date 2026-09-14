@@ -11495,6 +11495,9 @@
     <string name="TjJoinChannelAction">Join channel</string>
     <string name="TjNotNow">Not now</string>
     <string name="TjCategories">Categories</string>
+    <string name="TjDiagnostics">Diagnostics</string>
+    <string name="TjProtocolErrors">Show protocol errors</string>
+    <string name="TjProtocolErrorsInfo">Telegram\'s servers sometimes send a kind of update this build does not know yet. It is skipped harmlessly. Turn this on to see each one as a dialog.</string>
     <string name="TjMenuShortcuts">Shortcut row</string>
     <string name="TjMenuShortcutsChoose">Choose shortcuts</string>
     <string name="TjMenuShortcutsInfo">The actions you pick leave the list and sit as a row of icons at the foot of a message\'s menu, in the order you picked them.</string>

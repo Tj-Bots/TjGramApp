@@ -18,6 +18,17 @@ public final class TjLocalFoldersUi {
     private TjLocalFoldersUi() {}
 
     public static void showPicker(BaseFragment fragment) {
+        showPicker(fragment, false);
+    }
+
+    /**
+     * @param firstOffer the one-time offer made to an account that has never answered. Every local
+     *                   folder is on by default, so simply closing that offer left them all on -
+     *                   cancelling looked exactly like accepting. When this is the offer, cancelling
+     *                   is an answer of its own: no local folders at all. When the picker is opened
+     *                   later on purpose, cancelling means what it always means - change nothing.
+     */
+    public static void showPicker(BaseFragment fragment, boolean firstOffer) {
         if (fragment.getParentActivity() == null) return;
         int account = fragment.getCurrentAccount();
         LinearLayout rows = new LinearLayout(fragment.getParentActivity());
@@ -37,11 +48,21 @@ public final class TjLocalFoldersUi {
         builder.setTitle(TjLocale.getString(R.string.TjLocalFolders));
         builder.setMessage(TjLocale.getString(R.string.TjLocalFoldersInfo));
         builder.setView(scroll);
+        final boolean[] answered = {false};
         builder.setNegativeButton(LocaleController.getString(R.string.Cancel), null);
         builder.setPositiveButton(LocaleController.getString(R.string.Save), (dialog, which) -> {
+            answered[0] = true;
             for (int i = 0; i < cells.length; i++) TjLocalFolders.setEnabled(account, TjLocalFolders.IDS[i], cells[i].isChecked());
             TjLocalFolders.refresh(account);
         });
+        if (firstOffer) {
+            // Covers the back button and a tap outside as well, not just the Cancel button.
+            builder.setOnDismissListener(dialog -> {
+                if (answered[0]) return;
+                for (int id : TjLocalFolders.IDS) TjLocalFolders.setEnabled(account, id, false);
+                TjLocalFolders.refresh(account);
+            });
+        }
         if (fragment.showDialog(builder.create()) != null) TjLocalFolders.markOffered(account);
     }
 
@@ -65,7 +86,8 @@ public final class TjLocalFoldersUi {
         builder.setNegativeButton(LocaleController.getString(R.string.Cancel), null);
         builder.setPositiveButton(LocaleController.getString(R.string.OK), (dialog, which) -> {
             TjLocalFolders.reset(fragment.getCurrentAccount());
-            showPicker(fragment);
+            // A reset puts the defaults back, so this picker is an offer again.
+            showPicker(fragment, true);
         });
         fragment.showDialog(builder.create());
     }

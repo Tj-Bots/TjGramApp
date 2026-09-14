@@ -271,6 +271,9 @@
     <string name="TjJoinChannelAction">הצטרפות לערוץ</string>
     <string name="TjNotNow">לא עכשיו</string>
     <string name="TjCategories">קטגוריות</string>
+    <string name="TjDiagnostics">אבחון</string>
+    <string name="TjProtocolErrors">הצג שגיאות פרוטוקול</string>
+    <string name="TjProtocolErrorsInfo">השרתים של טלגרם שולחים לפעמים עדכון מסוג שהגרסה הזו עדיין לא מכירה. הוא פשוט מדולג, בלי נזק. הפעלה תציג כל אחד כהודעה.</string>
     <string name="TjMenuShortcuts">שורת קיצורים</string>
     <string name="TjMenuShortcutsChoose">בחירת הקיצורים</string>
     <string name="TjMenuShortcutsInfo">הפעולות שתבחר יוצאות מהרשימה ויושבות כשורת סמלים בתחתית תפריט ההודעה, לפי הסדר שבחרת אותן.</string>

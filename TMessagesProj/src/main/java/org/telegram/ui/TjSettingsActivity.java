@@ -319,6 +319,7 @@ public class TjSettingsActivity extends BaseFragment {
     private static final int ID_DIRECT_STREAMING = 26;
     private static final int ID_MENU_SHORTCUTS = 27;
     private static final int ID_MENU_SHORTCUT_ACTIONS = 28;
+    private static final int ID_PROTOCOL_ERRORS = 29;
 
     private static class Item {
         final int viewType;
@@ -357,6 +358,7 @@ public class TjSettingsActivity extends BaseFragment {
             case ID_ONLINE_INDICATOR: return TjConfig.showOnlineIndicator();
             case ID_DIRECT_STREAMING: return TjConfig.directFileStreaming();
             case ID_MENU_SHORTCUTS: return TjConfig.menuShortcuts();
+            case ID_PROTOCOL_ERRORS: return TjConfig.showProtocolErrors();
         }
         return false;
     }
@@ -387,6 +389,7 @@ public class TjSettingsActivity extends BaseFragment {
             case ID_ONLINE_INDICATOR: key = "show_online_indicator"; break;
             case ID_DIRECT_STREAMING: key = "direct_file_streaming"; break;
             case ID_MENU_SHORTCUTS: key = "menu_shortcuts"; break;
+            case ID_PROTOCOL_ERRORS: key = "show_protocol_errors"; break;
         }
         if (key != null) {
             getPrefs().edit().putBoolean(key, value).apply();
@@ -542,6 +545,9 @@ public class TjSettingsActivity extends BaseFragment {
             items.add(new Item(VIEW_TYPE_SETTING, ID_MENU_SHORTCUT_ACTIONS, TjLocale.getString(R.string.TjMenuShortcutsChoose)));
         }
         items.add(new Item(VIEW_TYPE_SHADOW, 0, TjLocale.getString(R.string.TjMenuShortcutsInfo)));
+        items.add(new Item(VIEW_TYPE_HEADER, 0, TjLocale.getString(R.string.TjDiagnostics)));
+        items.add(new Item(VIEW_TYPE_CHECK, ID_PROTOCOL_ERRORS, TjLocale.getString(R.string.TjProtocolErrors)));
+        items.add(new Item(VIEW_TYPE_SHADOW, 0, TjLocale.getString(R.string.TjProtocolErrorsInfo)));
     }
 
     private static String folderTabStyleName() {

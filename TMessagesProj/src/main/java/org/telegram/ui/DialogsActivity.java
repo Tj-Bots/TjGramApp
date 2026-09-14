@@ -7088,7 +7088,7 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                     && getUserConfig().isClientActivated() && getMessagesController().dialogFiltersLoaded
                     && (visibleDialog == null || !visibleDialog.isShowing())
                     && !org.telegram.messenger.tj.TjLocalFolders.offered(currentAccount)) {
-                org.telegram.ui.Components.TjLocalFoldersUi.showPicker(this);
+                org.telegram.ui.Components.TjLocalFoldersUi.showPicker(this, true);
             }
         }, 1000);
     }

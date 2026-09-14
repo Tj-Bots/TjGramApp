@@ -436,6 +436,9 @@ public class TjLocale {
         m.put("TjJoinChannelAction", "הצטרפות לערוץ");
         m.put("TjNotNow", "לא עכשיו");
         m.put("TjCategories", "קטגוריות");
+        m.put("TjDiagnostics", "אבחון");
+        m.put("TjProtocolErrors", "הצג שגיאות פרוטוקול");
+        m.put("TjProtocolErrorsInfo", "השרתים של טלגרם שולחים לפעמים עדכון מסוג שהגרסה הזו עדיין לא מכירה. הוא פשוט מדולג, בלי נזק. הפעלה תציג כל אחד כהודעה.");
         m.put("TjMenuShortcuts", "שורת קיצורים");
         m.put("TjMenuShortcutsChoose", "בחירת הקיצורים");
         m.put("TjMenuShortcutsInfo", "הפעולות שתבחר יוצאות מהרשימה ויושבות כשורת סמלים בתחתית תפריט ההודעה, לפי הסדר שבחרת אותן.");

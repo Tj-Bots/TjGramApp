@@ -271,6 +271,13 @@ public final class TjConfig {
     public static boolean showOnlineIndicator() { return get("show_online_indicator", true); }
     /** Keeps the app connected while it is off screen instead of relying on push alone. */
     public static boolean backgroundConnection() { return get("background_connection", true); }
+    /**
+     * Whether a protocol message this build cannot parse is shown as a dialog. Telegram shows one
+     * in its own development builds; ours are development builds too, technically, so everyone got
+     * the dialog for something that is only ever logged and skipped.
+     */
+    public static boolean showProtocolErrors() { return get("show_protocol_errors", false); }
+
     /** Whether the message menu ends in a row of shortcut icons. */
     public static boolean menuShortcuts() { return get("menu_shortcuts", true); }
     /** The chosen shortcut actions, stored as the option numbers in the order they appear. */
