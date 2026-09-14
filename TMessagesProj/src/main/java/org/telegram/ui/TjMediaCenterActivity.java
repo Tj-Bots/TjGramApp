@@ -1299,7 +1299,9 @@ public class TjMediaCenterActivity extends BaseFragment implements MainTabsActiv
 
     private void showDetails(TjMediaLibrary.Entry entry) {
         int generation = localGeneration;
-        TjMediaStore.getInstance().index(entry.message, entry.storeRevision, success -> {
+        // Indexing one message the user just tapped is safe whatever else changed in the library
+        // since it was listed; the store still refuses to write for an account that is gone.
+        TjMediaStore.getInstance().index(entry.message, success -> {
             if (generation != localGeneration || getParentActivity() == null) return;
             if (!success) { showStateError(entry, () -> showDetails(entry)); return; }
             showIndexedDetails(entry);

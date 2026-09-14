@@ -196,7 +196,11 @@ public final class TjMediaStore extends SQLiteOpenHelper implements Notification
             return;
         }
         if (id == NotificationCenter.replaceMessagesObjects && args.length > 1 && args[1] instanceof java.util.List) {
-            revisions.incrementAndGet(account);
+            // Deliberately no revision bump. A revision says "the rows you paged over are not the
+            // rows that are there now", and an edit does not do that - the row is rewritten where
+            // it stands. Telegram fires this constantly (an edit, a reaction, a view count, a
+            // download finishing), and bumping here invalidated the library's paging after a
+            // second of use and made every tap on an item fail as "the item changed".
             for (Object object : (java.util.List<?>) args[1]) if (object instanceof MessageObject) index((MessageObject) object, true);
         } else if (id == NotificationCenter.messagesDeleted && args.length > 2 && !Boolean.TRUE.equals(args[2])) {
             revisions.incrementAndGet(account);
