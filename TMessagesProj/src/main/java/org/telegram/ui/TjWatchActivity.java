@@ -32,6 +32,7 @@ import org.telegram.messenger.tj.TjMediaTitle;
 import org.telegram.messenger.tj.TjTmdb;
 import org.telegram.messenger.tj.TjWatchHistory;
 import org.telegram.ui.ActionBar.ActionBar;
+import org.telegram.ui.ActionBar.ActionBarMenu;
 import org.telegram.ui.ActionBar.ActionBarMenuItem;
 import org.telegram.ui.ActionBar.AlertDialog;
 import org.telegram.ui.ActionBar.BaseFragment;
@@ -90,7 +91,7 @@ public class TjWatchActivity extends BaseFragment {
     private FrameLayout root;
     private RecyclerListView listView;
     private Adapter adapter;
-    private EditTextBoldCursor search;
+    private ActionBarMenuItem searchItem;
     private TextView status;
     private View gate;
     private LinearLayout continueSection;
@@ -115,7 +116,22 @@ public class TjWatchActivity extends BaseFragment {
                 else if (id == MENU_SETTINGS) presentFragment(new TjWatchSettingsActivity());
             }
         });
-        ActionBarMenuItem other = actionBar.createMenu().addItem(0, R.drawable.ic_ab_other);
+        ActionBarMenu menu = actionBar.createMenu();
+        // The search belongs where every other search in the app is. Below the bar it sat on top
+        // of the genre row, and the two read as one crowded block.
+        searchItem = menu.addItem(0, R.drawable.outline_header_search).setIsSearchField(true)
+                .setActionBarMenuItemSearchListener(new ActionBarMenuItem.ActionBarMenuItemSearchListener() {
+                    @Override public void onTextChanged(android.widget.EditText field) {
+                        typed(field.getText().toString());
+                    }
+                    @Override public void onSearchCollapse() {
+                        typed("");
+                    }
+                });
+        searchItem.setSearchFieldHint(TjLocale.getString(R.string.TjWatchSearchHint));
+        searchItem.setContentDescription(LocaleController.getString(R.string.Search));
+
+        ActionBarMenuItem other = menu.addItem(0, R.drawable.ic_ab_other);
         other.setContentDescription(LocaleController.getString(R.string.AccDescrMoreOptions));
         other.addSubItem(MENU_HISTORY, R.drawable.msg_recent, TjLocale.getString(R.string.TjWatchHistory));
         other.addSubItem(MENU_SETTINGS, R.drawable.msg_settings, TjLocale.getString(R.string.TjWatchSettings));
@@ -128,9 +144,7 @@ public class TjWatchActivity extends BaseFragment {
         content.setOrientation(LinearLayout.VERTICAL);
         root.addView(content, LayoutHelper.createFrame(-1, -1));
 
-        content.addView(searchField(context), LayoutHelper.createLinear(-1, 44, 12, 10, 12, 0));
-
-        content.addView(genreSection(context), LayoutHelper.createLinear(-1, -2));
+        content.addView(genreSection(context), LayoutHelper.createLinear(-1, -2, 0, 10, 0, 0));
 
         content.addView(continueSection(context), LayoutHelper.createLinear(-1, -2));
 
@@ -244,8 +258,9 @@ public class TjWatchActivity extends BaseFragment {
         view.setTag(genre);
         view.setOnClickListener(v -> {
             selectedGenre = genre;
-            if (search != null && search.getText().length() > 0) search.setText("");
-            // Clearing the box queues its own reload; this one is immediate and says the same thing.
+            if (searchItem != null && searchItem.isSearchFieldVisible()) actionBar.closeSearchField(true);
+            query = "";
+            // Closing the box queues its own reload; this one is immediate and says the same thing.
             AndroidUtilities.cancelRunOnUIThread(searchRunnable);
             styleChips();
             refreshContinue();
@@ -270,31 +285,40 @@ public class TjWatchActivity extends BaseFragment {
     }
 
     /**
-     * What was left part-way through, in front of everything else. It is the one row on this screen
-     * that is about this device rather than the catalogue, so it only stands while nothing is being
-     * searched for - a search is a question about the catalogue.
+     * What was left part-way through, kept deliberately small: two to a row, lying down, artwork at
+     * the side. It is a reminder, not the point of the screen - as tall cards it pushed everything
+     * worth browsing off the bottom. The rest of the list is one tap away, under the header.
      */
     private View continueSection(Context context) {
         continueSection = new LinearLayout(context);
         continueSection.setOrientation(LinearLayout.VERTICAL);
         continueSection.setVisibility(View.GONE);
 
+        LinearLayout head = new LinearLayout(context);
+        head.setOrientation(LinearLayout.HORIZONTAL);
+        head.setGravity(Gravity.CENTER_VERTICAL);
+
         TextView header = new TextView(context);
-        header.setTextSize(14);
+        header.setTextSize(13);
         header.setTypeface(AndroidUtilities.getTypeface("fonts/rmedium.ttf"));
-        header.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlueHeader));
+        header.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText2));
         header.setText(TjLocale.getString(R.string.TjWatchContinue));
         header.setGravity(LocaleController.isRTL ? Gravity.RIGHT : Gravity.LEFT);
-        continueSection.addView(header, LayoutHelper.createLinear(-1, -2, 18, 16, 18, 0));
+        head.addView(header, LayoutHelper.createLinear(0, -2, 1f));
 
-        android.widget.HorizontalScrollView scroll = new android.widget.HorizontalScrollView(context);
-        scroll.setHorizontalScrollBarEnabled(false);
-        scroll.setClipToPadding(false);
-        scroll.setPadding(dp(12), 0, dp(12), 0);
+        TextView all = new TextView(context);
+        all.setTextSize(13);
+        all.setText(TjLocale.getString(R.string.TjWatchAll));
+        all.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlueText));
+        all.setPadding(dp(8), dp(4), dp(8), dp(4));
+        all.setOnClickListener(v -> presentFragment(new TjWatchHistoryActivity()));
+        head.addView(all, LayoutHelper.createLinear(-2, -2));
+
+        continueSection.addView(head, LayoutHelper.createLinear(-1, -2, 14, 14, 14, 0));
+
         continueRow = new LinearLayout(context);
-        continueRow.setOrientation(LinearLayout.HORIZONTAL);
-        scroll.addView(continueRow, new FrameLayout.LayoutParams(-2, -2));
-        continueSection.addView(scroll, LayoutHelper.createLinear(-1, -2, 0, 8, 0, 4));
+        continueRow.setOrientation(LinearLayout.VERTICAL);
+        continueSection.addView(continueRow, LayoutHelper.createLinear(-1, -2, 0, 6, 0, 2));
         return continueSection;
     }
 
@@ -305,12 +329,24 @@ public class TjWatchActivity extends BaseFragment {
         continueRow.removeAllViews();
         continueSection.setVisibility(entries.isEmpty() ? View.GONE : View.VISIBLE);
         Context context = continueRow.getContext();
-        for (TjWatchHistory.Entry entry : entries) {
-            ResumeCell cell = new ResumeCell(context);
-            cell.bind(entry);
-            cell.setOnClickListener(v -> resume(entry));
-            cell.setOnLongClickListener(v -> { askToForget(entry); return true; });
-            continueRow.addView(cell, LayoutHelper.createLinear(104, -2, 0, 0, 10, 0));
+        // Two rows of two. More than that stops being a reminder and starts being the screen.
+        int shown = Math.min(entries.size(), 4);
+        for (int a = 0; a < shown; a += 2) {
+            LinearLayout row = new LinearLayout(context);
+            row.setOrientation(LinearLayout.HORIZONTAL);
+            for (int b = a; b < Math.min(a + 2, shown); b++) {
+                TjWatchHistory.Entry entry = entries.get(b);
+                ResumeCell cell = new ResumeCell(context);
+                cell.bind(entry);
+                cell.setOnClickListener(v -> resume(entry));
+                cell.setOnLongClickListener(v -> { askToForget(entry); return true; });
+                row.addView(cell, LayoutHelper.createLinear(0, 56, 1f, 4, 0, 4, 0));
+            }
+            // An odd last card keeps its half of the row rather than stretching across it.
+            if (Math.min(a + 2, shown) - a == 1) {
+                row.addView(new View(context), LayoutHelper.createLinear(0, 56, 1f));
+            }
+            continueRow.addView(row, LayoutHelper.createLinear(-1, -2, 8, 0, 8, 8));
         }
     }
 
@@ -378,7 +414,7 @@ public class TjWatchActivity extends BaseFragment {
         root.addView(panel, LayoutHelper.createFrame(-1, -2, Gravity.CENTER));
         listView.setVisibility(View.GONE);
         status.setVisibility(View.GONE);
-        if (search != null) search.setEnabled(false);
+        if (searchItem != null) searchItem.setVisibility(View.GONE);
     }
 
     private void askForKey() {
@@ -387,47 +423,20 @@ public class TjWatchActivity extends BaseFragment {
             if (gate != null) { root.removeView(gate); gate = null; }
             listView.setVisibility(View.VISIBLE);
             status.setVisibility(View.VISIBLE);
-            if (search != null) search.setEnabled(true);
+            if (searchItem != null) searchItem.setVisibility(View.VISIBLE);
             trending();
             loadGenres();
             refreshContinue();
         });
     }
 
-    private View searchField(Context context) {
-        FrameLayout field = new FrameLayout(context);
-        field.setBackground(Theme.createRoundRectDrawable(dp(22), Theme.getColor(Theme.key_windowBackgroundWhite)));
-        search = new EditTextBoldCursor(context);
-        search.setTextSize(android.util.TypedValue.COMPLEX_UNIT_DIP, 16);
-        search.setHintTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteHintText));
-        search.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText));
-        search.setBackground(null);
-        search.setSingleLine(true);
-        search.setHint(TjLocale.getString(R.string.TjWatchSearchHint));
-        search.setCursorSize(dp(20));
-        search.setCursorWidth(1.5f);
-        search.setGravity((LocaleController.isRTL ? Gravity.RIGHT : Gravity.LEFT) | Gravity.CENTER_VERTICAL);
-        search.setImeOptions(android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH
-                | android.view.inputmethod.EditorInfo.IME_FLAG_NO_FULLSCREEN);
-        search.addTextChangedListener(new android.text.TextWatcher() {
-            @Override public void beforeTextChanged(CharSequence s, int a, int b, int c) { }
-            @Override public void onTextChanged(CharSequence s, int a, int b, int c) { }
-            @Override public void afterTextChanged(android.text.Editable s) {
-                query = s.toString();
-                refreshContinue();
-                AndroidUtilities.cancelRunOnUIThread(searchRunnable);
-                AndroidUtilities.runOnUIThread(searchRunnable, 400);
-            }
-        });
-        field.addView(search, LayoutHelper.createFrame(-1, -1, Gravity.CENTER, 44, 0, 16, 0));
-        ImageView icon = new ImageView(context);
-        icon.setImageResource(R.drawable.msg_search);
-        icon.setScaleType(ImageView.ScaleType.CENTER);
-        icon.setColorFilter(new PorterDuffColorFilter(
-                Theme.getColor(Theme.key_windowBackgroundWhiteHintText), PorterDuff.Mode.SRC_IN));
-        field.addView(icon, LayoutHelper.createFrame(44, 44,
-                (LocaleController.isRTL ? Gravity.RIGHT : Gravity.LEFT) | Gravity.CENTER_VERTICAL));
-        return field;
+    /** One place the typed text arrives, whichever way it changed. */
+    private void typed(String text) {
+        if (query.equals(text)) return;
+        query = text;
+        refreshContinue();
+        AndroidUtilities.cancelRunOnUIThread(searchRunnable);
+        AndroidUtilities.runOnUIThread(searchRunnable, 400);
     }
 
     private void trending() {
@@ -511,65 +520,63 @@ public class TjWatchActivity extends BaseFragment {
     }
 
     /**
-     * One thing left part-way through: its artwork, a bar showing how far in, and - for a series -
-     * which episode it was. Narrower than a search result, because a shelf is read across.
+     * One thing left part-way through, on its side: a small piece of the artwork, the name, which
+     * episode, and a hairline across the bottom for how far in it got.
      */
-    static class ResumeCell extends LinearLayout {
+    static class ResumeCell extends FrameLayout {
         private final BackupImageView image;
         private final TextView name, where;
         private final View track, bar;
 
         ResumeCell(Context context) {
             super(context);
-            setOrientation(VERTICAL);
-            FrameLayout art = new FrameLayout(context);
-            art.setClipToOutline(true);
-            art.setBackground(Theme.createRoundRectDrawable(dp(10), Theme.getColor(Theme.key_windowBackgroundGray)));
-            addView(art, LayoutHelper.createLinear(-1, -2));
-            image = new BackupImageView(context) {
-                @Override protected void onMeasure(int widthSpec, int heightSpec) {
-                    int width = MeasureSpec.getSize(widthSpec);
-                    super.onMeasure(widthSpec, MeasureSpec.makeMeasureSpec(width * 3 / 2, MeasureSpec.EXACTLY));
-                }
-            };
-            art.addView(image, LayoutHelper.createFrame(-1, -2));
+            setBackground(Theme.createSimpleSelectorRoundRectDrawable(dp(10),
+                    Theme.getColor(Theme.key_windowBackgroundWhite),
+                    Theme.getColor(Theme.key_listSelector)));
+            setClipToOutline(true);
 
-            ImageView play = new ImageView(context);
-            play.setImageResource(R.drawable.msg_played);
-            play.setScaleType(ImageView.ScaleType.CENTER);
-            play.setColorFilter(new PorterDuffColorFilter(0xffffffff, PorterDuff.Mode.SRC_IN));
-            play.setBackground(Theme.createRoundRectDrawable(dp(16), 0x66000000));
-            art.addView(play, LayoutHelper.createFrame(32, 32, Gravity.CENTER));
+            image = new BackupImageView(context);
+            addView(image, LayoutHelper.createFrame(38, 56,
+                    LocaleController.isRTL ? Gravity.RIGHT : Gravity.LEFT));
 
-            track = new View(context);
-            track.setBackgroundColor(0x55000000);
-            art.addView(track, LayoutHelper.createFrame(-1, 3, Gravity.BOTTOM));
-            bar = new View(context);
-            bar.setBackgroundColor(Theme.getColor(Theme.key_featuredStickers_addButton));
-            art.addView(bar, LayoutHelper.createFrame(0, 3, Gravity.BOTTOM | Gravity.LEFT));
-
+            // No play glyph here: over a thumbnail this small it covers the picture it is on.
+            LinearLayout texts = new LinearLayout(context);
+            texts.setOrientation(LinearLayout.VERTICAL);
+            texts.setGravity(Gravity.CENTER_VERTICAL);
             name = new TextView(context);
             name.setTextSize(12);
-            name.setMaxLines(2);
+            name.setSingleLine(true);
             name.setEllipsize(android.text.TextUtils.TruncateAt.END);
+            name.setTypeface(AndroidUtilities.getTypeface("fonts/rmedium.ttf"));
             name.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText));
             name.setGravity(LocaleController.isRTL ? Gravity.RIGHT : Gravity.LEFT);
-            addView(name, LayoutHelper.createLinear(-1, -2, 0, 6, 0, 0));
-
+            texts.addView(name, LayoutHelper.createLinear(-1, -2));
             where = new TextView(context);
-            where.setTextSize(11);
+            where.setTextSize(10);
             where.setSingleLine(true);
             where.setEllipsize(android.text.TextUtils.TruncateAt.END);
             where.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText2));
             where.setGravity(LocaleController.isRTL ? Gravity.RIGHT : Gravity.LEFT);
-            addView(where, LayoutHelper.createLinear(-1, -2, 0, 1, 0, 6));
+            texts.addView(where, LayoutHelper.createLinear(-1, -2, 0, 2, 0, 0));
+            addView(texts, LayoutHelper.createFrame(-1, -2, Gravity.CENTER_VERTICAL,
+                    LocaleController.isRTL ? 8 : 48, 0, LocaleController.isRTL ? 48 : 8, 0));
 
-            ScaleStateListAnimator.apply(this, 0.03f, 1.2f);
+            track = new View(context);
+            track.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundGray));
+            addView(track, LayoutHelper.createFrame(-1, 2, Gravity.BOTTOM,
+                    LocaleController.isRTL ? 0 : 38, 0, LocaleController.isRTL ? 38 : 0, 0));
+            bar = new View(context);
+            bar.setBackgroundColor(Theme.getColor(Theme.key_featuredStickers_addButton));
+            addView(bar, LayoutHelper.createFrame(0, 2, Gravity.BOTTOM
+                    | (LocaleController.isRTL ? Gravity.RIGHT : Gravity.LEFT),
+                    LocaleController.isRTL ? 0 : 38, 0, LocaleController.isRTL ? 38 : 0, 0));
+
+            ScaleStateListAnimator.apply(this, 0.02f, 1.2f);
         }
 
         void bind(TjWatchHistory.Entry entry) {
             String poster = TjTmdb.posterUrl(entry.poster);
-            image.setImage(poster.isEmpty() ? null : poster, "320_480", (android.graphics.drawable.Drawable) null);
+            image.setImage(poster.isEmpty() ? null : poster, "90_135", (android.graphics.drawable.Drawable) null);
             name.setText(entry.name);
             if (entry.season >= 0 || entry.episode >= 0) {
                 StringBuilder text = new StringBuilder();
@@ -580,16 +587,19 @@ public class TjWatchActivity extends BaseFragment {
                 }
                 where.setVisibility(VISIBLE);
                 where.setText(text);
+            } else if (entry.year > 0) {
+                where.setVisibility(VISIBLE);
+                where.setText(String.valueOf(entry.year));
             } else {
                 where.setVisibility(GONE);
             }
             final float progress = entry.progress();
             track.setVisibility(progress > 0 ? VISIBLE : GONE);
             bar.setVisibility(progress > 0 ? VISIBLE : GONE);
-            // The artwork has no width until it is measured, so the bar is sized against it then.
-            image.post(() -> {
+            // The card has no width until it is measured, so the bar is sized against it then.
+            post(() -> {
                 ViewGroup.LayoutParams params = bar.getLayoutParams();
-                params.width = (int) (image.getMeasuredWidth() * progress);
+                params.width = (int) Math.max(0, (getMeasuredWidth() - dp(38)) * progress);
                 bar.setLayoutParams(params);
             });
             setContentDescription(entry.name);
