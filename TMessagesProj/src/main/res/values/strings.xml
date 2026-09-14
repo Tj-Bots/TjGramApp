@@ -11496,6 +11496,12 @@
     <string name="TjJoinChannelAction">Join channel</string>
     <string name="TjNotNow">Not now</string>
     <string name="TjCategories">Categories</string>
+    <string name="TjWatchSearchHint">Search a film or a series</string>
+    <string name="TjWatchAll">All</string>
+    <string name="TjWatchTitles">Titles</string>
+    <string name="TjWatchContinue">Carry on watching</string>
+    <string name="TjWatchNothing">Nothing here yet. Scan a chat in the media centre and its films and series will appear.</string>
+    <string name="TjWatchOpen">Watch</string>
     <string name="TjExactMemberCount">Exact member count</string>
     <string name="TjDiagnostics">Diagnostics</string>
     <string name="TjProtocolErrors">Show protocol errors</string>

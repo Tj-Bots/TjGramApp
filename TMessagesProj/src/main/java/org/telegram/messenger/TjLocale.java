@@ -437,6 +437,12 @@ public class TjLocale {
         m.put("TjJoinChannelAction", "הצטרפות לערוץ");
         m.put("TjNotNow", "לא עכשיו");
         m.put("TjCategories", "קטגוריות");
+        m.put("TjWatchSearchHint", "חפש סרט או סדרה");
+        m.put("TjWatchAll", "הכל");
+        m.put("TjWatchTitles", "כותרים");
+        m.put("TjWatchContinue", "המשך צפייה");
+        m.put("TjWatchNothing", "עדיין אין כאן כלום. סרוק צ׳אט במרכז המדיה והסרטים והסדרות שבו יופיעו כאן.");
+        m.put("TjWatchOpen", "צפייה");
         m.put("TjExactMemberCount", "מספר חברים מדויק");
         m.put("TjDiagnostics", "אבחון");
         m.put("TjProtocolErrors", "הצג שגיאות פרוטוקול");

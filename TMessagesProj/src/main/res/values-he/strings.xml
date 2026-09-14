@@ -272,6 +272,12 @@
     <string name="TjJoinChannelAction">הצטרפות לערוץ</string>
     <string name="TjNotNow">לא עכשיו</string>
     <string name="TjCategories">קטגוריות</string>
+    <string name="TjWatchSearchHint">חפש סרט או סדרה</string>
+    <string name="TjWatchAll">הכל</string>
+    <string name="TjWatchTitles">כותרים</string>
+    <string name="TjWatchContinue">המשך צפייה</string>
+    <string name="TjWatchNothing">עדיין אין כאן כלום. סרוק צ׳אט במרכז המדיה והסרטים והסדרות שבו יופיעו כאן.</string>
+    <string name="TjWatchOpen">צפייה</string>
     <string name="TjExactMemberCount">מספר חברים מדויק</string>
     <string name="TjDiagnostics">אבחון</string>
     <string name="TjProtocolErrors">הצג שגיאות פרוטוקול</string>

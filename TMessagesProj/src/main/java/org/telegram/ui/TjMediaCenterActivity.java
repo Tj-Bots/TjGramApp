@@ -243,6 +243,9 @@ public class TjMediaCenterActivity extends BaseFragment implements MainTabsActiv
             tab.setText(text(label));
             tab.setOnClickListener(v -> {
                 if (page == 3) { openCollections(); return; }
+                // Watching is its own place now: titles, seasons and episodes rather than a
+                // filtered view of the file list.
+                if (page == 9) { presentFragment(new TjWatchActivity()); return; }
                 libraryView = page; mediaType = 0; reload();
             });
             mainTabs.addView(tab);
