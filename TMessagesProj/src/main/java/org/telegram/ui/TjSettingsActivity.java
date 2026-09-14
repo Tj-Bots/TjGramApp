@@ -320,6 +320,7 @@ public class TjSettingsActivity extends BaseFragment {
     private static final int ID_MENU_SHORTCUTS = 27;
     private static final int ID_MENU_SHORTCUT_ACTIONS = 28;
     private static final int ID_PROTOCOL_ERRORS = 29;
+    private static final int ID_EXACT_MEMBER_COUNT = 30;
 
     private static class Item {
         final int viewType;
@@ -359,6 +360,7 @@ public class TjSettingsActivity extends BaseFragment {
             case ID_DIRECT_STREAMING: return TjConfig.directFileStreaming();
             case ID_MENU_SHORTCUTS: return TjConfig.menuShortcuts();
             case ID_PROTOCOL_ERRORS: return TjConfig.showProtocolErrors();
+            case ID_EXACT_MEMBER_COUNT: return TjConfig.exactMemberCount();
         }
         return false;
     }
@@ -390,6 +392,7 @@ public class TjSettingsActivity extends BaseFragment {
             case ID_DIRECT_STREAMING: key = "direct_file_streaming"; break;
             case ID_MENU_SHORTCUTS: key = "menu_shortcuts"; break;
             case ID_PROTOCOL_ERRORS: key = "show_protocol_errors"; break;
+            case ID_EXACT_MEMBER_COUNT: key = "exact_member_count"; break;
         }
         if (key != null) {
             getPrefs().edit().putBoolean(key, value).apply();
@@ -509,6 +512,7 @@ public class TjSettingsActivity extends BaseFragment {
         items.add(new Item(VIEW_TYPE_HEADER, 0, TjLocale.getString(R.string.TjChatsHeader)));
         items.add(new Item(VIEW_TYPE_CHECK, ID_SHOW_CALL_BUTTON, TjLocale.getString(R.string.TjShowCallButton)));
         items.add(new Item(VIEW_TYPE_CHECK, ID_ONLINE_INDICATOR, TjLocale.getString(R.string.TjOnlineIndicator)));
+        items.add(new Item(VIEW_TYPE_CHECK, ID_EXACT_MEMBER_COUNT, TjLocale.getString(R.string.TjExactMemberCount)));
         items.add(new Item(VIEW_TYPE_SHADOW, 0, TjLocale.getString(R.string.TjOnlineIndicatorInfo)));
         items.add(new Item(VIEW_TYPE_HEADER, 0, TjLocale.getString(R.string.TjGhostMode)));
         items.add(new Item(VIEW_TYPE_SETTING, ID_GHOST_SETTINGS, TjLocale.getString(R.string.TjGhostSettings)));

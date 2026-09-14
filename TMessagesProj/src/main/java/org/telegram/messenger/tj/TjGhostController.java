@@ -231,8 +231,11 @@ public final class TjGhostController {
                 || request instanceof TLRPC.TL_messages_readSavedHistory
                 || request instanceof TLRPC.TL_messages_readMessageContents
                 || request instanceof TLRPC.TL_channels_readMessageContents
-                || request instanceof TLRPC.TL_messages_readMentions
-                || request instanceof TLRPC.TL_messages_readReactions;
+                || request instanceof TLRPC.TL_messages_readMentions;
+        // Deliberately not readReactions. Nobody is told that their reaction was seen - Telegram
+        // has no indicator for it - so holding that request back revealed nothing to anyone and
+        // cost the user everything: the server went on counting reactions as unread, and brought
+        // the badge and its notification back on every sync, for reactions already looked at.
     }
 
     public static TLObject createSuppressedReadResponse(TLObject request) {

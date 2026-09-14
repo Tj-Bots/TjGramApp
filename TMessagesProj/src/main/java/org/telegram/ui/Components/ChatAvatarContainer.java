@@ -1307,16 +1307,28 @@ public class ChatAvatarContainer extends FrameLayout implements FactorAnimator.T
         checkActionBar(animated);
     }
 
+    /**
+     * The member count as TjGram shows it. Telegram rounds a channel's to "6.4K"; this writes the
+     * number out in full, grouped, when the setting asks for it.
+     */
+    private static String tjCount(String key, int count) {
+        return org.telegram.messenger.tj.TjConfig.exactMemberCount()
+                ? LocaleController.formatPluralStringComma(key, count)
+                : LocaleController.formatPluralString(key, count);
+    }
+
     public static CharSequence getChatSubtitle(TLRPC.Chat chat, TLRPC.ChatFull info, int onlineCount) {
         CharSequence newSubtitle = null;
         if (ChatObject.isChannel(chat)) {
             if (info != null && info.participants_count != 0) {
                 if (chat.megagroup) {
                     if (onlineCount > 1) {
-                        newSubtitle = String.format("%s, %s", LocaleController.formatPluralString("Members", info.participants_count), LocaleController.formatPluralString("OnlineCount", Math.min(onlineCount, info.participants_count)));
+                        newSubtitle = String.format("%s, %s", tjCount("Members", info.participants_count), tjCount("OnlineCount", Math.min(onlineCount, info.participants_count)));
                     } else {
-                        newSubtitle = LocaleController.formatPluralString("Members", info.participants_count);
+                        newSubtitle = tjCount("Members", info.participants_count);
                     }
+                } else if (org.telegram.messenger.tj.TjConfig.exactMemberCount()) {
+                    newSubtitle = tjCount(chat.megagroup ? "Members" : "Subscribers", info.participants_count);
                 } else {
                     int[] result = new int[1];
                     boolean ignoreShort = AndroidUtilities.isAccessibilityScreenReaderEnabled();
@@ -1359,9 +1371,9 @@ public class ChatAvatarContainer extends FrameLayout implements FactorAnimator.T
                     count = info.participants.participants.size();
                 }
                 if (onlineCount > 1 && count != 0) {
-                    newSubtitle = String.format("%s, %s", LocaleController.formatPluralString("Members", count), LocaleController.formatPluralString("OnlineCount", onlineCount));
+                    newSubtitle = String.format("%s, %s", tjCount("Members", count), tjCount("OnlineCount", onlineCount));
                 } else {
-                    newSubtitle = LocaleController.formatPluralString("Members", count);
+                    newSubtitle = tjCount("Members", count);
                 }
             }
         }

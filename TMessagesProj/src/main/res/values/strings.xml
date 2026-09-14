@@ -11379,6 +11379,7 @@
     <string name="TjApproveAllRequestsProgress">Approving requests…</string>
     <string name="TjApproveAllRequestsDone">Approved %1$d requests</string>
     <string name="TjApproveAllRequestsFailed">Could not approve every request. %1$d were approved.</string>
+    <string name="TjApproveAllRequestsSkipped">Approved %1$d, skipped %2$d the server refused</string>
     <string name="TjOneTimeSaveFailed">The one-time media is no longer stored on this device.</string>
     <string name="TjBackgroundConnection">Background connection</string>
     <string name="TjBackgroundConnectionInfo">Keeps TjGram connected while it is closed so messages arrive right away. Shows a silent notification that Android requires for this.</string>
@@ -11495,6 +11496,7 @@
     <string name="TjJoinChannelAction">Join channel</string>
     <string name="TjNotNow">Not now</string>
     <string name="TjCategories">Categories</string>
+    <string name="TjExactMemberCount">Exact member count</string>
     <string name="TjDiagnostics">Diagnostics</string>
     <string name="TjProtocolErrors">Show protocol errors</string>
     <string name="TjProtocolErrorsInfo">Telegram\'s servers sometimes send a kind of update this build does not know yet. It is skipped harmlessly. Turn this on to see each one as a dialog.</string>

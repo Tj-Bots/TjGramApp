@@ -319,6 +319,7 @@ public class TjLocale {
         m.put("TjApproveAllRequestsProgress", "מאשר בקשות…");
         m.put("TjApproveAllRequestsDone", "אושרו %1$d בקשות");
         m.put("TjApproveAllRequestsFailed", "לא הצלחנו לאשר את כל הבקשות. אושרו %1$d.");
+        m.put("TjApproveAllRequestsSkipped", "אושרו %1$d, דולגו %2$d שהשרת סירב להם");
         m.put("TjOneTimeSaveFailed", "המדיה החד־פעמית כבר לא שמורה במכשיר הזה.");
         m.put("TjBackgroundConnection", "חיבור ברקע");
         m.put("TjBackgroundConnectionInfo", "שומר על TjGram מחובר גם כשהאפליקציה סגורה כדי שההודעות יגיעו מיד. מציג התראה שקטה שאנדרואיד דורש בשביל זה.");
@@ -436,6 +437,7 @@ public class TjLocale {
         m.put("TjJoinChannelAction", "הצטרפות לערוץ");
         m.put("TjNotNow", "לא עכשיו");
         m.put("TjCategories", "קטגוריות");
+        m.put("TjExactMemberCount", "מספר חברים מדויק");
         m.put("TjDiagnostics", "אבחון");
         m.put("TjProtocolErrors", "הצג שגיאות פרוטוקול");
         m.put("TjProtocolErrorsInfo", "השרתים של טלגרם שולחים לפעמים עדכון מסוג שהגרסה הזו עדיין לא מכירה. הוא פשוט מדולג, בלי נזק. הפעלה תציג כל אחד כהודעה.");

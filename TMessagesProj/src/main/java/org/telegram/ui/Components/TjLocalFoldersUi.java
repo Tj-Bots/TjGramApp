@@ -37,7 +37,10 @@ public final class TjLocalFoldersUi {
         for (int i = 0; i < cells.length; i++) {
             int id = TjLocalFolders.IDS[i];
             CheckBoxCell cell = new CheckBoxCell(fragment.getParentActivity(), 1);
-            cell.setText(TjLocalFolders.title(id), "", TjLocalFolders.enabled(account, id), i + 1 < cells.length);
+            // The offer arrives with everything ticked as a suggestion; nothing is actually on
+            // until Save is pressed.
+            boolean checked = firstOffer || TjLocalFolders.enabled(account, id);
+            cell.setText(TjLocalFolders.title(id), "", checked, i + 1 < cells.length);
             cell.setOnClickListener(v -> cell.setChecked(!cell.isChecked(), true));
             rows.addView(cell, new LinearLayout.LayoutParams(-1, AndroidUtilities.dp(48)));
             cells[i] = cell;

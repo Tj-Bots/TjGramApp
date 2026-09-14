@@ -43,18 +43,28 @@ public final class TjLocalFolders {
 
     public static boolean offered(int account) {
         SharedPreferences prefs = TjConfig.localFolders(account);
-        return prefs == null || prefs.getBoolean("offered", false);
+        if (prefs == null) return true;
+        if (prefs.getBoolean("offered_v2", false)) return true;
+        // An account that answered the older offer keeps its answer and is not asked again. One
+        // that only had the offer put in front of it, back when every folder was on before the
+        // question was asked, never really answered - so it is asked once, properly.
+        for (int id : IDS) {
+            if (prefs.contains("enabled_" + id)) return true;
+        }
+        return false;
     }
 
     public static void markOffered(int account) {
         SharedPreferences prefs = TjConfig.localFolders(account);
-        if (prefs != null) prefs.edit().putBoolean("offered", true).apply();
+        if (prefs != null) prefs.edit().putBoolean("offered_v2", true).apply();
     }
 
     public static boolean enabled(int account, int id) {
         SharedPreferences prefs = TjConfig.localFolders(account);
-        // Missing preferences use the defaults; explicit user opt-outs remain untouched.
-        return isLocal(id) && prefs != null && prefs.getBoolean("enabled_" + id, true);
+        // Off until asked for. These used to be on before anyone was asked, which put folders in
+        // people's lists next to their own and made the offer look like a notice rather than a
+        // question.
+        return isLocal(id) && prefs != null && prefs.getBoolean("enabled_" + id, false);
     }
 
     public static void setEnabled(int account, int id, boolean enabled) {
@@ -199,7 +209,7 @@ public final class TjLocalFolders {
     public static void reset(int account) {
         SharedPreferences prefs = TjConfig.localFolders(account);
         if (prefs == null) return;
-        prefs.edit().clear().putBoolean("offered", true).apply();
+        prefs.edit().clear().apply();
         refresh(account);
     }
 

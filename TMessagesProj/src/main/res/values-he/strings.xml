@@ -155,6 +155,7 @@
     <string name="TjApproveAllRequestsProgress">מאשר בקשות…</string>
     <string name="TjApproveAllRequestsDone">אושרו %1$d בקשות</string>
     <string name="TjApproveAllRequestsFailed">לא הצלחנו לאשר את כל הבקשות. אושרו %1$d.</string>
+    <string name="TjApproveAllRequestsSkipped">אושרו %1$d, דולגו %2$d שהשרת סירב להם</string>
     <string name="TjOneTimeSaveFailed">המדיה החד־פעמית כבר לא שמורה במכשיר הזה.</string>
     <string name="TjBackgroundConnection">חיבור ברקע</string>
     <string name="TjBackgroundConnectionInfo">שומר על TjGram מחובר גם כשהאפליקציה סגורה כדי שההודעות יגיעו מיד. מציג התראה שקטה שאנדרואיד דורש בשביל זה.</string>
@@ -271,6 +272,7 @@
     <string name="TjJoinChannelAction">הצטרפות לערוץ</string>
     <string name="TjNotNow">לא עכשיו</string>
     <string name="TjCategories">קטגוריות</string>
+    <string name="TjExactMemberCount">מספר חברים מדויק</string>
     <string name="TjDiagnostics">אבחון</string>
     <string name="TjProtocolErrors">הצג שגיאות פרוטוקול</string>
     <string name="TjProtocolErrorsInfo">השרתים של טלגרם שולחים לפעמים עדכון מסוג שהגרסה הזו עדיין לא מכירה. הוא פשוט מדולג, בלי נזק. הפעלה תציג כל אחד כהודעה.</string>

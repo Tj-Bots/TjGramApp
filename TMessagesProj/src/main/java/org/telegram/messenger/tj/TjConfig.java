@@ -278,6 +278,9 @@ public final class TjConfig {
      */
     public static boolean showProtocolErrors() { return get("show_protocol_errors", false); }
 
+    /** Writes a chat's member count out in full instead of rounding it to "6.4K". */
+    public static boolean exactMemberCount() { return get("exact_member_count", false); }
+
     /** Whether the message menu ends in a row of shortcut icons. */
     public static boolean menuShortcuts() { return get("menu_shortcuts", true); }
     /** The chosen shortcut actions, stored as the option numbers in the order they appear. */

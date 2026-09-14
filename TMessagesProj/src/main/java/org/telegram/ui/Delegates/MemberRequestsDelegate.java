@@ -455,11 +455,19 @@ public class MemberRequestsDelegate implements MemberRequestCell.OnClickListener
             return;
         }
         isApprovingAll = true;
+        tjSkippedRequests.clear();
         AlertDialog progressDialog = new AlertDialog(fragment.getParentActivity(), AlertDialog.ALERT_TYPE_SPINNER);
         progressDialog.setCanCancel(false);
         progressDialog.show();
         approveNextRequest(new ArrayList<>(allImporters), new int[]{0}, -1, progressDialog);
     }
+
+    /**
+     * People the server refused. Usually someone who is already in as many groups as they are
+     * allowed to be - nothing the owner of this chat can do about it, and no reason to stop
+     * approving everyone else. They keep their place in the list so they can be dealt with by hand.
+     */
+    private final java.util.HashSet<Long> tjSkippedRequests = new java.util.HashSet<>();
 
     private void approveNextRequest(ArrayList<TLRPC.TL_chatInviteImporter> queue, int[] approved,
                                     int approvedBeforePage, AlertDialog progressDialog) {
@@ -474,7 +482,7 @@ public class MemberRequestsDelegate implements MemberRequestCell.OnClickListener
         }
         TLRPC.TL_chatInviteImporter next = queue.remove(0);
         TLRPC.User user = users.get(next.user_id);
-        if (user == null) {
+        if (user == null || tjSkippedRequests.contains(next.user_id)) {
             approveNextRequest(queue, approved, approvedBeforePage, progressDialog);
             return;
         }
@@ -488,7 +496,18 @@ public class MemberRequestsDelegate implements MemberRequestCell.OnClickListener
             }
             AndroidUtilities.runOnUIThread(() -> {
                 if (error != null) {
-                    finishApprovingAll(approved[0], progressDialog, false);
+                    int wait = tjFloodWaitSeconds(error);
+                    if (wait > 0) {
+                        // Not a refusal, just too fast. Waiting it out is the whole point of doing
+                        // this in bulk; skipping here would drop people who could have been added.
+                        queue.add(0, next);
+                        AndroidUtilities.runOnUIThread(() ->
+                                approveNextRequest(queue, approved, approvedBeforePage, progressDialog),
+                                (wait + 1) * 1000L);
+                        return;
+                    }
+                    tjSkippedRequests.add(next.user_id);
+                    approveNextRequest(queue, approved, approvedBeforePage, progressDialog);
                     return;
                 }
                 approved[0]++;
@@ -524,6 +543,21 @@ public class MemberRequestsDelegate implements MemberRequestCell.OnClickListener
         }));
     }
 
+    /** Seconds the server asked us to wait, or 0 when the error was something else. */
+    private static int tjFloodWaitSeconds(TLRPC.TL_error error) {
+        if (error == null || error.text == null || !error.text.startsWith("FLOOD_WAIT_")) {
+            return 0;
+        }
+        try {
+            int seconds = Integer.parseInt(error.text.substring("FLOOD_WAIT_".length()));
+            // A long hold is the server saying stop for today; waiting that out in a dialog is not
+            // something to keep a person sitting through.
+            return seconds > 0 && seconds <= 60 ? seconds : 0;
+        } catch (NumberFormatException ignore) {
+            return 0;
+        }
+    }
+
     private void finishApprovingAll(int approved, AlertDialog progressDialog, boolean complete) {
         isApprovingAll = false;
         try {
@@ -541,9 +575,16 @@ public class MemberRequestsDelegate implements MemberRequestCell.OnClickListener
         adapter.notifyDataSetChanged();
         hasMore = true;
         loadMembers();
+        CharSequence result;
+        if (!tjSkippedRequests.isEmpty()) {
+            result = LocaleController.formatString(R.string.TjApproveAllRequestsSkipped,
+                    approved, tjSkippedRequests.size());
+        } else {
+            result = LocaleController.formatString(
+                    complete ? R.string.TjApproveAllRequestsDone : R.string.TjApproveAllRequestsFailed, approved);
+        }
         BulletinFactory.of(layoutContainer, fragment.getResourceProvider())
-                .createSimpleBulletin(R.raw.contact_check, LocaleController.formatString(
-                        complete ? R.string.TjApproveAllRequestsDone : R.string.TjApproveAllRequestsFailed, approved))
+                .createSimpleBulletin(R.raw.contact_check, result)
                 .show();
     }
 
