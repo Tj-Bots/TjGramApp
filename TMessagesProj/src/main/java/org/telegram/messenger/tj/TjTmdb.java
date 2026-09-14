@@ -89,6 +89,58 @@ public final class TjTmdb {
         request(account, "trending/" + (series ? "tv" : "movie") + "/week", new LinkedHashMap<>(), callback);
     }
 
+    /** The names the catalogue sorts by. Films and series keep separate lists of them. */
+    public void genres(int account, boolean series, Callback callback) {
+        request(account, "genre/" + (series ? "tv" : "movie") + "/list", new LinkedHashMap<>(), callback);
+    }
+
+    /** Everything filed under one of those names, best known first. */
+    public void discover(int account, boolean series, int genre, Callback callback) {
+        Map<String, String> params = new LinkedHashMap<>();
+        params.put("with_genres", Integer.toString(genre));
+        params.put("sort_by", "popularity.desc");
+        params.put("include_adult", "false");
+        params.put("vote_count.gte", "40");
+        request(account, "discover/" + (series ? "tv" : "movie"), params, callback);
+    }
+
+    public interface Verification {
+        void complete(int error);
+    }
+
+    /**
+     * Tries a credential before anything is stored under it, so a half-copied key is caught where
+     * it was typed rather than as an empty screen later. Asks for the one thing TMDB will answer
+     * about itself, so nothing is searched for and nothing is sent but the credential.
+     */
+    public static void verify(String credential, Verification callback) {
+        final String value = credential == null ? "" : credential.trim();
+        queue.postRunnable(() -> {
+            int error = OK;
+            if (value.isEmpty()) {
+                error = CREDENTIAL;
+            } else {
+                boolean apiKey = value.matches("[a-fA-F0-9]{32}");
+                HttpUrl.Builder url = HttpUrl.parse("https://api.themoviedb.org/3/configuration").newBuilder();
+                if (apiKey) url.addQueryParameter("api_key", value);
+                try {
+                    Request.Builder builder = new Request.Builder().url(url.build()).header("Accept", "application/json");
+                    if (!apiKey) builder.header("Authorization", "Bearer " + value);
+                    try (Response response = client.newCall(builder.build()).execute()) {
+                        if (response.code() == 401 || response.code() == 403) error = CREDENTIAL;
+                        else if (response.code() == 429) error = RATE_LIMIT;
+                        else if (!response.isSuccessful()) error = NETWORK;
+                    }
+                } catch (Exception ignored) {
+                    // A URL carries the credential. Never log one.
+                    error = NETWORK;
+                }
+            }
+            final int result = error;
+            AndroidUtilities.runOnUIThread(() -> callback.complete(result));
+        });
+    }
+
     public void cancel() {
         generation++;
         Call call = active;

@@ -32,6 +32,7 @@ import org.telegram.messenger.tj.TjMediaTitle;
 import org.telegram.messenger.tj.TjTmdb;
 import org.telegram.messenger.tj.TjWatchHistory;
 import org.telegram.ui.ActionBar.ActionBar;
+import org.telegram.ui.ActionBar.ActionBarMenuItem;
 import org.telegram.ui.ActionBar.AlertDialog;
 import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.ActionBar.Theme;
@@ -40,6 +41,7 @@ import org.telegram.ui.Components.EditTextBoldCursor;
 import org.telegram.ui.Components.LayoutHelper;
 import org.telegram.ui.Components.RecyclerListView;
 import org.telegram.ui.Components.ScaleStateListAnimator;
+import org.telegram.ui.Components.TjTmdbKeyDialog;
 
 import java.util.ArrayList;
 
@@ -69,9 +71,21 @@ public class TjWatchActivity extends BaseFragment {
         String year() { return date != null && date.length() >= 4 ? date.substring(0, 4) : ""; }
     }
 
+    /** A name the catalogue files things under. Films and series number them differently. */
+    private static final class Genre {
+        final String name;
+        int movieId, seriesId;
+        Genre(String name) { this.name = name; }
+    }
+
+    private static final int MENU_HISTORY = 1, MENU_SETTINGS = 2;
+
     private final ArrayList<Item> items = new ArrayList<>();
+    private final ArrayList<Genre> genres = new ArrayList<>();
     private final TjTmdb series = new TjTmdb();
     private final TjTmdb movies = new TjTmdb();
+    private final TjTmdb seriesGenres = new TjTmdb();
+    private final TjTmdb movieGenres = new TjTmdb();
 
     private FrameLayout root;
     private RecyclerListView listView;
@@ -81,8 +95,11 @@ public class TjWatchActivity extends BaseFragment {
     private View gate;
     private LinearLayout continueSection;
     private LinearLayout continueRow;
+    private LinearLayout genreRow;
+    private Genre selectedGenre;
     private String query = "";
     private int pending;
+    private int genresPending;
     private final Runnable searchRunnable = this::reload;
 
     @Override
@@ -94,8 +111,14 @@ public class TjWatchActivity extends BaseFragment {
         actionBar.setActionBarMenuOnItemClick(new ActionBar.ActionBarMenuOnItemClick() {
             @Override public void onItemClick(int id) {
                 if (id == -1) finishFragment();
+                else if (id == MENU_HISTORY) presentFragment(new TjWatchHistoryActivity());
+                else if (id == MENU_SETTINGS) presentFragment(new TjWatchSettingsActivity());
             }
         });
+        ActionBarMenuItem other = actionBar.createMenu().addItem(0, R.drawable.ic_ab_other);
+        other.setContentDescription(LocaleController.getString(R.string.AccDescrMoreOptions));
+        other.addSubItem(MENU_HISTORY, R.drawable.msg_recent, TjLocale.getString(R.string.TjWatchHistory));
+        other.addSubItem(MENU_SETTINGS, R.drawable.msg_settings, TjLocale.getString(R.string.TjWatchSettings));
 
         root = new FrameLayout(context);
         root.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundGray));
@@ -106,6 +129,8 @@ public class TjWatchActivity extends BaseFragment {
         root.addView(content, LayoutHelper.createFrame(-1, -1));
 
         content.addView(searchField(context), LayoutHelper.createLinear(-1, 44, 12, 10, 12, 0));
+
+        content.addView(genreSection(context), LayoutHelper.createLinear(-1, -2));
 
         content.addView(continueSection(context), LayoutHelper.createLinear(-1, -2));
 
@@ -134,6 +159,7 @@ public class TjWatchActivity extends BaseFragment {
             showGate(context);
         } else {
             trending();
+            loadGenres();
         }
         refreshContinue();
         return fragmentView;
@@ -145,6 +171,102 @@ public class TjWatchActivity extends BaseFragment {
         // Coming back from a film is exactly when the shelf is wrong: it now has a new position,
         // or the film finished and should drop off it.
         refreshContinue();
+    }
+
+    /**
+     * The row of names the catalogue files things under, which is the other way people look for
+     * something to watch: not a title they already have in mind, but a kind of evening.
+     */
+    private View genreSection(Context context) {
+        android.widget.HorizontalScrollView scroll = new android.widget.HorizontalScrollView(context);
+        scroll.setHorizontalScrollBarEnabled(false);
+        scroll.setClipToPadding(false);
+        scroll.setPadding(dp(12), 0, dp(12), 0);
+        scroll.setVisibility(View.GONE);
+        genreRow = new LinearLayout(context);
+        genreRow.setOrientation(LinearLayout.HORIZONTAL);
+        scroll.addView(genreRow, new FrameLayout.LayoutParams(-2, -2));
+        return scroll;
+    }
+
+    /**
+     * Both lists at once, merged by the name rather than the number: a film's "Action" and a
+     * series' "Action & Adventure" are one chip to a person, and two different numbers to TMDB.
+     */
+    private void loadGenres() {
+        genresPending = 2;
+        seriesGenres.genres(currentAccount, true, (body, error) -> collectGenres(body, true));
+        movieGenres.genres(currentAccount, false, (body, error) -> collectGenres(body, false));
+    }
+
+    private void collectGenres(JSONObject body, boolean isSeries) {
+        JSONArray list = body == null ? null : body.optJSONArray("genres");
+        for (int i = 0; list != null && i < list.length(); i++) {
+            JSONObject object = list.optJSONObject(i);
+            if (object == null) continue;
+            int id = object.optInt("id");
+            String name = object.optString("name", "").trim();
+            if (id <= 0 || name.isEmpty()) continue;
+            Genre genre = null;
+            for (Genre known : genres) if (known.name.equalsIgnoreCase(name)) { genre = known; break; }
+            if (genre == null) { genre = new Genre(name); genres.add(genre); }
+            if (isSeries) genre.seriesId = id; else genre.movieId = id;
+        }
+        if (--genresPending > 0) return;
+        java.util.Collections.sort(genres, (a, b) -> a.name.compareToIgnoreCase(b.name));
+        buildGenreChips();
+    }
+
+    private void buildGenreChips() {
+        if (genreRow == null) return;
+        Context context = genreRow.getContext();
+        genreRow.removeAllViews();
+        if (genres.isEmpty()) {
+            ((View) genreRow.getParent()).setVisibility(View.GONE);
+            return;
+        }
+        ((View) genreRow.getParent()).setVisibility(View.VISIBLE);
+        genreRow.addView(chip(context, TjLocale.getString(R.string.TjWatchAll), null),
+                LayoutHelper.createLinear(-2, 32, 0, 0, 6, 0));
+        for (Genre genre : genres) {
+            genreRow.addView(chip(context, genre.name, genre), LayoutHelper.createLinear(-2, 32, 0, 0, 6, 0));
+        }
+        styleChips();
+    }
+
+    private TextView chip(Context context, String label, Genre genre) {
+        TextView view = new TextView(context);
+        view.setTextSize(13);
+        view.setText(label);
+        view.setGravity(Gravity.CENTER);
+        view.setPadding(dp(14), 0, dp(14), 0);
+        view.setTypeface(AndroidUtilities.getTypeface("fonts/rmedium.ttf"));
+        view.setTag(genre);
+        view.setOnClickListener(v -> {
+            selectedGenre = genre;
+            if (search != null && search.getText().length() > 0) search.setText("");
+            // Clearing the box queues its own reload; this one is immediate and says the same thing.
+            AndroidUtilities.cancelRunOnUIThread(searchRunnable);
+            styleChips();
+            refreshContinue();
+            reload();
+        });
+        ScaleStateListAnimator.apply(view, 0.05f, 1.2f);
+        return view;
+    }
+
+    private void styleChips() {
+        if (genreRow == null) return;
+        for (int a = 0; a < genreRow.getChildCount(); a++) {
+            View view = genreRow.getChildAt(a);
+            boolean chosen = view.getTag() == selectedGenre;
+            view.setBackground(Theme.createSimpleSelectorRoundRectDrawable(dp(16),
+                    chosen ? Theme.getColor(Theme.key_featuredStickers_addButton)
+                            : Theme.getColor(Theme.key_windowBackgroundWhite),
+                    Theme.getColor(Theme.key_listSelector)));
+            ((TextView) view).setTextColor(chosen ? Theme.getColor(Theme.key_featuredStickers_buttonText)
+                    : Theme.getColor(Theme.key_windowBackgroundWhiteBlackText));
+        }
     }
 
     /**
@@ -178,7 +300,7 @@ public class TjWatchActivity extends BaseFragment {
 
     private void refreshContinue() {
         if (continueRow == null) return;
-        ArrayList<TjWatchHistory.Entry> entries = query.trim().isEmpty() && gate == null
+        ArrayList<TjWatchHistory.Entry> entries = query.trim().isEmpty() && gate == null && selectedGenre == null
                 ? TjWatchHistory.unfinished() : new ArrayList<>();
         continueRow.removeAllViews();
         continueSection.setVisibility(entries.isEmpty() ? View.GONE : View.VISIBLE);
@@ -260,42 +382,16 @@ public class TjWatchActivity extends BaseFragment {
     }
 
     private void askForKey() {
-        Context context = getParentActivity();
-        if (context == null) return;
-        final int account = currentAccount;
-        final long owner = UserConfig.getInstance(account).getClientUserId();
-        EditTextBoldCursor input = new EditTextBoldCursor(context);
-        input.setSingleLine(true);
-        input.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText));
-        input.setHintTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText));
-        input.setHint(TjLocale.getString(R.string.TjMediaKeyHint));
-        input.setInputType(android.text.InputType.TYPE_CLASS_TEXT | android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD);
-        input.setTextDirection(View.TEXT_DIRECTION_LTR);
-        input.setPadding(dp(20), dp(12), dp(20), dp(12));
-        org.telegram.ui.Components.TjMediaInputStyle.apply(input, TjLocale.getString(R.string.TjMediaKeyHint));
-        showDialog(new AlertDialog.Builder(context)
-                .setTitle(TjLocale.getString(R.string.TjMediaMetadata))
-                .setMessage(TjLocale.getString(R.string.TjMediaMetadataInfo) + "\n\n"
-                        + TjLocale.getString(R.string.TjMediaAttribution))
-                .setView(input)
-                .setPositiveButton(LocaleController.getString(R.string.Save), (dialog, which) -> {
-                    String value = input.getText().toString().trim();
-                    input.setText("");
-                    Utilities.globalQueue.postRunnable(() -> {
-                        boolean saved = UserConfig.getInstance(account).getClientUserId() == owner
-                                && TjConfig.setMediaMetadataCredential(account, owner, value);
-                        AndroidUtilities.runOnUIThread(() -> {
-                            if (getParentActivity() == null || !saved) return;
-                            if (gate != null) { root.removeView(gate); gate = null; }
-                            listView.setVisibility(View.VISIBLE);
-                            status.setVisibility(View.VISIBLE);
-                            if (search != null) search.setEnabled(true);
-                            trending();
-                            refreshContinue();
-                        });
-                    });
-                })
-                .setNegativeButton(LocaleController.getString(R.string.Cancel), null).create());
+        TjTmdbKeyDialog.show(this, () -> {
+            if (getParentActivity() == null) return;
+            if (gate != null) { root.removeView(gate); gate = null; }
+            listView.setVisibility(View.VISIBLE);
+            status.setVisibility(View.VISIBLE);
+            if (search != null) search.setEnabled(true);
+            trending();
+            loadGenres();
+            refreshContinue();
+        });
     }
 
     private View searchField(Context context) {
@@ -344,10 +440,25 @@ public class TjWatchActivity extends BaseFragment {
         movies.trending(currentAccount, false, (body, error) -> collect(body, false, error));
     }
 
+    private void discover(Genre genre) {
+        items.clear();
+        adapter.notifyDataSetChanged();
+        status.setText(TjLocale.getString(R.string.TjMediaLoading));
+        status.setVisibility(View.VISIBLE);
+        pending = (genre.seriesId > 0 ? 1 : 0) + (genre.movieId > 0 ? 1 : 0);
+        if (genre.seriesId > 0) series.discover(currentAccount, true, genre.seriesId, (body, error) -> collect(body, true, error));
+        if (genre.movieId > 0) movies.discover(currentAccount, false, genre.movieId, (body, error) -> collect(body, false, error));
+    }
+
     private void reload() {
         if (!TjTmdb.available(currentAccount)) return;
         String typed = query.trim();
-        if (typed.isEmpty()) { trending(); return; }
+        if (typed.isEmpty()) {
+            if (selectedGenre != null) discover(selectedGenre); else trending();
+            return;
+        }
+        // Typing is a question about a title, which no longer belongs to whichever genre was open.
+        if (selectedGenre != null) { selectedGenre = null; styleChips(); }
         // A person types the episode into the search box as readily as the name. The name is what
         // the catalogue is asked about; the numbers are carried into the title screen.
         String name = TjMediaTitle.parse("", typed).title;

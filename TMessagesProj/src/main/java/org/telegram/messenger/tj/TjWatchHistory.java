@@ -142,6 +142,18 @@ public final class TjWatchHistory {
         return result;
     }
 
+    /** Everything that was watched, most recent first, finished or not. */
+    public static ArrayList<Entry> all() {
+        ArrayList<Entry> result = new ArrayList<>();
+        synchronized (TjWatchHistory.class) {
+            for (Entry entry : load()) {
+                if (UserConfig.getInstance(entry.account).getClientUserId() != entry.owner) continue;
+                result.add(entry);
+            }
+        }
+        return result;
+    }
+
     public static void forget(String key, long owner) {
         if (key == null || key.isEmpty()) return;
         synchronized (TjWatchHistory.class) {
