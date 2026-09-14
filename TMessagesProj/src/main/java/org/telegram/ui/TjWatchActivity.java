@@ -58,7 +58,7 @@ public class TjWatchActivity extends BaseFragment {
         public final long id;
         public final boolean series;
         public final String name, poster, date;
-        public final double rating;
+        public final double rating, popularity;
 
         Item(JSONObject object, boolean series) {
             this.series = series;
@@ -67,6 +67,7 @@ public class TjWatchActivity extends BaseFragment {
             poster = object.optString("poster_path", "");
             date = object.optString(series ? "first_air_date" : "release_date", "");
             rating = object.optDouble("vote_average", 0);
+            popularity = object.optDouble("popularity", 0);
         }
 
         String year() { return date != null && date.length() >= 4 ? date.substring(0, 4) : ""; }
@@ -80,6 +81,9 @@ public class TjWatchActivity extends BaseFragment {
     }
 
     private static final int MENU_HISTORY = 1, MENU_SETTINGS = 2;
+
+    /** Everything, or only one half of it. Netflix's first question, and a reasonable one. */
+    private static final int KIND_ALL = 0, KIND_MOVIES = 1, KIND_SERIES = 2;
 
     private final ArrayList<Item> items = new ArrayList<>();
     private final ArrayList<Genre> genres = new ArrayList<>();
@@ -97,7 +101,9 @@ public class TjWatchActivity extends BaseFragment {
     private LinearLayout continueSection;
     private LinearLayout continueRow;
     private LinearLayout genreRow;
+    private LinearLayout kindRow;
     private Genre selectedGenre;
+    private int kind = KIND_ALL;
     private String query = "";
     private int pending;
     private int genresPending;
@@ -144,7 +150,9 @@ public class TjWatchActivity extends BaseFragment {
         content.setOrientation(LinearLayout.VERTICAL);
         root.addView(content, LayoutHelper.createFrame(-1, -1));
 
-        content.addView(genreSection(context), LayoutHelper.createLinear(-1, -2, 0, 10, 0, 0));
+        content.addView(kindSection(context), LayoutHelper.createLinear(-1, 34, 12, 10, 12, 0));
+
+        content.addView(genreSection(context), LayoutHelper.createLinear(-1, -2, 0, 8, 0, 0));
 
         content.addView(continueSection(context), LayoutHelper.createLinear(-1, -2));
 
@@ -185,6 +193,62 @@ public class TjWatchActivity extends BaseFragment {
         // Coming back from a film is exactly when the shelf is wrong: it now has a new position,
         // or the film finished and should drop off it.
         refreshContinue();
+    }
+
+    /**
+     * Films, series, or both. The first thing a person narrows down, and the thing that decides
+     * which half of the catalogue every other question on this screen is put to.
+     */
+    private View kindSection(Context context) {
+        kindRow = new LinearLayout(context);
+        kindRow.setOrientation(LinearLayout.HORIZONTAL);
+        kindRow.setBackground(Theme.createRoundRectDrawable(dp(17),
+                Theme.getColor(Theme.key_windowBackgroundWhite)));
+        kindRow.setPadding(dp(3), dp(3), dp(3), dp(3));
+        kindRow.addView(segment(context, TjLocale.getString(R.string.TjWatchAll), KIND_ALL),
+                LayoutHelper.createLinear(0, -1, 1f));
+        kindRow.addView(segment(context, TjLocale.getString(R.string.TjMediaMovies), KIND_MOVIES),
+                LayoutHelper.createLinear(0, -1, 1f));
+        kindRow.addView(segment(context, TjLocale.getString(R.string.TjMediaSeries), KIND_SERIES),
+                LayoutHelper.createLinear(0, -1, 1f));
+        styleKinds();
+        return kindRow;
+    }
+
+    private TextView segment(Context context, String label, int value) {
+        TextView view = new TextView(context);
+        view.setTextSize(13);
+        view.setText(label);
+        view.setGravity(Gravity.CENTER);
+        view.setTypeface(AndroidUtilities.getTypeface("fonts/rmedium.ttf"));
+        view.setTag(value);
+        view.setOnClickListener(v -> {
+            if (kind == value) return;
+            kind = value;
+            styleKinds();
+            // A genre only one half of the catalogue knows about goes with that half.
+            if (selectedGenre != null && !fits(selectedGenre)) selectedGenre = null;
+            buildGenreChips();
+            reload();
+        });
+        return view;
+    }
+
+    private void styleKinds() {
+        if (kindRow == null) return;
+        for (int a = 0; a < kindRow.getChildCount(); a++) {
+            TextView view = (TextView) kindRow.getChildAt(a);
+            boolean chosen = (Integer) view.getTag() == kind;
+            view.setBackground(chosen ? Theme.createRoundRectDrawable(dp(14),
+                    Theme.getColor(Theme.key_featuredStickers_addButton)) : null);
+            view.setTextColor(chosen ? Theme.getColor(Theme.key_featuredStickers_buttonText)
+                    : Theme.getColor(Theme.key_windowBackgroundWhiteGrayText2));
+        }
+    }
+
+    /** True when this genre exists on the half of the catalogue currently being shown. */
+    private boolean fits(Genre genre) {
+        return (wantsSeries() && genre.seriesId > 0) || (wantsMovies() && genre.movieId > 0);
     }
 
     /**
@@ -240,9 +304,10 @@ public class TjWatchActivity extends BaseFragment {
             return;
         }
         ((View) genreRow.getParent()).setVisibility(View.VISIBLE);
-        genreRow.addView(chip(context, TjLocale.getString(R.string.TjWatchAll), null),
+        genreRow.addView(chip(context, TjLocale.getString(R.string.TjWatchAllGenres), null),
                 LayoutHelper.createLinear(-2, 32, 0, 0, 6, 0));
         for (Genre genre : genres) {
+            if (!fits(genre)) continue;
             genreRow.addView(chip(context, genre.name, genre), LayoutHelper.createLinear(-2, 32, 0, 0, 6, 0));
         }
         styleChips();
@@ -439,24 +504,37 @@ public class TjWatchActivity extends BaseFragment {
         AndroidUtilities.runOnUIThread(searchRunnable, 400);
     }
 
-    private void trending() {
+    private boolean wantsSeries() { return kind != KIND_MOVIES; }
+    private boolean wantsMovies() { return kind != KIND_SERIES; }
+
+    /**
+     * Clears the grid and says how many answers are still owed. A half that is not being asked is
+     * told to forget whatever it was fetching, so a late reply cannot land in the new list.
+     */
+    private void begin(boolean askSeries, boolean askMovies) {
         items.clear();
         adapter.notifyDataSetChanged();
         status.setText(TjLocale.getString(R.string.TjMediaLoading));
         status.setVisibility(View.VISIBLE);
-        pending = 2;
-        series.trending(currentAccount, true, (body, error) -> collect(body, true, error));
-        movies.trending(currentAccount, false, (body, error) -> collect(body, false, error));
+        if (!askSeries) series.cancel();
+        if (!askMovies) movies.cancel();
+        pending = (askSeries ? 1 : 0) + (askMovies ? 1 : 0);
+        if (pending == 0) collect(null, false, TjTmdb.OK);
+    }
+
+    private void trending() {
+        boolean askSeries = wantsSeries(), askMovies = wantsMovies();
+        begin(askSeries, askMovies);
+        if (askSeries) series.trending(currentAccount, true, (body, error) -> collect(body, true, error));
+        if (askMovies) movies.trending(currentAccount, false, (body, error) -> collect(body, false, error));
     }
 
     private void discover(Genre genre) {
-        items.clear();
-        adapter.notifyDataSetChanged();
-        status.setText(TjLocale.getString(R.string.TjMediaLoading));
-        status.setVisibility(View.VISIBLE);
-        pending = (genre.seriesId > 0 ? 1 : 0) + (genre.movieId > 0 ? 1 : 0);
-        if (genre.seriesId > 0) series.discover(currentAccount, true, genre.seriesId, (body, error) -> collect(body, true, error));
-        if (genre.movieId > 0) movies.discover(currentAccount, false, genre.movieId, (body, error) -> collect(body, false, error));
+        boolean askSeries = wantsSeries() && genre.seriesId > 0;
+        boolean askMovies = wantsMovies() && genre.movieId > 0;
+        begin(askSeries, askMovies);
+        if (askSeries) series.discover(currentAccount, true, genre.seriesId, (body, error) -> collect(body, true, error));
+        if (askMovies) movies.discover(currentAccount, false, genre.movieId, (body, error) -> collect(body, false, error));
     }
 
     private void reload() {
@@ -472,13 +550,11 @@ public class TjWatchActivity extends BaseFragment {
         // the catalogue is asked about; the numbers are carried into the title screen.
         String name = TjMediaTitle.parse("", typed).title;
         if (name == null || name.trim().isEmpty()) name = typed;
-        items.clear();
-        adapter.notifyDataSetChanged();
-        status.setText(TjLocale.getString(R.string.TjMediaLoading));
-        status.setVisibility(View.VISIBLE);
-        pending = 2;
-        series.search(currentAccount, name, true, (body, error) -> collect(body, true, error));
-        movies.search(currentAccount, name, false, (body, error) -> collect(body, false, error));
+        boolean askSeries = wantsSeries(), askMovies = wantsMovies();
+        begin(askSeries, askMovies);
+        final String asked = name;
+        if (askSeries) series.search(currentAccount, asked, true, (body, error) -> collect(body, true, error));
+        if (askMovies) movies.search(currentAccount, asked, false, (body, error) -> collect(body, false, error));
     }
 
     private void collect(JSONObject body, boolean isSeries, int error) {
@@ -491,9 +567,10 @@ public class TjWatchActivity extends BaseFragment {
                 if (item.id > 0 && !item.name.isEmpty()) items.add(item);
             }
         }
-        if (--pending > 0) return;
-        // Best known first, so the thing being looked for is rarely below the fold.
-        items.sort((a, b) -> Double.compare(b.rating, a.rating));
+        if (pending > 0 && --pending > 0) return;
+        // What people are actually watching first. Sorting by score put an obscure title with four
+        // votes above everything anyone came here for.
+        items.sort((a, b) -> Double.compare(b.popularity, a.popularity));
         adapter.notifyDataSetChanged();
         if (!items.isEmpty()) {
             status.setVisibility(View.GONE);

@@ -25,6 +25,11 @@ jobs:
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          # The action installs "tools platform-tools" by default, and Google has withdrawn the
+          # obsolete "tools" package - sdkmanager now fails the whole job on it. platform-tools
+          # is the half that is still real, and adb comes from it.
+          packages: 'platform-tools'
 
       - name: Install NDK and CMake
         run: |

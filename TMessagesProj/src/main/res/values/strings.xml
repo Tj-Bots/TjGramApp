@@ -11511,6 +11511,7 @@
     <string name="TjWatchTitles">Titles</string>
     <string name="TjWatchContinue">Carry on watching</string>
     <string name="TjWatchForget">Remove</string>
+    <string name="TjWatchAllGenres">Every genre</string>
     <string name="TjWatchHistory">Watch history</string>
     <string name="TjWatchHistoryEmpty">Nothing watched from here yet. Whatever you play keeps its place, and comes back on this list.</string>
     <string name="TjWatchHistoryInfo">Kept on this device only, and only for the account that watched. Removing a row forgets where it stopped - the file itself stays in its chat.</string>

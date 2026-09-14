@@ -452,6 +452,7 @@ public class TjLocale {
         m.put("TjWatchTitles", "כותרים");
         m.put("TjWatchContinue", "המשך צפייה");
         m.put("TjWatchForget", "הסרה");
+        m.put("TjWatchAllGenres", "כל הז׳אנרים");
         m.put("TjWatchHistory", "היסטוריית צפייה");
         m.put("TjWatchHistoryEmpty", "עדיין לא צפית בכלום מכאן. כל מה שתפעיל ישמור את המקום שלו ויחזור לרשימה הזו.");
         m.put("TjWatchHistoryInfo", "נשמר במכשיר הזה בלבד, ורק לחשבון שצפה. הסרת שורה שוכחת את המקום שנעצר בו - הקובץ עצמו נשאר בצ׳אט שלו.");
