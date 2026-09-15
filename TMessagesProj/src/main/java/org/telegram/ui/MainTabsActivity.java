@@ -97,15 +97,37 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
     private static final int POSITION_MEDIA = 4;
     private boolean mediaTabVisible = org.telegram.messenger.tj.TjConfig.showMediaTab();
 
+    // Tab order along the bar. Watch sits where it was asked for, between contacts and settings.
     private static final int INDEX_CHATS = 0;
     private static final int INDEX_CONTACTS = 1;
-    private static final int INDEX_SETTINGS = 2;
-    private static final int INDEX_CALLS = 3;
-    private static final int INDEX_PROFILE = 4;
-    private static final int INDEX_MEDIA = 5;
+    private static final int INDEX_WATCH = 2;
+    private static final int INDEX_SETTINGS = 3;
+    private static final int INDEX_CALLS = 4;
+    private static final int INDEX_PROFILE = 5;
+    private static final int INDEX_MEDIA = 6;
+    private boolean watchTabVisible = org.telegram.messenger.tj.TjConfig.showWatchTab();
 
+    /**
+     * Which page of the pager a tab stands for. Watch has none: it opens as its own screen, the
+     * way it does from the side menu, because it browses by dragging sideways and a page that
+     * slides sideways would be fighting it the whole time.
+     */
     private static int indexToPosition(int index) {
-        return index > 2 ? index - 1 : index;
+        switch (index) {
+            case INDEX_CHATS: return POSITION_CHATS;
+            case INDEX_CONTACTS: return POSITION_CONTACTS;
+            case INDEX_SETTINGS:
+            case INDEX_CALLS: return POSITION_CALLS_OR_SETTINGS;
+            case INDEX_PROFILE: return POSITION_PROFILE;
+            case INDEX_MEDIA: return POSITION_MEDIA;
+            default: return -1;
+        }
+    }
+
+    /** The bar grows by about one tab's worth for each of the two optional tabs. */
+    private int tabsMaxWidth() {
+        return dp(328 + (mediaTabVisible ? 82 : 0) + (watchTabVisible ? 82 : 0)
+                + DialogsActivity.MAIN_TABS_MARGIN * 2);
     }
 
     private static final int ANIMATOR_ID_TABS_VISIBLE = 0;
@@ -274,6 +296,7 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
     @Override
     public void onResume() {
         checkUi_mediaTabVisible();
+        checkUi_watchTabVisible();
         super.onResume();
         blur3_updateColors();
         checkContactsTabBadge();
@@ -312,9 +335,9 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
         tabsView = new MainTabsLayout(context, resourceProvider);
         tabsView.setClipChildren(false);
         tabsView.setPadding(dp(DialogsActivity.MAIN_TABS_MARGIN + 4), dp(DialogsActivity.MAIN_TABS_MARGIN + 4), dp(DialogsActivity.MAIN_TABS_MARGIN + 4), dp(DialogsActivity.MAIN_TABS_MARGIN + 4));
-        tabsView.setMaxWidth(dp(328 + DialogsActivity.MAIN_TABS_MARGIN * 2));
+        tabsView.setMaxWidth(tabsMaxWidth());
 
-        tabs = new GlassTabView[6];
+        tabs = new GlassTabView[7];
         tabs[INDEX_CHATS] = GlassTabView.createMainTab(context, resourceProvider, GlassTabView.TabAnimation.CHATS, R.string.MainTabsChats);
         tabs[INDEX_CONTACTS] = GlassTabView.createMainTab(context, resourceProvider, GlassTabView.TabAnimation.CONTACTS, R.string.MainTabsContacts);
         tabs[INDEX_SETTINGS] = GlassTabView.createMainTab(context, resourceProvider, GlassTabView.TabAnimation.SETTINGS, R.string.Settings);
@@ -322,6 +345,8 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
         tabs[INDEX_PROFILE] = GlassTabView.createAvatar(context, resourceProvider, currentAccount, R.string.MainTabsProfile);
         tabs[INDEX_MEDIA] = GlassTabView.createMainTab(context, resourceProvider, GlassTabView.TabAnimation.GALLERY, R.string.TjMediaTab);
         tabs[INDEX_MEDIA].setText(org.telegram.messenger.TjLocale.getString(R.string.TjMediaTab));
+        tabs[INDEX_WATCH] = GlassTabView.createMainTab(context, resourceProvider, GlassTabView.TabAnimation.MEDIA_WATCH, R.string.TjWatchTitle);
+        tabs[INDEX_WATCH].setText(org.telegram.messenger.TjLocale.getString(R.string.TjWatchTitle));
         tabs[INDEX_CHATS].setOnLongClickListener(this::openFoldersSelector);
         tabs[INDEX_CONTACTS].setOnLongClickListener(this::openContactsSelector);
         tabs[INDEX_CALLS].setOnLongClickListener(this::openCallsSelector);
@@ -338,6 +363,10 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
             final int position = indexToPosition(index);
             tabs[index].setOnClickListener(v -> {
                 if (viewPager.isManualScrolling() || viewPager.isTouch()) {
+                    return;
+                }
+                if (position < 0) {
+                    presentFragment(new TjWatchActivity());
                     return;
                 }
 
@@ -358,7 +387,8 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
         }
         checkUi_callTabVisible(getUserConfig().showCallsTab, false);
         tabsView.setViewVisible(tabs[INDEX_MEDIA], mediaTabVisible, false);
-        tabsView.setMaxWidth(dp((mediaTabVisible ? 410 : 328) + DialogsActivity.MAIN_TABS_MARGIN * 2));
+        tabsView.setViewVisible(tabs[INDEX_WATCH], watchTabVisible, false);
+        tabsView.setMaxWidth(tabsMaxWidth());
 
         selectTab(viewPager.getCurrentPosition(), false);
 
@@ -962,6 +992,7 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
     public void didReceivedNotification(int id, int account, Object... args) {
         if (id == NotificationCenter.tjMediaNavigationChanged) {
             checkUi_mediaTabVisible();
+        checkUi_watchTabVisible();
             return;
         }
         if (id == NotificationCenter.notificationsCountUpdated || id == NotificationCenter.updateInterfaces) {
@@ -1110,9 +1141,19 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
         if (!enabled) dropFragmentAtPosition(POSITION_MEDIA);
         if (tabsView != null) {
             tabsView.setViewVisible(tabs[INDEX_MEDIA], enabled, false);
-            tabsView.setMaxWidth(dp((enabled ? 410 : 328) + DialogsActivity.MAIN_TABS_MARGIN * 2));
+            tabsView.setMaxWidth(tabsMaxWidth());
             viewPager.rebuild(false);
             selectTab(viewPager.getCurrentPosition(), false);
+        }
+    }
+
+    private void checkUi_watchTabVisible() {
+        boolean enabled = org.telegram.messenger.tj.TjConfig.showWatchTab();
+        if (watchTabVisible == enabled) return;
+        watchTabVisible = enabled;
+        if (tabsView != null && tabs != null && tabs[INDEX_WATCH] != null) {
+            tabsView.setViewVisible(tabs[INDEX_WATCH], enabled, false);
+            tabsView.setMaxWidth(tabsMaxWidth());
         }
     }
 

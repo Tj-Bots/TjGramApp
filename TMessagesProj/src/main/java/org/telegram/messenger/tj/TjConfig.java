@@ -293,6 +293,7 @@ public final class TjConfig {
     /** Whether the side menu offers the watching screen as well as the media centre. */
     public static boolean showWatchInDrawer() { return get("show_watch_in_drawer", true); }
     public static boolean showMediaTab() { return get("show_media_tab", false); }
+    public static boolean showWatchTab() { return get("show_watch_tab", true); }
     public static boolean showKillInDrawer() { return get("show_kill_in_drawer", false); }
 
     public static String deletedMark() { return prefs().getString("deleted_mark", "🗑️"); }

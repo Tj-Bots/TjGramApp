@@ -322,6 +322,7 @@ public class TjSettingsActivity extends BaseFragment {
     private static final int ID_PROTOCOL_ERRORS = 29;
     private static final int ID_EXACT_MEMBER_COUNT = 30;
     private static final int ID_WATCH_IN_DRAWER = 31;
+    private static final int ID_WATCH_TAB = 32;
 
     private static class Item {
         final int viewType;
@@ -363,6 +364,7 @@ public class TjSettingsActivity extends BaseFragment {
             case ID_PROTOCOL_ERRORS: return TjConfig.showProtocolErrors();
             case ID_EXACT_MEMBER_COUNT: return TjConfig.exactMemberCount();
             case ID_WATCH_IN_DRAWER: return TjConfig.showWatchInDrawer();
+            case ID_WATCH_TAB: return TjConfig.showWatchTab();
         }
         return false;
     }
@@ -396,6 +398,7 @@ public class TjSettingsActivity extends BaseFragment {
             case ID_PROTOCOL_ERRORS: key = "show_protocol_errors"; break;
             case ID_EXACT_MEMBER_COUNT: key = "exact_member_count"; break;
             case ID_WATCH_IN_DRAWER: key = "show_watch_in_drawer"; break;
+            case ID_WATCH_TAB: key = "show_watch_tab"; break;
         }
         if (key != null) {
             getPrefs().edit().putBoolean(key, value).apply();
@@ -517,6 +520,7 @@ public class TjSettingsActivity extends BaseFragment {
         items.add(new Item(VIEW_TYPE_CHECK, ID_ONLINE_INDICATOR, TjLocale.getString(R.string.TjOnlineIndicator)));
         items.add(new Item(VIEW_TYPE_CHECK, ID_EXACT_MEMBER_COUNT, TjLocale.getString(R.string.TjExactMemberCount)));
         items.add(new Item(VIEW_TYPE_CHECK, ID_WATCH_IN_DRAWER, TjLocale.getString(R.string.TjWatchInDrawer)));
+        items.add(new Item(VIEW_TYPE_CHECK, ID_WATCH_TAB, TjLocale.getString(R.string.TjWatchInTabs)));
         items.add(new Item(VIEW_TYPE_SHADOW, 0, TjLocale.getString(R.string.TjOnlineIndicatorInfo)));
         items.add(new Item(VIEW_TYPE_HEADER, 0, TjLocale.getString(R.string.TjGhostMode)));
         items.add(new Item(VIEW_TYPE_SETTING, ID_GHOST_SETTINGS, TjLocale.getString(R.string.TjGhostSettings)));
