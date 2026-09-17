@@ -31,6 +31,7 @@ import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.Cells.TextCheckCell;
 import org.telegram.ui.Cells.TextInfoPrivacyCell;
 import org.telegram.ui.Components.LayoutHelper;
+import org.telegram.ui.Components.BulletinFactory;
 import org.telegram.ui.Components.RecyclerListView;
 import org.telegram.ui.Components.TjSettingsStyle;
 
@@ -277,10 +278,18 @@ public class TjSettingsActivity extends BaseFragment {
 
     private RecyclerListView listView;
     private boolean focusPlayerSettings;
+    private String focusItem;
 
     public static TjSettingsActivity forPlayerSettings() {
         TjSettingsActivity fragment = new TjSettingsActivity();
         fragment.focusPlayerSettings = true;
+        return fragment;
+    }
+
+    /** Opens on the named switch, scrolled to it and marked. Nothing is changed for the reader. */
+    public static TjSettingsActivity forItem(String key) {
+        TjSettingsActivity fragment = new TjSettingsActivity();
+        fragment.focusItem = key;
         return fragment;
     }
     private ListAdapter adapter;
@@ -371,7 +380,11 @@ public class TjSettingsActivity extends BaseFragment {
         return false;
     }
 
-    private static void setChecked(int id, boolean value) {
+    /**
+     * The stored name of a switch, which is also the name it is known by in a link. Keeping the
+     * two the same is what lets a link point at a setting without a second list to keep in step.
+     */
+    private static String keyFor(int id) {
         String key = null;
         switch (id) {
             case ID_HIDE_PHONE: key = KEY_HIDE_PHONE_NUMBER; break;
@@ -403,6 +416,11 @@ public class TjSettingsActivity extends BaseFragment {
             case ID_WATCH_IN_DRAWER: key = "show_watch_in_drawer"; break;
             case ID_WATCH_TAB: key = "show_watch_tab"; break;
         }
+        return key;
+    }
+
+    private static void setChecked(int id, boolean value) {
+        String key = keyFor(id);
         if (key != null) {
             getPrefs().edit().putBoolean(key, value).apply();
         }
@@ -499,15 +517,50 @@ public class TjSettingsActivity extends BaseFragment {
             }
         });
 
+        listView.setOnItemLongClickListener((view, position) -> {
+            if (position < 0 || position >= items.size()) return false;
+            return copyLinkTo(items.get(position));
+        });
+
         if (focusPlayerSettings) {
-            for (int i = 0; i < items.size(); i++) {
-                if (items.get(i).id == ID_SUBTITLE_AUTO) {
-                    ((LinearLayoutManager) listView.getLayoutManager()).scrollToPositionWithOffset(Math.max(0, i - 1), 0);
-                    break;
-                }
-            }
+            scrollTo(indexOf(ID_SUBTITLE_AUTO));
+        } else if (focusItem != null) {
+            int index = indexOfKey(focusItem);
+            scrollTo(index);
+            // Marked rather than changed: the link says which switch, the person still decides.
+            if (index >= 0) listView.highlightRow(() -> index);
         }
         return fragmentView;
+    }
+
+    private int indexOf(int id) {
+        for (int i = 0; i < items.size(); i++) if (items.get(i).id == id) return i;
+        return -1;
+    }
+
+    private int indexOfKey(String key) {
+        for (int i = 0; i < items.size(); i++) {
+            if (key.equals(keyFor(items.get(i).id))) return i;
+        }
+        return -1;
+    }
+
+    private void scrollTo(int index) {
+        if (index < 0 || listView == null) return;
+        ((LinearLayoutManager) listView.getLayoutManager()).scrollToPositionWithOffset(Math.max(0, index - 1), 0);
+    }
+
+    /**
+     * Puts a link to this switch on the clipboard, so one can be posted and everyone who taps it
+     * lands on the same row. Rows that are not switches have nothing to point at.
+     */
+    private boolean copyLinkTo(Item item) {
+        String key = keyFor(item.id);
+        if (key == null || item.viewType != VIEW_TYPE_CHECK) return false;
+        AndroidUtilities.addToClipboard(org.telegram.messenger.tj.TjSettingsLinks.build(
+                org.telegram.messenger.tj.TjSettingsLinks.Section.GENERAL, key));
+        BulletinFactory.of(this).createCopyLinkBulletin().show();
+        return true;
     }
 
     private void updateItems() {

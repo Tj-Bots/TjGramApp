@@ -7,9 +7,12 @@ import org.telegram.ui.ActionBar.BaseFragment;
 final class TjSettingsLinkNavigator {
     private TjSettingsLinkNavigator() { }
 
-    static BaseFragment create(TjSettingsLinks.Section section, int account) {
+    static BaseFragment create(TjSettingsLinks.Section section, String item, int account) {
         BaseFragment fragment;
         switch (section) {
+            case GENERAL:
+                fragment = TjSettingsActivity.forItem(item);
+                break;
             case GHOST:
                 fragment = new TjPrivacySettingsActivity(TjPrivacySettingsActivity.PAGE_GHOST);
                 break;
@@ -32,7 +35,7 @@ final class TjSettingsLinkNavigator {
                 fragment = TjMediaCenterActivity.forSettingsLink(true);
                 break;
             case PLAYER:
-                fragment = TjSettingsActivity.forPlayerSettings();
+                fragment = item != null ? TjSettingsActivity.forItem(item) : TjSettingsActivity.forPlayerSettings();
                 break;
             default:
                 throw new IllegalArgumentException("Unknown TjGram settings section");

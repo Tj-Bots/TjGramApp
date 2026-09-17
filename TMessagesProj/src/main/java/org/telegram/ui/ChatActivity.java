@@ -47103,14 +47103,41 @@ public class ChatActivity extends BaseFragment implements
         }
     }
 
+    /**
+     * True when this message has anything on disk worth clearing.
+     *
+     * It used to ask only whether a download was in flight, so the row disappeared the moment the
+     * download finished or was stopped - which is exactly when there is most to clear. Now a
+     * finished file counts, and so does the part of one that a stopped download left behind.
+     */
     private boolean hasVideoCache(MessageObject message) {
-        if (message == null || !message.isVideo() || message.getDocument() == null) {
+        if (message == null || message.getDocument() == null) {
             return false;
         }
         FileLoader loader = FileLoader.getInstance(currentAccount);
-        String fileName = FileLoader.getAttachFileName(message.getDocument());
-        Float progress = ImageLoader.getInstance().getFileProgress(fileName);
-        return loader.isLoadingFile(fileName) || progress != null && progress > 0f && progress < 1f;
+        if (loader.isLoadingFile(FileLoader.getAttachFileName(message.getDocument()))) {
+            return true;
+        }
+        return cachedFile(message) != null || cachedProgress(message) > 0f;
+    }
+
+    /** The finished file for this message, or null when it is not on disk. */
+    private File cachedFile(MessageObject message) {
+        try {
+            File file = FileLoader.getInstance(currentAccount).getPathToMessage(message.messageOwner);
+            if (file != null && file.isFile() && file.length() > 0) {
+                return file;
+            }
+        } catch (Exception ignored) {
+        }
+        return null;
+    }
+
+    /** How far a download of this message got, while the loader still remembers. */
+    private float cachedProgress(MessageObject message) {
+        Float progress = ImageLoader.getInstance().getFileProgress(
+                FileLoader.getAttachFileName(message.getDocument()));
+        return progress == null ? 0f : Math.max(0f, Math.min(1f, progress));
     }
 
     private void clearSelectedVideoFromCache() {
@@ -47119,20 +47146,36 @@ public class ChatActivity extends BaseFragment implements
             return;
         }
         FileLoader loader = FileLoader.getInstance(currentAccount);
-        String fileName = FileLoader.getAttachFileName(message.getDocument());
-        Float progress = ImageLoader.getInstance().getFileProgress(fileName);
-        final long clearedBytes = progress == null ? 0L
-                : (long) (message.getDocument().size * Math.max(0f, Math.min(1f, progress)));
-        loader.cancelLoadFile(message.getDocument(), true, cancelled -> {
-            if (!cancelled) return;
-            BulletinFactory.of(this).createSimpleBulletin(
-                    R.raw.ic_delete,
-                    LocaleController.formatString(R.string.CacheWasCleared,
-                            AndroidUtilities.formatFileSize(clearedBytes)))
-                    .show();
-            if (chatAdapter != null) {
-                chatAdapter.updateRowWithMessageObject(message, false, false);
+        File finished = cachedFile(message);
+        long bytes = finished != null ? finished.length()
+                : (long) (message.getDocument().size * cachedProgress(message));
+        final long clearedBytes = bytes;
+        // Cancelling a load is what removes the part already written, and there is no load to
+        // cancel once a file has finished - so one is started and cancelled in the same breath,
+        // which is what Telegram itself does to delete a completed download. The finished file is
+        // then removed by name, off the main thread.
+        if (!loader.isLoadingFile(FileLoader.getAttachFileName(message.getDocument()))) {
+            loader.loadFile(message.getDocument(), message, FileLoader.PRIORITY_LOW, 0);
+        }
+        loader.cancelLoadFile(message.getDocument(), true);
+        Utilities.globalQueue.postRunnable(() -> {
+            try {
+                File file = FileLoader.getInstance(currentAccount).getPathToMessage(message.messageOwner);
+                if (file != null && file.isFile()) file.delete();
+            } catch (Exception e) {
+                FileLog.e(e);
             }
+            AndroidUtilities.runOnUIThread(() -> {
+                if (getParentActivity() == null) return;
+                BulletinFactory.of(this).createSimpleBulletin(R.raw.ic_delete, clearedBytes > 0
+                        ? LocaleController.formatString(R.string.CacheWasCleared,
+                                AndroidUtilities.formatFileSize(clearedBytes))
+                        : TjLocale.getString(R.string.TjCacheCleared))
+                        .show();
+                if (chatAdapter != null) {
+                    chatAdapter.updateRowWithMessageObject(message, false, false);
+                }
+            });
         });
     }
 

@@ -1587,6 +1587,7 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
         int push_msg_id = 0;
         int open_settings = 0;
         org.telegram.messenger.tj.TjSettingsLinks.Section tjSettingsSection = null;
+        String tjSettingsItem = null;
         int open_widget_edit = -1;
         int open_widget_edit_type = -1;
         int open_new_dialog = 0;
@@ -2312,6 +2313,7 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
                                             org.telegram.messenger.tj.TjSettingsLinks.parse(url);
                                     if (tjSection != null) {
                                         tjSettingsSection = tjSection;
+                                        tjSettingsItem = org.telegram.messenger.tj.TjSettingsLinks.item(url);
                                     } else if (url.startsWith("tg:premium_offer") || url.startsWith("tg://premium_offer")) {
                                         String finalUrl = url;
                                         AndroidUtilities.runOnUIThread(() -> {
@@ -3148,7 +3150,7 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
                     didSelectDialogs(null, dids, null, false, true, 0, 0, null);
                 }
             } else if (tjSettingsSection != null) {
-                BaseFragment fragment = TjSettingsLinkNavigator.create(tjSettingsSection, currentAccount);
+                BaseFragment fragment = TjSettingsLinkNavigator.create(tjSettingsSection, tjSettingsItem, currentAccount);
                 AndroidUtilities.runOnUIThread(() -> presentFragment(fragment, false, false));
                 if (AndroidUtilities.isTablet()) {
                     actionBarLayout.rebuildFragments(INavigationLayout.REBUILD_FLAG_REBUILD_LAST);
