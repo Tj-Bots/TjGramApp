@@ -267,6 +267,12 @@ public final class TjConfig {
     public static boolean crashReportsEnabled() { return get("crash_reports_enabled", false); }
     /** Plays video files straight from the network instead of waiting for the whole download. */
     public static boolean directFileStreaming() { return get("direct_file_streaming", true); }
+    /**
+     * Ask for files in bigger pieces and more of them at once. Off by default: it is the same
+     * parameters Telegram turns on for itself through a server flag, and it is a switch rather
+     * than a fixed choice so it can be turned back the moment it stops helping.
+     */
+    public static boolean fastDownload() { return get("fast_download", false); }
     /** Draws a presence dot next to people in the chat list and in member lists. */
     public static boolean showOnlineIndicator() { return get("show_online_indicator", true); }
     /** Keeps the app connected while it is off screen instead of relying on push alone. */

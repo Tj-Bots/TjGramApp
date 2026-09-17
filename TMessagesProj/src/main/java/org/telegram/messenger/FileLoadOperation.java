@@ -286,7 +286,12 @@ public class FileLoadOperation {
     }
 
     private void updateParams() {
-        if ((preloadPrefixSize > 0 || MessagesController.getInstance(currentAccount).getfileExperimentalParams) && !forceSmallChunk) {
+        // TJ: the faster shape is Telegram's own - 512 KB pieces, eight in the air instead of four -
+        // but it is reached through a server flag that is off for most people. The switch is the
+        // same door. A server that will not serve a piece this size answers LIMIT_INVALID, and the
+        // operation already falls back to small pieces on its own when that happens.
+        if ((preloadPrefixSize > 0 || MessagesController.getInstance(currentAccount).getfileExperimentalParams
+                || org.telegram.messenger.tj.TjConfig.fastDownload()) && !forceSmallChunk) {
             downloadChunkSizeBig = 1024 * 512;
             maxDownloadRequests = 8;
             maxDownloadRequestsBig = 8;

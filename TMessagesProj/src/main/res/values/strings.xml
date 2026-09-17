@@ -11500,6 +11500,8 @@
     <string name="TjWatchAll">All</string>
     <string name="TjWatchInDrawer">Watch in the side menu</string>
     <string name="TjWatchInTabs">Watch in the bottom bar</string>
+    <string name="TjFastDownload">Faster downloads</string>
+    <string name="TjFastDownloadInfo">Asks for files in 512 KB pieces with eight in the air instead of 128 KB with four. These are Telegram\'s own faster settings, which it normally enables for itself and only for some people. Speed is still capped by the server, so the gain varies; turn it off if downloads get slower or stall.</string>
     <string name="TjWatchTitle">Watch</string>
     <string name="TjWatchNeedsKey">Browsing films and series needs a TMDB key of your own. It is free, it stays on this device, and nothing about your account is ever sent with it.</string>
     <string name="TjWatchAddKey">Add a key</string>
