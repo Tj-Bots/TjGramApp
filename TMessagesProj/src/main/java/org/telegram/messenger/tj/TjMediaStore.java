@@ -81,6 +81,19 @@ public final class TjMediaStore extends SQLiteOpenHelper implements Notification
             FileLog.e("Tj media search backfill failed", e);
         }
     }
+    /**
+     * Which chats this owner has anything indexed from, so an edit in a chat the library has never
+     * heard of costs a hash lookup instead of a serialized message.
+     *
+     * Telegram fires replaceMessagesObjects constantly and in large batches when the app catches
+     * up after being away, and it fires on the main thread. Every media message in those batches
+     * used to be serialized there before the database could say the row does not exist - work that
+     * is wasted for everyone who has not scanned that chat, and it is wasted in front of the first
+     * frame after the app is reopened.
+     */
+    private final java.util.concurrent.ConcurrentHashMap<Long, java.util.Set<Long>> indexedDialogs = new java.util.concurrent.ConcurrentHashMap<>();
+    private final java.util.Set<Long> indexedDialogsLoading = java.util.concurrent.ConcurrentHashMap.newKeySet();
+
     private final java.util.concurrent.atomic.AtomicLongArray revisions = new java.util.concurrent.atomic.AtomicLongArray(UserConfig.MAX_ACCOUNT_COUNT);
     public long revision(int account) { return revisions.get(account); }
     private final java.util.concurrent.CopyOnWriteArrayList<Runnable> listeners = new java.util.concurrent.CopyOnWriteArrayList<>();
@@ -201,7 +214,12 @@ public final class TjMediaStore extends SQLiteOpenHelper implements Notification
             // it stands. Telegram fires this constantly (an edit, a reaction, a view count, a
             // download finishing), and bumping here invalidated the library's paging after a
             // second of use and made every tap on an item fail as "the item changed".
-            for (Object object : (java.util.List<?>) args[1]) if (object instanceof MessageObject) index((MessageObject) object, true);
+            for (Object object : (java.util.List<?>) args[1]) {
+                if (!(object instanceof MessageObject)) continue;
+                MessageObject message = (MessageObject) object;
+                if (!mayHaveIndexed(owner, message.getDialogId())) continue;
+                index(message, true);
+            }
         } else if (id == NotificationCenter.messagesDeleted && args.length > 2 && !Boolean.TRUE.equals(args[2])) {
             revisions.incrementAndGet(account);
             long channel = ((Number) args[1]).longValue();
@@ -238,7 +256,9 @@ public final class TjMediaStore extends SQLiteOpenHelper implements Notification
         return instance;
     }
 
-    private static void clearOwner(SQLiteDatabase db, long owner) {
+    private void clearOwner(SQLiteDatabase db, long owner) {
+        // Whatever was cached about this owner's indexed chats is gone with the rows.
+        indexedDialogs.remove(owner);
         String[] args = {Long.toString(owner)};
         db.beginTransaction();
         try {
@@ -618,6 +638,27 @@ public final class TjMediaStore extends SQLiteOpenHelper implements Notification
     }
 
     /** All callers use the store queue; the page caller also owns a transaction. */
+    /**
+     * False only when this owner's indexed chats are known and this is not one of them. Until they
+     * are known it answers yes, so behaviour is unchanged while the first answer is on its way.
+     */
+    private boolean mayHaveIndexed(long owner, long dialog) {
+        java.util.Set<Long> known = indexedDialogs.get(owner);
+        if (known != null) return known.contains(dialog);
+        if (indexedDialogsLoading.add(owner)) {
+            queue.postRunnable(() -> {
+                java.util.Set<Long> dialogs = java.util.concurrent.ConcurrentHashMap.newKeySet();
+                try (Cursor cursor = getReadableDatabase().query(true, "media", new String[]{"dialog"},
+                        "owner=?", new String[]{Long.toString(owner)}, null, null, null, null)) {
+                    while (cursor.moveToNext()) dialogs.add(cursor.getLong(0));
+                    indexedDialogs.put(owner, dialogs);
+                } catch (Exception e) { FileLog.e("Tj media indexed chats read failed", e); }
+                finally { indexedDialogsLoading.remove(owner); }
+            });
+        }
+        return true;
+    }
+
     private boolean writeIndex(SQLiteDatabase db, ContentValues values, boolean existingOnly) {
         String[] args = identity(values.getAsLong("owner"), values.getAsLong("dialog"), values.getAsInteger("mid"));
         try (Cursor cursor = db.query("media", new String[]{"document"}, "owner=? AND dialog=? AND mid=?", args, null, null, null)) {
@@ -639,6 +680,8 @@ public final class TjMediaStore extends SQLiteOpenHelper implements Notification
         }
         if (db.update("media", values, "owner=? AND dialog=? AND mid=?", args) == 0)
             db.insertOrThrow("media", null, values);
+        java.util.Set<Long> known = indexedDialogs.get(values.getAsLong("owner"));
+        if (known != null) known.add(values.getAsLong("dialog"));
         if (localCatalogAvailable) TjMediaLocalIndex.index(db, values);
         return true;
     }

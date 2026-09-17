@@ -16,7 +16,7 @@ import org.telegram.messenger.FileLoader;
 import org.telegram.messenger.MessageObject;
 import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.UserConfig;
-import org.telegram.messenger.Utilities;
+import org.telegram.messenger.DispatchQueue;
 import org.telegram.messenger.secretmedia.EncryptedFileInputStream;
 import org.telegram.tgnet.NativeByteBuffer;
 import org.telegram.tgnet.TLRPC;
@@ -40,6 +40,22 @@ public final class TjMessageArchive extends SQLiteOpenHelper {
     private static final int DATABASE_VERSION = 2;
     private static volatile TjMessageArchive instance;
     private final Set<String> revisionIndex = ConcurrentHashMap.newKeySet();
+
+    /**
+     * Archiving runs on a queue of its own rather than on the shared global one.
+     *
+     * Coming back after a few hours means a difference full of edits and deletions, and every one
+     * of them lands here. On the queue Telegram uses for everything else that was enough to hold
+     * up work the first frame is waiting for.
+     */
+    private static final DispatchQueue queue = new DispatchQueue("tj-archive");
+    /**
+     * How often the quota is measured. It costs a sum over every stored snapshot plus a listing of
+     * the attachment folder, which is not something to do once per archived message - a backlog of
+     * a few hundred edits used to mean a few hundred full scans back to back.
+     */
+    private static final long PRUNE_INTERVAL_MS = 60_000L;
+    private long lastPruneAt;
 
     public interface Callback<T> {
         void onResult(T result);
@@ -77,7 +93,7 @@ public final class TjMessageArchive extends SQLiteOpenHelper {
 
     private TjMessageArchive(Context context) {
         super(context, DATABASE_NAME, null, DATABASE_VERSION);
-        Utilities.globalQueue.postRunnable(this::loadRevisionIndex);
+        queue.postRunnable(this::loadRevisionIndex);
     }
 
     public static TjMessageArchive getInstance() {
@@ -250,7 +266,7 @@ public final class TjMessageArchive extends SQLiteOpenHelper {
         snapshot.editDate = message.edit_date;
         snapshot.data = data;
         String attachPath = message.attachPath;
-        Utilities.globalQueue.postRunnable(() -> {
+        queue.postRunnable(() -> {
             snapshot.fingerprint = fingerprint(snapshot.data);
             TLRPC.Message archivedMessage = deserialize(snapshot.data);
             if (archivedMessage != null) {
@@ -261,7 +277,7 @@ public final class TjMessageArchive extends SQLiteOpenHelper {
             boolean success = !requireMedia || !TextUtils.isEmpty(snapshot.mediaPath);
             if (success) {
                 success = insert(snapshot);
-                pruneToQuota(snapshot.ownerUserId);
+                pruneToQuotaIfDue(snapshot.ownerUserId);
                 if (requireMedia) {
                     success = success && hasDurableMedia(snapshot);
                 }
@@ -356,7 +372,7 @@ public final class TjMessageArchive extends SQLiteOpenHelper {
 
     public void getRevisions(int accountId, long dialogId, int messageId,
                              Callback<ArrayList<Snapshot>> callback) {
-        Utilities.globalQueue.postRunnable(() -> {
+        queue.postRunnable(() -> {
             ArrayList<Snapshot> result = new ArrayList<>();
             try (Cursor cursor = getReadableDatabase().query(
                     "snapshots", null,
@@ -384,7 +400,7 @@ public final class TjMessageArchive extends SQLiteOpenHelper {
 
     private void query(int accountId, long dialogId, int topicId, int minId, int maxId,
                        int kind, int limit, Callback<ArrayList<Snapshot>> callback) {
-        Utilities.globalQueue.postRunnable(() -> {
+        queue.postRunnable(() -> {
             ArrayList<Snapshot> result = new ArrayList<>();
             long ownerUserId = UserConfig.getInstance(accountId).getClientUserId();
             String selection = "owner_user_id=? AND account_id=? AND dialog_id=? AND topic_id=? AND kind=? AND message_id>=? AND message_id<=?";
@@ -423,7 +439,7 @@ public final class TjMessageArchive extends SQLiteOpenHelper {
             AndroidUtilities.runOnUIThread(() -> callback.onResult(null));
             return;
         }
-        Utilities.globalQueue.postRunnable(() -> {
+        queue.postRunnable(() -> {
             String result = null;
             try (Cursor cursor = getReadableDatabase().query("snapshots",
                     new String[]{"media_path"},
@@ -455,7 +471,7 @@ public final class TjMessageArchive extends SQLiteOpenHelper {
             return;
         }
         ArrayList<Integer> ids = new ArrayList<>(messageIds);
-        Utilities.globalQueue.postRunnable(() -> {
+        queue.postRunnable(() -> {
             for (Integer messageId : ids) {
                 if (messageId == null) {
                     continue;
@@ -496,12 +512,12 @@ public final class TjMessageArchive extends SQLiteOpenHelper {
     public void enforceQuota(int accountId) {
         long ownerUserId = UserConfig.getInstance(accountId).getClientUserId();
         if (ownerUserId != 0) {
-            Utilities.globalQueue.postRunnable(() -> pruneToQuota(ownerUserId));
+            queue.postRunnable(() -> pruneToQuota(ownerUserId));
         }
     }
 
     public void clearOwner(long ownerUserId, Callback<Boolean> callback) {
-        Utilities.globalQueue.postRunnable(() -> {
+        queue.postRunnable(() -> {
             boolean success = false;
             try {
                 getWritableDatabase().delete("snapshots", "owner_user_id=?", new String[]{String.valueOf(ownerUserId)});
@@ -681,6 +697,16 @@ public final class TjMessageArchive extends SQLiteOpenHelper {
             FileLog.e("Tj message media copy failed", error);
             return null;
         }
+    }
+
+    /** The quota check, at most once a minute. Overshooting it briefly costs nothing. */
+    private void pruneToQuotaIfDue(long ownerUserId) {
+        long now = android.os.SystemClock.elapsedRealtime();
+        if (lastPruneAt != 0 && now - lastPruneAt < PRUNE_INTERVAL_MS) {
+            return;
+        }
+        lastPruneAt = now;
+        pruneToQuota(ownerUserId);
     }
 
     private void pruneToQuota(long ownerUserId) {

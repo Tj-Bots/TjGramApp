@@ -8,12 +8,12 @@ import android.database.sqlite.SQLiteOpenHelper;
 
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.ApplicationLoader;
+import org.telegram.messenger.DispatchQueue;
 import org.telegram.messenger.FileLog;
 import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.UserConfig;
 import org.telegram.messenger.UserObject;
-import org.telegram.messenger.Utilities;
 import org.telegram.tgnet.ConnectionsManager;
 import org.telegram.tgnet.TLRPC;
 
@@ -34,9 +34,28 @@ public final class TjLastSeenEstimator extends SQLiteOpenHelper {
     private static final int DATABASE_VERSION = 1;
     private static volatile TjLastSeenEstimator instance;
 
+    /**
+     * How long observations are allowed to pile up before they are written, and how often the
+     * interface is told that somebody's time changed.
+     *
+     * Both are what make this survive coming back to a backlog. Every message, read receipt,
+     * typing notice, edit, reaction and status change in that backlog passes through here on the
+     * main thread; writing one row and posting one full interface refresh each was thousands of
+     * database round trips and thousands of redraws queued ahead of the first frame, which is a
+     * frozen app and then "TjGram has stopped".
+     */
+    private static final int FLUSH_DELAY_MS = 2000;
+    private static final int NOTIFY_DELAY_MS = 1000;
+
+    private static final DispatchQueue queue = new DispatchQueue("tj-last-seen");
+
     private final ConcurrentHashMap<String, Integer> lastSeen = new ConcurrentHashMap<>();
+    /** Observed since the last write, as owner:user -> {date, source}. */
+    private final ConcurrentHashMap<String, int[]> unsaved = new ConcurrentHashMap<>();
     private final Set<Long> loadedOwners = ConcurrentHashMap.newKeySet();
     private final Set<Long> loadingOwners = ConcurrentHashMap.newKeySet();
+    private final Set<Integer> notifyScheduled = ConcurrentHashMap.newKeySet();
+    private volatile boolean flushScheduled;
 
     private TjLastSeenEstimator(Context context) {
         super(context, DATABASE_NAME, null, DATABASE_VERSION);
@@ -116,40 +135,77 @@ public final class TjLastSeenEstimator extends SQLiteOpenHelper {
             return;
         }
 
-        AndroidUtilities.runOnUIThread(() -> NotificationCenter.getInstance(account)
-                .postNotificationName(NotificationCenter.updateInterfaces,
-                        MessagesController.UPDATE_MASK_STATUS));
+        unsaved.put(key, new int[]{date, source});
+        scheduleNotify(account);
+        scheduleFlush();
+    }
 
-        final int storedDate = date;
-        Utilities.globalQueue.postRunnable(() -> {
-            try {
-                try (Cursor cursor = getReadableDatabase().query(
-                        "presence", new String[]{"last_seen"},
-                        "owner_user_id=? AND user_id=?",
-                        new String[]{String.valueOf(ownerId), String.valueOf(userId)},
-                        null, null, null, "1")) {
-                    if (cursor.moveToFirst() && cursor.getInt(0) >= storedDate) {
-                        return;
-                    }
+    /** One interface refresh per account per second, however many observations arrive in it. */
+    private void scheduleNotify(int account) {
+        if (!notifyScheduled.add(account)) {
+            return;
+        }
+        AndroidUtilities.runOnUIThread(() -> {
+            notifyScheduled.remove(account);
+            NotificationCenter.getInstance(account).postNotificationName(
+                    NotificationCenter.updateInterfaces, MessagesController.UPDATE_MASK_STATUS);
+        }, NOTIFY_DELAY_MS);
+    }
+
+    private void scheduleFlush() {
+        if (flushScheduled) {
+            return;
+        }
+        flushScheduled = true;
+        queue.postRunnable(this::flush, FLUSH_DELAY_MS);
+    }
+
+    /** Everything observed since the last write, in one transaction. */
+    private void flush() {
+        flushScheduled = false;
+        if (unsaved.isEmpty()) {
+            return;
+        }
+        SQLiteDatabase db;
+        try {
+            db = getWritableDatabase();
+        } catch (Throwable error) {
+            FileLog.e("Tj estimated last seen write failed", error);
+            return;
+        }
+        db.beginTransaction();
+        try {
+            for (String key : new java.util.ArrayList<>(unsaved.keySet())) {
+                int[] observation = unsaved.remove(key);
+                if (observation == null) {
+                    continue;
+                }
+                int separator = key.indexOf(':');
+                if (separator <= 0) {
+                    continue;
                 }
                 ContentValues values = new ContentValues();
-                values.put("owner_user_id", ownerId);
-                values.put("user_id", userId);
-                values.put("last_seen", storedDate);
-                values.put("source", source);
-                getWritableDatabase().insertWithOnConflict(
-                        "presence", null, values, SQLiteDatabase.CONFLICT_REPLACE);
-            } catch (Throwable error) {
-                FileLog.e("Tj estimated last seen write failed", error);
+                values.put("owner_user_id", Long.parseLong(key.substring(0, separator)));
+                values.put("user_id", Long.parseLong(key.substring(separator + 1)));
+                values.put("last_seen", observation[0]);
+                values.put("source", observation[1]);
+                // The row is replaced wholesale, and the value here is the newest one seen, so
+                // there is nothing to read back first.
+                db.insertWithOnConflict("presence", null, values, SQLiteDatabase.CONFLICT_REPLACE);
             }
-        });
+            db.setTransactionSuccessful();
+        } catch (Throwable error) {
+            FileLog.e("Tj estimated last seen write failed", error);
+        } finally {
+            try { db.endTransaction(); } catch (Throwable ignored) { }
+        }
     }
 
     private void ensureLoaded(int account, long ownerId) {
         if (loadedOwners.contains(ownerId) || !loadingOwners.add(ownerId)) {
             return;
         }
-        Utilities.globalQueue.postRunnable(() -> {
+        queue.postRunnable(() -> {
             try (Cursor cursor = getReadableDatabase().query(
                     "presence", new String[]{"user_id", "last_seen"}, "owner_user_id=?",
                     new String[]{String.valueOf(ownerId)}, null, null, null)) {
