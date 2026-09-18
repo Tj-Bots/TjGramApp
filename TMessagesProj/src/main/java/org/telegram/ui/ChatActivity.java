@@ -33915,6 +33915,13 @@ public class ChatActivity extends BaseFragment implements
                 break;
             }
             case OPTION_FORWARD: {
+                if (org.telegram.messenger.tj.TjAccountLogChat.is(dialog_id)) {
+                    forwardingMessageAsCopy = false;
+                    // Nothing in this chat came from anywhere, so there is nowhere to forward it
+                    // from. The button does the thing it was reached for instead.
+                    processSelectedOption(OPTION_COPY);
+                    return;
+                }
                 if (getMessagesController().isFrozen()) {
                     AccountFrozenAlert.show(currentAccount);
                     selectedObject = null;
