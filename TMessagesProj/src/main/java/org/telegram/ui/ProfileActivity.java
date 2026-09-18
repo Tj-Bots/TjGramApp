@@ -10877,7 +10877,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                     }
                 }
                 infoStartRow = rowCount;
-                if (!isBot && (hasPhone || !hasInfo)) {
+                if (!isBot && (hasPhone || !hasInfo) && !org.telegram.messenger.tj.TjAccountLogChat.is(userId)) {
                     phoneRow = rowCount++;
                 }
                 if (userInfo != null && !TextUtils.isEmpty(userInfo.about)) {
@@ -11538,7 +11538,11 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 avatarsViewPager.initIfEmpty(vectorAvatarThumbDrawable, imageLocation, thumbLocation, reload);
             }
             if (avatarBig == null) {
-                if (vectorAvatar != null) {
+                if (org.telegram.messenger.tj.TjAccountLogChat.is(user.id)) {
+                    // The account log has no photo on any server - its face ships with the app.
+                    avatarImage.getImageReceiver().setUseRoundForThumbDrawable(true);
+                    avatarImage.setImageDrawable(getContext().getResources().getDrawable(R.drawable.tj_log_avatar));
+                } else if (vectorAvatar != null) {
                     avatarImage.setImageDrawable(vectorAvatarThumbDrawable);
                 } else if (videoThumbLocation != null && !user.photo.personal) {
                     avatarImage.getImageReceiver().setVideoThumbIsSame(true);
@@ -11579,7 +11583,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 }
             } else if (user.id == UserObject.VERIFY) {
                 newString2 = LocaleController.getString(R.string.VerifyCodesNotifications);
-            } else if (user.id == 333000 || user.id == 777000 || user.id == 42777) {
+            } else if (UserObject.isService(user.id)) {
                 newString2 = LocaleController.getString(R.string.ServiceNotifications);
             } else if (MessagesController.isSupportUser(user)) {
                 newString2 = LocaleController.getString(R.string.SupportStatus);
@@ -12331,7 +12335,9 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                     videoCallItemVisible = userInfo.video_calls_available;
                 }
                 if (isBot || getContactsController().contactsDict.get(userId) == null) {
-                    if (MessagesController.isSupportUser(user)) {
+                    // The account log is nobody's contact and cannot be called, blocked or written
+                    // to, so it gets the same short menu Telegram's own service account gets.
+                    if (MessagesController.isSupportUser(user) || org.telegram.messenger.tj.TjAccountLogChat.is(userId)) {
                         if (userBlocked) {
                             otherItem.addSubItem(block_contact, R.drawable.msg_block, LocaleController.getString(R.string.Unblock));
                         }
@@ -12378,7 +12384,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                     otherItem.addSubItem(edit_contact, R.drawable.msg_edit, LocaleController.getString(R.string.EditContact));
                     otherItem.addSubItem(delete_contact, R.drawable.msg_delete, LocaleController.getString(R.string.DeleteContact));
                 }
-                if (!UserObject.isDeleted(user) && !isBot && currentEncryptedChat == null && !userBlocked && userId != 333000 && userId != 777000 && userId != 42777) {
+                if (!UserObject.isDeleted(user) && !isBot && currentEncryptedChat == null && !userBlocked && !UserObject.isService(userId)) {
                     if (!BuildVars.IS_BILLING_UNAVAILABLE && !user.self && !user.bot && !MessagesController.isSupportUser(user) && !getMessagesController().premiumPurchaseBlocked()) {
                         StarsController.getInstance(currentAccount).loadStarGifts();
                         otherItem.addSubItem(gift_premium, R.drawable.msg_gift_premium, LocaleController.getString(R.string.ProfileSendAGift));

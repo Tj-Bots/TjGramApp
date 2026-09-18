@@ -1229,7 +1229,7 @@ public class ChatAvatarContainer extends FrameLayout implements FactorAnimator.T
                     } else {
                         newStatus = getString(R.string.ChatYourSelf);
                     }
-                } else if (user.id == 333000 || user.id == 777000 || user.id == 42777) {
+                } else if (UserObject.isService(user.id)) {
                     newStatus = getString(R.string.ServiceNotifications);
                 } else if (MessagesController.isSupportUser(user)) {
                     newStatus = getString(R.string.SupportStatus);

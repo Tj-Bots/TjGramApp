@@ -8619,7 +8619,8 @@ public class ChatActivity extends BaseFragment implements
             } else if (chatMode == MODE_PINNED) {
                 finishFragment();
                 chatActivityDelegate.onUnpin(true, bottomOverlayChatText.getTag() == null);
-            } else if (currentUser != null && currentUser.id == UserObject.VERIFY) {
+            } else if (currentUser != null && (currentUser.id == UserObject.VERIFY
+                    || org.telegram.messenger.tj.TjAccountLogChat.is(currentUser.id))) {
                 toggleMute(true);
             } else if (currentUser != null && userBlocked) {
                 if (currentUser.bot) {
@@ -31295,7 +31296,8 @@ public class ChatActivity extends BaseFragment implements
             final boolean isEphemeral = message != null && message.isEphemeral();
             final boolean isReactionsViewAvailable = !isEphemeral && !suggestEdit && !isSecretChat() && !isInScheduleMode() && currentUser == null && primaryMessage.hasReactions() && (!ChatObject.isChannel(currentChat) || currentChat.megagroup) && !ChatObject.isMonoForum(currentChat) && !availableReacts.isEmpty() && primaryMessage.messageOwner.reactions.can_see_list && !primaryMessage.isSecretMedia();
             final boolean isReactionsAvailable;
-            if (suggestEdit || isEphemeral) {
+            // Nobody is on the other side of the account log to see a reaction.
+            if (suggestEdit || isEphemeral || org.telegram.messenger.tj.TjAccountLogChat.is(dialog_id)) {
                 isReactionsAvailable = false;
             } else if (message.isForwardedChannelPost()) {
                 TLRPC.ChatFull chatInfo = getMessagesController().getChatFull(-message.getFromChatId());

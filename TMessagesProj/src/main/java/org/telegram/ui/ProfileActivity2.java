@@ -731,7 +731,7 @@ public class ProfileActivity2 extends BaseFragment implements
                 subtitle.setText(getString(R.string.Online));
             } else if (dialogId == UserObject.VERIFY) {
                 subtitle.setText(getString(R.string.VerifyCodesNotifications));
-            } else if (dialogId == 333000 || user.id == 777000 || user.id == 42777) {
+            } else if (UserObject.isService(user.id)) {
                 subtitle.setText(getString(R.string.ServiceNotifications));
             } else if (MessagesController.isSupportUser(user)) {
                 subtitle.setText(getString(R.string.SupportStatus));
