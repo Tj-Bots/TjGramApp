@@ -39,6 +39,8 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.accessibility.AccessibilityNodeInfo;
 import android.view.inputmethod.EditorInfo;
+import android.view.inputmethod.InputConnection;
+import android.view.inputmethod.InputConnectionWrapper;
 import android.widget.FrameLayout;
 import android.widget.TextView;
 
@@ -963,6 +965,58 @@ public class EditTextCaption extends EditTextBoldCursor implements FloatingToolb
         return Theme.getColor(key, resourcesProvider);
     }
 
+    private SpannableStringBuilder styledFromHtml(String html) {
+        SpannableStringBuilder pasted = new SpannableStringBuilder(CopyUtilities.fromHTML(html));
+        Emoji.replaceEmoji(pasted, getPaint().getFontMetricsInt(), false, null);
+        AnimatedEmojiSpan[] spans = pasted.getSpans(0, pasted.length(), AnimatedEmojiSpan.class);
+        if (spans != null) {
+            for (int k = 0; k < spans.length; ++k) {
+                spans[k].applyFontMetrics(getPaint().getFontMetricsInt(), AnimatedEmojiDrawable.getCacheTypeForEnterView());
+            }
+        }
+        int start = Math.max(0, getSelectionStart());
+        int end = Math.min(getText().length(), getSelectionEnd());
+        QuoteSpan.QuoteStyleSpan[] quotesInSelection = getText().getSpans(start, end, QuoteSpan.QuoteStyleSpan.class);
+        if (quotesInSelection != null && quotesInSelection.length > 0) {
+            QuoteSpan.QuoteStyleSpan[] quotesToDelete = pasted.getSpans(0, pasted.length(), QuoteSpan.QuoteStyleSpan.class);
+            for (int i = 0; i < quotesToDelete.length; ++i) {
+                pasted.removeSpan(quotesToDelete[i]);
+                pasted.removeSpan(quotesToDelete[i].span);
+            }
+        } else {
+            QuoteSpan.normalizeQuotes(pasted);
+        }
+        return pasted;
+    }
+
+    @Override
+    public InputConnection onCreateInputConnection(EditorInfo outAttrs) {
+        final InputConnection connection = super.onCreateInputConnection(outAttrs);
+        if (connection == null) {
+            return null;
+        }
+        // The keyboard's own clipboard strip hands over bare characters - it never looks at the
+        // styled flavour sitting on the clipboard. When those characters are the ones this app
+        // copied, put the styling back before they land in the field.
+        return new InputConnectionWrapper(connection, false) {
+            @Override
+            public boolean commitText(CharSequence text, int newCursorPosition) {
+                try {
+                    final String html = org.telegram.messenger.tj.TjClipboard.htmlFor(text);
+                    if (html != null) {
+                        SpannableStringBuilder styled = styledFromHtml(html);
+                        if (styled != null && styled.length() > 0) {
+                            return super.commitText(styled, newCursorPosition);
+                        }
+                    }
+                } catch (Exception e) {
+                    FileLog.e(e);
+                }
+                return super.commitText(text, newCursorPosition);
+            }
+        };
+    }
+
     @Override
     public boolean onTextContextMenuItem(int id) {
         if (id == android.R.id.paste) {
@@ -970,27 +1024,9 @@ public class EditTextCaption extends EditTextBoldCursor implements FloatingToolb
             ClipData clipData = clipboard.getPrimaryClip();
             if (clipData != null && clipData.getItemCount() == 1 && clipData.getDescription().hasMimeType("text/html")) {
                 try {
-                    String html = clipData.getItemAt(0).getHtmlText();
-                    SpannableStringBuilder pasted = new SpannableStringBuilder(CopyUtilities.fromHTML(html));
-                    Emoji.replaceEmoji(pasted, getPaint().getFontMetricsInt(), false, null);
-                    AnimatedEmojiSpan[] spans = pasted.getSpans(0, pasted.length(), AnimatedEmojiSpan.class);
-                    if (spans != null) {
-                        for (int k = 0; k < spans.length; ++k) {
-                            spans[k].applyFontMetrics(getPaint().getFontMetricsInt(), AnimatedEmojiDrawable.getCacheTypeForEnterView());
-                        }
-                    }
+                    SpannableStringBuilder pasted = styledFromHtml(clipData.getItemAt(0).getHtmlText());
                     int start = Math.max(0, getSelectionStart());
                     int end = Math.min(getText().length(), getSelectionEnd());
-                    QuoteSpan.QuoteStyleSpan[] quotesInSelection = getText().getSpans(start, end, QuoteSpan.QuoteStyleSpan.class);
-                    if (quotesInSelection != null && quotesInSelection.length > 0) {
-                        QuoteSpan.QuoteStyleSpan[] quotesToDelete = pasted.getSpans(0, pasted.length(), QuoteSpan.QuoteStyleSpan.class);
-                        for (int i = 0; i < quotesToDelete.length; ++i) {
-                            pasted.removeSpan(quotesToDelete[i]);
-                            pasted.removeSpan(quotesToDelete[i].span);
-                        }
-                    } else {
-                        QuoteSpan.normalizeQuotes(pasted);
-                    }
                     setText(getText().replace(start, end, pasted));
                     setSelection(start + pasted.length(), start + pasted.length());
                     return true;

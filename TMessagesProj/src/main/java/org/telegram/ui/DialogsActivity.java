@@ -8595,10 +8595,63 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                 getMessagesController().markDialogAsUnread(dialog.id, null, 0);
             }
         });
+        if (!getMessagesController().isPromoDialog(dialog.id, false)) {
+            final boolean archived = dialog.folder_id != 0;
+            options.add(archived ? R.drawable.msg_unarchive : R.drawable.msg_archive, LocaleController.getString(archived ? R.string.Unarchive : R.string.Archive), () -> {
+                toggleDialogArchived(dialog.id, archived);
+            });
+        }
+        final TLRPC.Chat quickChat = DialogObject.isChatDialog(dialog.id) ? getMessagesController().getChat(-dialog.id) : null;
+        final int leaveText;
+        if (quickChat != null) {
+            leaveText = ChatObject.isChannelAndNotMegaGroup(quickChat) ? R.string.LeaveChannelMenu : R.string.LeaveMegaMenu;
+        } else {
+            leaveText = R.string.DeleteChatUser;
+        }
+        options.add(R.drawable.msg_leave, LocaleController.getString(leaveText), true, () -> {
+            leaveOrDeleteDialog(dialog.id);
+        });
         options.add(R.drawable.msg_select, LocaleController.getString(R.string.Select), () -> {
             showOrUpdateActionMode(dialog.id, cell);
         });
         options.setGravity(Gravity.LEFT).show();
+    }
+
+    private void toggleDialogArchived(long dialogId, boolean archived) {
+        final ArrayList<Long> ids = new ArrayList<>();
+        ids.add(dialogId);
+        getMessagesController().addDialogToFolder(ids, archived ? 0 : 1, -1, null, 0);
+        if (archived) {
+            return;
+        }
+        final SharedPreferences preferences = MessagesController.getGlobalMainSettings();
+        final boolean hintShowed = preferences.getBoolean("archivehint_l", false) || SharedConfig.archiveHidden;
+        if (!hintShowed) {
+            preferences.edit().putBoolean("archivehint_l", true).commit();
+        }
+        final UndoView undoView = getUndoView();
+        if (undoView != null) {
+            undoView.showWithAction(0, hintShowed ? UndoView.ACTION_ARCHIVE : UndoView.ACTION_ARCHIVE_HINT, null,
+                    () -> getMessagesController().addDialogToFolder(ids, 0, -1, null, 0));
+        }
+    }
+
+    private void leaveOrDeleteDialog(long dialogId) {
+        if (getParentActivity() == null) {
+            return;
+        }
+        final TLRPC.Chat chat = DialogObject.isChatDialog(dialogId) ? getMessagesController().getChat(-dialogId) : null;
+        final TLRPC.User user = DialogObject.isUserDialog(dialogId) ? getMessagesController().getUser(dialogId) : null;
+        final boolean isBot = user != null && user.bot && !MessagesController.isSupportUser(user);
+        AlertsCreator.createClearOrDeleteDialogAlert(DialogsActivity.this, false, chat, user, DialogObject.isEncryptedDialog(dialogId), true, false, false, param -> {
+            final UndoView undoView = getUndoView();
+            if (undoView != null) {
+                undoView.showWithAction(dialogId, param ? UndoView.ACTION_DELETE : UndoView.ACTION_LEAVE,
+                        () -> performDeleteOrClearDialogAction(delete, dialogId, chat, isBot, param));
+            } else {
+                performDeleteOrClearDialogAction(delete, dialogId, chat, isBot, param);
+            }
+        });
     }
 
     private void onArchiveLongPress(View view) {

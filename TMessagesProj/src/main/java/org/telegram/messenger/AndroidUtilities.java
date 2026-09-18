@@ -3606,6 +3606,7 @@ public class AndroidUtilities {
             android.content.ClipboardManager clipboard = (android.content.ClipboardManager) ApplicationLoader.applicationContext.getSystemService(Context.CLIPBOARD_SERVICE);
             android.content.ClipData clip = android.content.ClipData.newHtmlText("label", plain, html);
             clipboard.setPrimaryClip(clip);
+            org.telegram.messenger.tj.TjClipboard.remember(plain, html);
             return true;
         } catch (Exception e) {
             FileLog.e(e);
@@ -3618,12 +3619,15 @@ public class AndroidUtilities {
             android.content.ClipboardManager clipboard = (android.content.ClipboardManager) ApplicationLoader.applicationContext.getSystemService(Context.CLIPBOARD_SERVICE);
 
             if (str instanceof Spanned) {
-                android.content.ClipData clip = android.content.ClipData.newHtmlText("label", str, CustomHtml.toHtml((Spanned) str));
+                final String html = CustomHtml.toHtml((Spanned) str);
+                android.content.ClipData clip = android.content.ClipData.newHtmlText("label", str, html);
                 clipboard.setPrimaryClip(clip);
+                org.telegram.messenger.tj.TjClipboard.remember(str, html);
                 return true;
             } else {
                 android.content.ClipData clip = android.content.ClipData.newPlainText("label", str);
                 clipboard.setPrimaryClip(clip);
+                org.telegram.messenger.tj.TjClipboard.forget();
                 return true;
             }
         } catch (Exception e) {
