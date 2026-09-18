@@ -333,6 +333,7 @@ public class TjSettingsActivity extends BaseFragment {
     private static final int ID_WATCH_IN_DRAWER = 31;
     private static final int ID_WATCH_TAB = 32;
     private static final int ID_FAST_DOWNLOAD = 33;
+    private static final int ID_ACCOUNT_LOG = 34;
 
     private static class Item {
         final int viewType;
@@ -474,6 +475,10 @@ public class TjSettingsActivity extends BaseFragment {
                 presentFragment(new TjMenuShortcutsActivity());
                 return;
             }
+            if (item.id == ID_ACCOUNT_LOG) {
+                presentFragment(new TjAccountLogActivity());
+                return;
+            }
             if (item.id == ID_BATTERY_OPTIMIZATION) {
                 TjBackgroundConnection.requestIgnoreBatteryOptimizations(getParentActivity());
                 return;
@@ -593,6 +598,9 @@ public class TjSettingsActivity extends BaseFragment {
         items.add(new Item(VIEW_TYPE_HEADER, 0, TjLocale.getString(R.string.TjDirectStreaming)));
         items.add(new Item(VIEW_TYPE_CHECK, ID_DIRECT_STREAMING, TjLocale.getString(R.string.TjDirectStreaming)));
         items.add(new Item(VIEW_TYPE_SHADOW, 0, TjLocale.getString(R.string.TjDirectStreamingInfo)));
+        items.add(new Item(VIEW_TYPE_HEADER, 0, TjLocale.getString(R.string.TjAccountLog)));
+        items.add(new Item(VIEW_TYPE_SETTING, ID_ACCOUNT_LOG, TjLocale.getString(R.string.TjAccountLog)));
+        items.add(new Item(VIEW_TYPE_SHADOW, 0, TjLocale.getString(R.string.TjAccountLogInfo)));
         items.add(new Item(VIEW_TYPE_HEADER, 0, TjLocale.getString(R.string.TjFastDownload)));
         items.add(new Item(VIEW_TYPE_CHECK, ID_FAST_DOWNLOAD, TjLocale.getString(R.string.TjFastDownload)));
         items.add(new Item(VIEW_TYPE_SHADOW, 0, TjLocale.getString(R.string.TjFastDownloadInfo)));

@@ -300,6 +300,16 @@ public final class TjConfig {
     public static boolean showWatchInDrawer() { return get("show_watch_in_drawer", true); }
     public static boolean showMediaTab() { return get("show_media_tab", false); }
     public static boolean showWatchTab() { return get("show_watch_tab", true); }
+
+    /** The account log, and which kinds of event it keeps. Each kind can be turned off on its own. */
+    public static boolean accountLog() { return get("account_log", true); }
+    public static boolean accountLogType(int type) { return get("account_log_" + type, true); }
+    public static void setAccountLogType(int type, boolean value) {
+        prefs().edit().putBoolean("account_log_" + type, value).apply();
+    }
+    public static void setAccountLog(boolean value) {
+        prefs().edit().putBoolean("account_log", value).apply();
+    }
     public static boolean showKillInDrawer() { return get("show_kill_in_drawer", false); }
 
     public static String deletedMark() { return prefs().getString("deleted_mark", "🗑️"); }

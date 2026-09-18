@@ -19513,6 +19513,12 @@ public class MessagesController extends BaseController implements NotificationCe
             } else if (baseUpdate instanceof TL_update.TL_updateChatParticipantAdmin) {
                 TL_update.TL_updateChatParticipantAdmin update = (TL_update.TL_updateChatParticipantAdmin) baseUpdate;
                 getMessagesStorage().updateChatInfo(update.chat_id, update.user_id, 2, update.is_admin ? 1 : 0, update.version);
+                org.telegram.messenger.tj.TjAccountEvents.onChatParticipantAdmin(currentAccount, update);
+            } else if (baseUpdate instanceof TL_update.TL_updateChannelParticipant) {
+                // Upstream ignores this one. It is the only place the server says who changed your
+                // rights in a channel or supergroup, and what they were before.
+                org.telegram.messenger.tj.TjAccountEvents.onChannelParticipant(
+                        currentAccount, (TL_update.TL_updateChannelParticipant) baseUpdate);
             } else if (baseUpdate instanceof TL_update.TL_updateChatDefaultBannedRights) {
                 TL_update.TL_updateChatDefaultBannedRights update = (TL_update.TL_updateChatDefaultBannedRights) baseUpdate;
                 long chatId;
@@ -20377,6 +20383,8 @@ public class MessagesController extends BaseController implements NotificationCe
                         }
                     } else if (baseUpdate instanceof TL_update.TL_updateNewAuthorization) {
                         getUnconfirmedAuthController().processUpdate((TL_update.TL_updateNewAuthorization) baseUpdate);
+                        org.telegram.messenger.tj.TjAccountEvents.onNewAuthorization(
+                                currentAccount, (TL_update.TL_updateNewAuthorization) baseUpdate);
                     } else if (baseUpdate instanceof TL_update.TL_updateNewBotConnection) {
                         getUnconfirmedAuthController().processUpdate((TL_update.TL_updateNewBotConnection) baseUpdate);
                     } else if (baseUpdate instanceof TL_update.TL_updateChannel) {
