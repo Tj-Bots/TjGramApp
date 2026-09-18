@@ -90,6 +90,67 @@ public final class TjAccountEvents {
         TjAccountLog.getInstance().record(account, TjAccountLog.TYPE_MEMBERSHIP, update.date, payload);
     }
 
+    /** The signature of what this account may do in a chat, so a change can be noticed at all. */
+    private static final java.util.concurrent.ConcurrentHashMap<String, String> lastRights =
+            new java.util.concurrent.ConcurrentHashMap<>();
+
+    /**
+     * The safety net, and in practice the one that fires.
+     *
+     * updateChannelParticipant is the only update that names who changed your rights, and the
+     * server does not always send it to the person it is about - being demoted can arrive as
+     * nothing more than a fresh copy of the chat with different rights on it. Every chat object
+     * carries this account's own rights, so they are compared against the last ones seen and the
+     * difference is written down. What is lost this way is the name of whoever did it.
+     */
+    public static void onChatRights(int account, TLRPC.Chat oldChat, TLRPC.Chat chat) {
+        if (chat == null || chat.min || !TjConfig.accountLog()) {
+            return;
+        }
+        String key = account + ":" + chat.id;
+        String signature = signature(chat);
+        String previous = lastRights.put(key, signature);
+        if (previous == null || previous.equals(signature)) {
+            // Nothing to compare against yet, or nothing moved.
+            return;
+        }
+        if (oldChat == null) {
+            oldChat = chat;
+        }
+        boolean adminBefore = oldChat.admin_rights != null, adminNow = chat.admin_rights != null;
+        if (adminBefore || adminNow) {
+            JSONObject payload = base(account, -chat.id, 0);
+            put(payload, "state", !adminNow ? "removed" : !adminBefore ? "granted" : "changed");
+            rights(payload, ADMIN, oldChat.admin_rights, chat.admin_rights, false);
+            TjAccountLog.getInstance().record(account, TjAccountLog.TYPE_ADMIN_RIGHTS, 0, payload);
+            return;
+        }
+        boolean bannedBefore = oldChat.banned_rights != null, bannedNow = chat.banned_rights != null;
+        if (bannedBefore || bannedNow) {
+            JSONObject payload = base(account, -chat.id, 0);
+            put(payload, "state", !bannedNow ? "lifted"
+                    : chat.banned_rights.view_messages ? "banned" : "restricted");
+            rights(payload, BANNED, oldChat.banned_rights, chat.banned_rights, true);
+            TjAccountLog.getInstance().record(account, TjAccountLog.TYPE_RESTRICTED, 0, payload);
+            return;
+        }
+        if (oldChat.left != chat.left || oldChat.kicked != chat.kicked) {
+            JSONObject payload = base(account, -chat.id, 0);
+            put(payload, "state", chat.left || chat.kicked ? "left" : "joined");
+            TjAccountLog.getInstance().record(account, TjAccountLog.TYPE_MEMBERSHIP, 0, payload);
+        }
+    }
+
+    private static String signature(TLRPC.Chat chat) {
+        StringBuilder text = new StringBuilder(chat.left ? "l" : "-").append(chat.kicked ? "k" : "-");
+        text.append('|');
+        for (Right right : ADMIN) text.append(read(chat.admin_rights, right.field) ? '1' : '0');
+        text.append('|');
+        for (Right right : BANNED) text.append(read(chat.banned_rights, right.field) ? '1' : '0');
+        text.append(chat.banned_rights != null && chat.banned_rights.view_messages ? "v" : "-");
+        return text.toString();
+    }
+
     /** The same thing in a plain group, which reports far less: only whether you are an admin. */
     public static void onChatParticipantAdmin(int account, TL_update.TL_updateChatParticipantAdmin update) {
         if (update == null || update.user_id != UserConfig.getInstance(account).getClientUserId()) {
@@ -166,6 +227,26 @@ public final class TjAccountEvents {
 
     private static void put(JSONObject payload, String key, Object value) {
         try { payload.put(key, value); } catch (Throwable ignored) { }
+    }
+
+    /** The headline for an entry: what happened, in the words of the thing that happened. */
+    public static String title(TjAccountLog.Entry entry) {
+        String state = entry.text("state");
+        switch (entry.type) {
+            case TjAccountLog.TYPE_ADMIN_RIGHTS:
+                return TjLocale.getString("granted".equals(state) ? R.string.TjAccountLogAdminGranted
+                        : "removed".equals(state) ? R.string.TjAccountLogAdminRemoved
+                        : R.string.TjAccountLogAdminChanged);
+            case TjAccountLog.TYPE_RESTRICTED:
+                return TjLocale.getString("banned".equals(state) ? R.string.TjAccountLogBanned
+                        : "lifted".equals(state) ? R.string.TjAccountLogLifted
+                        : R.string.TjAccountLogRestricted);
+            case TjAccountLog.TYPE_MEMBERSHIP:
+                return TjLocale.getString("joined".equals(state) ? R.string.TjAccountLogJoined
+                        : R.string.TjAccountLogLeft);
+            default:
+                return TjLocale.getString(R.string.TjAccountLogNewDevice);
+        }
     }
 
     /** The names of the rights this build knows about, for the settings screen to list. */

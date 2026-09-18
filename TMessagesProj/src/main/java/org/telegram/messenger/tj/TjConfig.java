@@ -307,6 +307,10 @@ public final class TjConfig {
     public static void setAccountLogType(int type, boolean value) {
         prefs().edit().putBoolean("account_log_" + type, value).apply();
     }
+    public static int accountLogRead() { return prefs().getInt("account_log_read", 0); }
+    public static void setAccountLogRead(int date) {
+        prefs().edit().putInt("account_log_read", date).apply();
+    }
     public static void setAccountLog(boolean value) {
         prefs().edit().putBoolean("account_log", value).apply();
     }

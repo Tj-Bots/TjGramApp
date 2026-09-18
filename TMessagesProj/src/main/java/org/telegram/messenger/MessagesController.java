@@ -7015,6 +7015,9 @@ public class MessagesController extends BaseController implements NotificationCe
         if (oldChat == chat) {
             return;
         }
+        // Every chat object carries this account's own rights in it, which is the only signal that
+        // arrives whether or not the server bothers to say who changed them.
+        org.telegram.messenger.tj.TjAccountEvents.onChatRights(currentAccount, oldChat, chat);
         if (oldChat != null && !TextUtils.isEmpty(oldChat.username)) {
             objectsByUsernames.remove(oldChat.username.toLowerCase());
         }
@@ -22692,6 +22695,9 @@ public class MessagesController extends BaseController implements NotificationCe
                 dialogsForward.add(0, dialog);
             }
         }
+        // The account log is not the server's, so the server's rebuild of this list keeps
+        // removing it. Putting it back after every sort is what makes it stay.
+        org.telegram.messenger.tj.TjAccountLogDialog.attach(currentAccount, dialogsByFolder);
         for (int a = 0; a < dialogsByFolder.size(); a++) {
             int folderId = dialogsByFolder.keyAt(a);
             ArrayList<TLRPC.Dialog> dialogs = dialogsByFolder.valueAt(a);

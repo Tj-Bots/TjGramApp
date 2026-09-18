@@ -126,7 +126,35 @@ public final class TjAccountLog extends SQLiteOpenHelper {
             } catch (Throwable error) {
                 FileLog.e("Tj account log write failed", error);
             }
-            AndroidUtilities.runOnUIThread(TjAccountLog::notifyChanged);
+            AndroidUtilities.runOnUIThread(() -> { notifyChanged(); refresh(account); });
+        });
+    }
+
+    /**
+     * Rebuilds what the chat list row says and how many entries have not been looked at, then asks
+     * the list to draw itself again. The row holds nothing of its own; this is where it comes from.
+     */
+    public void refresh(int account) {
+        load(account, entries -> {
+            int lastRead = TjConfig.accountLogRead();
+            int unread = 0;
+            for (Entry entry : entries) if (entry.date > lastRead) unread++;
+            if (entries.isEmpty()) {
+                TjAccountLogDialog.setPreview("", 0, 0);
+            } else {
+                Entry newest = entries.get(0);
+                TjAccountLogDialog.setPreview(TjAccountEvents.title(newest), newest.date, unread);
+            }
+            org.telegram.messenger.NotificationCenter.getInstance(account)
+                    .postNotificationName(org.telegram.messenger.NotificationCenter.dialogsNeedReload);
+        });
+    }
+
+    /** Everything up to now has been looked at. */
+    public void markRead(int account) {
+        load(account, entries -> {
+            if (!entries.isEmpty()) TjConfig.setAccountLogRead(entries.get(0).date);
+            refresh(account);
         });
     }
 
@@ -166,7 +194,7 @@ public final class TjAccountLog extends SQLiteOpenHelper {
             } catch (Throwable error) {
                 FileLog.e("Tj account log clear failed", error);
             }
-            AndroidUtilities.runOnUIThread(TjAccountLog::notifyChanged);
+            AndroidUtilities.runOnUIThread(() -> { notifyChanged(); refresh(account); });
         });
     }
 

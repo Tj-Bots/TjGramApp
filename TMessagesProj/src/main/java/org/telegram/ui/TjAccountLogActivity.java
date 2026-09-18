@@ -108,6 +108,7 @@ public class TjAccountLogActivity extends BaseFragment {
         root.addView(emptyView, LayoutHelper.createFrame(-2, -2, Gravity.CENTER, 24, 0, 24, 0));
 
         load();
+        TjAccountLog.getInstance().markRead(currentAccount);
         return root;
     }
 
@@ -133,29 +134,9 @@ public class TjAccountLogActivity extends BaseFragment {
                 .setNegativeButton(LocaleController.getString(R.string.Cancel), null).create());
     }
 
-    /** The headline for an entry: what happened, in the words of the thing that happened. */
-    private static String title(TjAccountLog.Entry entry) {
-        String state = entry.text("state");
-        switch (entry.type) {
-            case TjAccountLog.TYPE_ADMIN_RIGHTS:
-                return TjLocale.getString("granted".equals(state) ? R.string.TjAccountLogAdminGranted
-                        : "removed".equals(state) ? R.string.TjAccountLogAdminRemoved
-                        : R.string.TjAccountLogAdminChanged);
-            case TjAccountLog.TYPE_RESTRICTED:
-                return TjLocale.getString("banned".equals(state) ? R.string.TjAccountLogBanned
-                        : "lifted".equals(state) ? R.string.TjAccountLogLifted
-                        : R.string.TjAccountLogRestricted);
-            case TjAccountLog.TYPE_MEMBERSHIP:
-                return TjLocale.getString("joined".equals(state) ? R.string.TjAccountLogJoined
-                        : R.string.TjAccountLogLeft);
-            default:
-                return TjLocale.getString(R.string.TjAccountLogNewDevice);
-        }
-    }
-
     /** The whole entry as plain text, which is what a long press puts on the clipboard. */
     private static String describe(TjAccountLog.Entry entry) {
-        StringBuilder text = new StringBuilder(title(entry));
+        StringBuilder text = new StringBuilder(org.telegram.messenger.tj.TjAccountEvents.title(entry));
         String chat = entry.text("chatName");
         if (!chat.isEmpty()) text.append('\n').append(chat);
         String actor = entry.text("actorName");
@@ -246,7 +227,7 @@ public class TjAccountLogActivity extends BaseFragment {
         }
 
         void bind(TjAccountLog.Entry entry) {
-            title.setText(title(entry));
+            title.setText(org.telegram.messenger.tj.TjAccountEvents.title(entry));
 
             String chat = entry.text("chatName");
             String device = entry.text("device");

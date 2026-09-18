@@ -8115,6 +8115,11 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                 }
             }
         } else {
+            if (org.telegram.messenger.tj.TjAccountLogDialog.is(dialogId)) {
+                // The row looks like a chat; behind it there is no conversation, only the log.
+                presentFragment(new TjAccountLogActivity());
+                return;
+            }
             Bundle args = new Bundle();
             if (DialogObject.isEncryptedDialog(dialogId)) {
                 args.putInt("enc_id", DialogObject.getEncryptedChatId(dialogId));
