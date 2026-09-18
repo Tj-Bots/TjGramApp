@@ -177,7 +177,10 @@ public class UserObject {
     }
 
     public static boolean isService(long user_id) {
-        return user_id == 333000 || user_id == 777000 || user_id == 42777;
+        // The account log is one of these too: it is a place notices arrive from, not a person,
+        // so it has no last seen, nothing to add to contacts and nothing to say back to.
+        return user_id == 333000 || user_id == 777000 || user_id == 42777
+                || org.telegram.messenger.tj.TjAccountLogChat.is(user_id);
     }
 
     public static MessagesController.PeerColor getPeerColorForAvatar(int currentAccount, TLRPC.User user) {

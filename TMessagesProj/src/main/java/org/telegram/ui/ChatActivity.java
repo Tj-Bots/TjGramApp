@@ -28025,7 +28025,8 @@ public class ChatActivity extends BaseFragment implements
                 bottomOverlayChatText.setText(LocaleController.getString(R.string.HidePinnedMessagesNoCaps));
             }
             showBottomOverlayProgress(false, false);
-        } else if (currentUser != null && currentUser.id == UserObject.VERIFY) {
+        } else if (currentUser != null && (currentUser.id == UserObject.VERIFY
+                || org.telegram.messenger.tj.TjAccountLogChat.is(currentUser.id))) {
             if (!getMessagesController().isDialogMuted(dialog_id, getTopicId())) {
                 bottomOverlayChatText.setText(LocaleController.getString(R.string.ChannelMuteNoCaps), false);
                 bottomOverlayChatText.setEnabled(true);
@@ -28290,7 +28291,10 @@ public class ChatActivity extends BaseFragment implements
                     headerItem.setVisibility(View.VISIBLE);
                 }
             } else {
-                if (botUser != null && currentUser != null && currentUser.bot || currentUser != null && currentUser.id == UserObject.VERIFY || chatMode == MODE_SAVED && getSavedDialogId() != getUserConfig().getClientUserId()) {
+                if (botUser != null && currentUser != null && currentUser.bot
+                        || currentUser != null && (currentUser.id == UserObject.VERIFY
+                        || org.telegram.messenger.tj.TjAccountLogChat.is(currentUser.id))
+                        || chatMode == MODE_SAVED && getSavedDialogId() != getUserConfig().getClientUserId()) {
                     bottomChannelButtonsLayout.setVisibility(View.VISIBLE);
                     chatActivityEnterView.setVisibility(View.INVISIBLE);
                 } else {
@@ -32091,6 +32095,17 @@ public class ChatActivity extends BaseFragment implements
                             builder.show();
                         });
                         popupLayout.addView(new ActionBarPopupWindow.GapView(contentView.getContext(), themeDelegate), LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 8));
+                    }
+                }
+                if (org.telegram.messenger.tj.TjAccountLogChat.is(dialog_id)) {
+                    // Nothing else in this menu means anything here: there is nobody to reply to,
+                    // nowhere to forward from, and no message on a server to delete or edit.
+                    for (int a = options.size() - 1; a >= 0; a--) {
+                        if (options.get(a) != OPTION_COPY) {
+                            options.remove(a);
+                            items.remove(a);
+                            icons.remove(a);
+                        }
                     }
                 }
                 final ArrayList<Integer> tjShortcutIndexes = TjMessageMenu.shortcutIndexes(options);

@@ -57,6 +57,9 @@ public final class TjAccountLogChat {
         user.verified = true;
         user.access_hash = 0;
         user.status = null;
+        // Without this the name is not written to the database at all, and the account comes back
+        // from the next launch nameless - which the app reads as a deleted one.
+        user.flags |= 2;
         controller.putUser(user, false);
         ArrayList<TLRPC.User> users = new ArrayList<>();
         users.add(user);
