@@ -40,6 +40,17 @@ public final class TjMessageArchive extends SQLiteOpenHelper {
     private static final int DATABASE_VERSION = 2;
     private static volatile TjMessageArchive instance;
     private final Set<String> revisionIndex = ConcurrentHashMap.newKeySet();
+    /**
+     * Which chats this owner has a saved deleted message in, as owner -> dialog ids.
+     *
+     * Opening a chat, and every further page of it, asks the archive what was deleted there, and
+     * that question was being put to the database on the main thread - up to five hundred rows
+     * read and rebuilt into messages before the chat could be drawn, waiting behind whatever the
+     * archive happened to be writing. For a chat that has nothing saved, which is nearly all of
+     * them, the answer is now a lookup in memory and the file is never opened.
+     */
+    private final java.util.Map<Long, Set<Long>> deletedDialogs = new ConcurrentHashMap<>();
+    private final Set<Long> deletedDialogsLoading = ConcurrentHashMap.newKeySet();
 
     /**
      * Archiving runs on a queue of its own rather than on the shared global one.
@@ -315,6 +326,12 @@ public final class TjMessageArchive extends SQLiteOpenHelper {
                 revisionIndex.add(revisionKey(snapshot.ownerUserId, snapshot.accountId,
                         snapshot.dialogId, snapshot.messageId));
             }
+            if (stored && snapshot.kind == KIND_DELETED) {
+                // Only ever added. A chat left in the index after its rows go costs one query that
+                // finds nothing; a chat missing from it would hide what was saved.
+                Set<Long> known = deletedDialogs.get(snapshot.ownerUserId);
+                if (known != null) known.add(snapshot.dialogId);
+            }
             return stored;
         } catch (Throwable error) {
             FileLog.e("Tj message archive insert failed", error);
@@ -528,6 +545,7 @@ public final class TjMessageArchive extends SQLiteOpenHelper {
                         revisionIndex.remove(key);
                     }
                 }
+                deletedDialogs.remove(ownerUserId);
                 success = true;
             } catch (Throwable error) {
                 FileLog.e("Tj message archive clear failed", error);
@@ -537,6 +555,38 @@ public final class TjMessageArchive extends SQLiteOpenHelper {
                 AndroidUtilities.runOnUIThread(() -> callback.onResult(result));
             }
         });
+    }
+
+    /**
+     * False only when this account is known to have nothing saved from this chat. Until the index
+     * has loaded it answers yes, so the only cost of not knowing yet is the query that used to
+     * happen every time anyway.
+     */
+    public boolean mayHaveDeleted(int accountId, long dialogId) {
+        long ownerUserId = UserConfig.getInstance(accountId).getClientUserId();
+        if (ownerUserId == 0) return false;
+        Set<Long> known = deletedDialogs.get(ownerUserId);
+        if (known != null) return known.contains(dialogId);
+        if (deletedDialogsLoading.add(ownerUserId)) {
+            queue.postRunnable(() -> loadDeletedDialogs(ownerUserId));
+        }
+        return true;
+    }
+
+    private void loadDeletedDialogs(long ownerUserId) {
+        Set<Long> dialogs = ConcurrentHashMap.newKeySet();
+        try (Cursor cursor = getReadableDatabase().query(
+                true, "snapshots", new String[]{"dialog_id"},
+                "owner_user_id=? AND kind=?",
+                new String[]{String.valueOf(ownerUserId), String.valueOf(KIND_DELETED)},
+                null, null, null, null)) {
+            while (cursor.moveToNext()) dialogs.add(cursor.getLong(0));
+            deletedDialogs.put(ownerUserId, dialogs);
+        } catch (Throwable error) {
+            FileLog.e("Tj deleted chat index load failed", error);
+        } finally {
+            deletedDialogsLoading.remove(ownerUserId);
+        }
     }
 
     private void loadRevisionIndex() {

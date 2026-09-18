@@ -62,7 +62,19 @@ public class TjMessageHistoryActivity extends BaseFragment {
         actionBar.setActionBarMenuOnItemClick(new ActionBar.ActionBarMenuOnItemClick() {
             @Override public void onItemClick(int id) { if (id == -1) finishFragment(); }
         });
-        SizeNotifierFrameLayout root = new SizeNotifierFrameLayout(context);
+        SizeNotifierFrameLayout root = new SizeNotifierFrameLayout(context) {
+            /**
+             * In a chat the wallpaper is drawn starting below the action bar, because the messages
+             * start there too. Here the list runs all the way to the top of the screen, so pushing
+             * the wallpaper down by an action bar left a band under the title with nothing but the
+             * plain wallpaper colour in it - red in one theme and something else in the next. The
+             * picture is drawn from the top instead, and the action bar sits over it.
+             */
+            @Override protected boolean isActionBarVisible() {
+                return false;
+            }
+        };
+        root.setOccupyStatusBar(false);
         root.setBackgroundImage(Theme.getCachedWallpaperNonBlocking(), false);
         root.setBackgroundColor(Theme.getColor(Theme.key_chat_wallpaper));
         fragmentView = root;

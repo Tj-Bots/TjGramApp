@@ -25,6 +25,11 @@ public final class TjHistoryController {
         if (!TjConfig.saveDeletedMessages() || messages == null || dialogId == 0) {
             return;
         }
+        // This runs while the chat is being built, on the main thread. Asking the archive is a
+        // database read, so it is only worth asking about a chat the archive has something from.
+        if (!TjMessageArchive.getInstance().mayHaveDeleted(accountId, dialogId)) {
+            return;
+        }
         boolean secret = DialogObject.isEncryptedDialog(dialogId);
         int minId = Integer.MAX_VALUE;
         int maxId = Integer.MIN_VALUE;
