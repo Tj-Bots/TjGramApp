@@ -425,6 +425,15 @@ public class ImageReceiver implements NotificationCenter.NotificationCenterDeleg
     }
 
     public void setForUserOrChat(TLObject object, Drawable avatarDrawable, Object parentObject, boolean animationEnabled, int vectorType, boolean big) {
+        // The account behind the log has no photo on any server, because it is on no server. Its
+        // picture is in the build, and this is the one place every avatar in the app is asked for.
+        if (object instanceof TLRPC.User
+                && org.telegram.messenger.tj.TjAccountLogChat.is(((TLRPC.User) object).id)) {
+            setUseRoundForThumbDrawable(true);
+            setImageBitmap(ApplicationLoader.applicationContext.getResources()
+                    .getDrawable(org.telegram.messenger.R.drawable.tj_log_avatar));
+            return;
+        }
         if (parentObject == null) {
             parentObject = object;
         }

@@ -38,8 +38,39 @@ public final class TjAccountEvents {
             "send_roundvideos", "send_audios", "send_voices", "send_docs", "send_plain",
     };
 
-    /** What this account could do in a chat, as last seen, so a change can be noticed at all. */
+    /**
+     * What this account could do in a chat, as last seen.
+     *
+     * Kept on disk, not in memory: rights are usually taken away while the app is closed, and a
+     * baseline that starts empty every launch means the first chat object of the session looks
+     * like the first one ever and the change is swallowed. Only chats where there is something to
+     * lose are written down, so this stays a handful of entries rather than one per chat.
+     */
     private static final ConcurrentHashMap<String, String> lastRights = new ConcurrentHashMap<>();
+
+    private static android.content.SharedPreferences prefs() {
+        return org.telegram.messenger.ApplicationLoader.applicationContext
+                .getSharedPreferences("tjaccountlog", android.content.Context.MODE_PRIVATE);
+    }
+
+    private static String remembered(String key) {
+        String value = lastRights.get(key);
+        if (value == null) {
+            value = prefs().getString(key, null);
+            if (value != null) lastRights.put(key, value);
+        }
+        return value;
+    }
+
+    private static void remember(String key, String value, boolean worthKeeping) {
+        if (worthKeeping) {
+            lastRights.put(key, value);
+            prefs().edit().putString(key, value).apply();
+        } else {
+            lastRights.remove(key);
+            prefs().edit().remove(key).apply();
+        }
+    }
 
     private TjAccountEvents() { }
 
@@ -73,8 +104,12 @@ public final class TjAccountEvents {
         if (chat == null || chat.min || !TjConfig.accountLog()) {
             return;
         }
+        String key = account + ":" + chat.id;
         String signature = signature(chat);
-        String previous = lastRights.put(account + ":" + chat.id, signature);
+        String previous = remembered(key);
+        // Worth keeping while there is something to lose, or something to get back.
+        remember(key, signature, chat.admin_rights != null || chat.banned_rights != null
+                || chat.left || chat.kicked);
         if (previous == null || previous.equals(signature)) {
             return;
         }
@@ -155,7 +190,7 @@ public final class TjAccountEvents {
             text.newLine();
             text.bold("chat");
             text.append(" ");
-            if (channel) text.link(title, "https://t.me/c/" + chatId + "/1"); else text.append(title);
+            if (channel) text.link(title, "https://t.me/c/" + chatId + "/999999"); else text.append(title);
         }
         text.newLine();
         text.quote("#id_" + chatId);
