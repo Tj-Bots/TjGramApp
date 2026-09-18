@@ -411,6 +411,7 @@ public class TjSettingsActivity extends BaseFragment {
             case ID_ONLINE_INDICATOR: key = "show_online_indicator"; break;
             case ID_DIRECT_STREAMING: key = "direct_file_streaming"; break;
             case ID_FAST_DOWNLOAD: key = "fast_download"; break;
+            case ID_ACCOUNT_LOG: key = "account_log"; break;
             case ID_MENU_SHORTCUTS: key = "menu_shortcuts"; break;
             case ID_PROTOCOL_ERRORS: key = "show_protocol_errors"; break;
             case ID_EXACT_MEMBER_COUNT: key = "exact_member_count"; break;
@@ -561,7 +562,7 @@ public class TjSettingsActivity extends BaseFragment {
      */
     private boolean copyLinkTo(Item item) {
         String key = keyFor(item.id);
-        if (key == null || item.viewType != VIEW_TYPE_CHECK) return false;
+        if (key == null || item.viewType != VIEW_TYPE_CHECK && item.viewType != VIEW_TYPE_SETTING) return false;
         AndroidUtilities.addToClipboard(org.telegram.messenger.tj.TjSettingsLinks.build(
                 org.telegram.messenger.tj.TjSettingsLinks.Section.GENERAL, key));
         BulletinFactory.of(this).createCopyLinkBulletin().show();
