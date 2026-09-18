@@ -476,7 +476,7 @@ public class TjSettingsActivity extends BaseFragment {
                 return;
             }
             if (item.id == ID_ACCOUNT_LOG) {
-                presentFragment(new TjAccountLogActivity());
+                presentFragment(new TjAccountLogSettingsActivity());
                 return;
             }
             if (item.id == ID_BATTERY_OPTIMIZATION) {

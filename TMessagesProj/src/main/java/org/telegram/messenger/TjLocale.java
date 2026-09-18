@@ -444,6 +444,8 @@ public class TjLocale {
         m.put("TjFastDownload", "הורדה מהירה");
         m.put("TjCacheCleared", "נוקה מהמטמון");
         m.put("TjAccountLog", "יומן חשבון");
+        m.put("TjAccountLogChatName", "TjGram");
+        m.put("TjAccountLogNow", "עכשיו");
         m.put("TjAccountLogInfo", "כל מה שהשרת מספר למכשיר הזה על החשבון שלך, נשמר כאן במקום שאפשר לראות. שום דבר לא נשלח ושום דבר לא יוצא מהטלפון.");
         m.put("TjAccountLogBlockedInfo", "חסימה על ידי מישהו לא נמצאת כאן: טלגרם לא מדווחת על זה, וניחוש מתוך מה שמפסיק לעבוד היה אומר לספר לך משהו שהצד השני בחר לא לספר.");
         m.put("TjAccountLogEmpty", "עדיין לא קרה כלום.");

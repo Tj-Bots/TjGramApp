@@ -250,10 +250,10 @@ public class ApplicationLoader extends Application {
         SharedConfig.loadConfig();
         // TJ: the streaming relaxations live in SharedConfig but are driven by the TJ switch.
         SharedConfig.setDirectFileStreaming(org.telegram.messenger.tj.TjConfig.directFileStreaming());
-        // The account log row has to know what it last heard before the chat list is first drawn.
+        // The account that writes the log has to exist before anything is written to it.
         for (int a = 0; a < UserConfig.MAX_ACCOUNT_COUNT; a++) {
             if (UserConfig.getInstance(a).isClientActivated()) {
-                org.telegram.messenger.tj.TjAccountLog.getInstance().refresh(a);
+                org.telegram.messenger.tj.TjAccountLogChat.ensure(a);
             }
         }
         SharedPrefsHelper.init(applicationContext);

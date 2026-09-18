@@ -1,7 +1,5 @@
 package org.telegram.messenger.tj;
 
-import org.json.JSONArray;
-import org.json.JSONObject;
 import org.telegram.messenger.ContactsController;
 import org.telegram.messenger.MessagesController;
 import org.telegram.messenger.R;
@@ -11,15 +9,21 @@ import org.telegram.tgnet.TLRPC;
 import org.telegram.tgnet.tl.TL_update;
 
 import java.util.ArrayList;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Turns the updates the server already sends into entries for the account log.
+ * Turns what the server says about this account into messages in the account log chat.
  *
- * Names are written down as they are at the moment it happens: a chat you are later removed from,
- * or a person you never look up again, still has to read as something other than a number a month
- * from now.
+ * The text is written once, here, with its own formatting - the chat it happened in is a link, the
+ * headline is bold, and each right is shown with a tick or a cross. From there it is an ordinary
+ * message and nothing downstream needs to know where it came from.
  */
 public final class TjAccountEvents {
+
+    public static final int TYPE_ADMIN_RIGHTS = 1;
+    public static final int TYPE_RESTRICTED = 2;
+    public static final int TYPE_MEMBERSHIP = 3;
+    public static final int TYPE_NEW_DEVICE = 4;
 
     /** A right, and the words the app already uses for it. */
     private static final class Right {
@@ -53,159 +57,157 @@ public final class TjAccountEvents {
             new Right("pin_messages", R.string.UserRestrictionsPinMessages),
     };
 
+    /** What this account could do in a chat, as last seen, so a change can be noticed at all. */
+    private static final ConcurrentHashMap<String, String> lastRights = new ConcurrentHashMap<>();
+
     private TjAccountEvents() { }
 
-    /** A change to what this account may do in a channel or supergroup, and who made it. */
+    private static boolean wants(int type) {
+        return TjConfig.accountLog() && TjConfig.accountLogType(type);
+    }
+
+    /** A change the server bothered to attribute: this one knows who made it. */
     public static void onChannelParticipant(int account, TL_update.TL_updateChannelParticipant update) {
         if (update == null || update.user_id != UserConfig.getInstance(account).getClientUserId()) {
             return;
         }
-        TLRPC.TL_chatAdminRights was = adminRights(update.prev_participant);
-        TLRPC.TL_chatAdminRights now = adminRights(update.new_participant);
-        TLRPC.TL_chatBannedRights wasBanned = bannedRights(update.prev_participant);
-        TLRPC.TL_chatBannedRights nowBanned = bannedRights(update.new_participant);
-
-        if (was != null || now != null) {
-            JSONObject payload = base(account, -update.channel_id, update.actor_id);
-            put(payload, "state", now == null ? "removed" : was == null ? "granted" : "changed");
-            rights(payload, ADMIN, was, now, false);
-            TjAccountLog.getInstance().record(account, TjAccountLog.TYPE_ADMIN_RIGHTS, update.date, payload);
-            return;
-        }
-        if (wasBanned != null || nowBanned != null) {
-            JSONObject payload = base(account, -update.channel_id, update.actor_id);
-            boolean kicked = nowBanned != null && nowBanned.view_messages;
-            put(payload, "state", nowBanned == null ? "lifted" : kicked ? "banned" : "restricted");
-            if (nowBanned != null && nowBanned.until_date > 0) {
-                put(payload, "until", nowBanned.until_date);
-            }
-            // A banned right is a thing taken away, so it is shown the way it is felt: what is
-            // still allowed is on, what was taken is off.
-            rights(payload, BANNED, wasBanned, nowBanned, true);
-            TjAccountLog.getInstance().record(account, TjAccountLog.TYPE_RESTRICTED, update.date, payload);
-            return;
-        }
-        JSONObject payload = base(account, -update.channel_id, update.actor_id);
-        put(payload, "state", update.new_participant == null ? "left" : "joined");
-        TjAccountLog.getInstance().record(account, TjAccountLog.TYPE_MEMBERSHIP, update.date, payload);
+        TLRPC.TL_chatAdminRights was = update.prev_participant == null ? null : update.prev_participant.admin_rights;
+        TLRPC.TL_chatAdminRights now = update.new_participant == null ? null : update.new_participant.admin_rights;
+        TLRPC.TL_chatBannedRights wasBanned = update.prev_participant == null ? null : update.prev_participant.banned_rights;
+        TLRPC.TL_chatBannedRights nowBanned = update.new_participant == null ? null : update.new_participant.banned_rights;
+        write(account, -update.channel_id, update.actor_id, update.date, was, now, wasBanned, nowBanned,
+                update.new_participant == null);
     }
-
-    /** The signature of what this account may do in a chat, so a change can be noticed at all. */
-    private static final java.util.concurrent.ConcurrentHashMap<String, String> lastRights =
-            new java.util.concurrent.ConcurrentHashMap<>();
 
     /**
      * The safety net, and in practice the one that fires.
      *
-     * updateChannelParticipant is the only update that names who changed your rights, and the
-     * server does not always send it to the person it is about - being demoted can arrive as
-     * nothing more than a fresh copy of the chat with different rights on it. Every chat object
-     * carries this account's own rights, so they are compared against the last ones seen and the
-     * difference is written down. What is lost this way is the name of whoever did it.
+     * The attributed update is only sent to people the server thinks should see participant
+     * changes, so the person it is about often never gets it - being demoted can arrive as nothing
+     * more than a fresh copy of the chat with different rights on it. Every chat object carries
+     * this account's own rights, so they are compared against the last ones seen. What is lost
+     * this way is the name of whoever did it, which is better than losing the event.
      */
     public static void onChatRights(int account, TLRPC.Chat oldChat, TLRPC.Chat chat) {
         if (chat == null || chat.min || !TjConfig.accountLog()) {
             return;
         }
-        String key = account + ":" + chat.id;
         String signature = signature(chat);
-        String previous = lastRights.put(key, signature);
+        String previous = lastRights.put(account + ":" + chat.id, signature);
         if (previous == null || previous.equals(signature)) {
-            // Nothing to compare against yet, or nothing moved.
             return;
         }
-        if (oldChat == null) {
-            oldChat = chat;
-        }
-        boolean adminBefore = oldChat.admin_rights != null, adminNow = chat.admin_rights != null;
-        if (adminBefore || adminNow) {
-            JSONObject payload = base(account, -chat.id, 0);
-            put(payload, "state", !adminNow ? "removed" : !adminBefore ? "granted" : "changed");
-            rights(payload, ADMIN, oldChat.admin_rights, chat.admin_rights, false);
-            TjAccountLog.getInstance().record(account, TjAccountLog.TYPE_ADMIN_RIGHTS, 0, payload);
-            return;
-        }
-        boolean bannedBefore = oldChat.banned_rights != null, bannedNow = chat.banned_rights != null;
-        if (bannedBefore || bannedNow) {
-            JSONObject payload = base(account, -chat.id, 0);
-            put(payload, "state", !bannedNow ? "lifted"
-                    : chat.banned_rights.view_messages ? "banned" : "restricted");
-            rights(payload, BANNED, oldChat.banned_rights, chat.banned_rights, true);
-            TjAccountLog.getInstance().record(account, TjAccountLog.TYPE_RESTRICTED, 0, payload);
-            return;
-        }
-        if (oldChat.left != chat.left || oldChat.kicked != chat.kicked) {
-            JSONObject payload = base(account, -chat.id, 0);
-            put(payload, "state", chat.left || chat.kicked ? "left" : "joined");
-            TjAccountLog.getInstance().record(account, TjAccountLog.TYPE_MEMBERSHIP, 0, payload);
-        }
+        TLRPC.Chat before = oldChat == null ? chat : oldChat;
+        write(account, -chat.id, 0, 0, before.admin_rights, chat.admin_rights,
+                before.banned_rights, chat.banned_rights, chat.left || chat.kicked);
     }
 
-    private static String signature(TLRPC.Chat chat) {
-        StringBuilder text = new StringBuilder(chat.left ? "l" : "-").append(chat.kicked ? "k" : "-");
-        text.append('|');
-        for (Right right : ADMIN) text.append(read(chat.admin_rights, right.field) ? '1' : '0');
-        text.append('|');
-        for (Right right : BANNED) text.append(read(chat.banned_rights, right.field) ? '1' : '0');
-        text.append(chat.banned_rights != null && chat.banned_rights.view_messages ? "v" : "-");
-        return text.toString();
-    }
-
-    /** The same thing in a plain group, which reports far less: only whether you are an admin. */
+    /** A plain group reports far less: only whether you are an admin at all. */
     public static void onChatParticipantAdmin(int account, TL_update.TL_updateChatParticipantAdmin update) {
-        if (update == null || update.user_id != UserConfig.getInstance(account).getClientUserId()) {
+        if (update == null || update.user_id != UserConfig.getInstance(account).getClientUserId()
+                || !wants(TYPE_ADMIN_RIGHTS)) {
             return;
         }
-        JSONObject payload = base(account, -update.chat_id, 0);
-        put(payload, "state", update.is_admin ? "granted" : "removed");
-        TjAccountLog.getInstance().record(account, TjAccountLog.TYPE_ADMIN_RIGHTS, 0, payload);
+        Builder text = new Builder();
+        text.bold(TjLocale.getString(update.is_admin
+                ? R.string.TjAccountLogAdminGranted : R.string.TjAccountLogAdminRemoved));
+        chatLine(text, account, -update.chat_id);
+        TjAccountLogChat.send(account, text.text(), text.entities(), 0);
     }
 
     /** A device that signed in. Telegram sends this before it shows its own warning. */
     public static void onNewAuthorization(int account, TL_update.TL_updateNewAuthorization update) {
-        if (update == null || !update.unconfirmed) {
+        if (update == null || !update.unconfirmed || !wants(TYPE_NEW_DEVICE)) {
             return;
         }
-        JSONObject payload = new JSONObject();
-        put(payload, "device", update.device == null ? "" : update.device);
-        put(payload, "location", update.location == null ? "" : update.location);
-        TjAccountLog.getInstance().record(account, TjAccountLog.TYPE_NEW_DEVICE, update.date, payload);
+        Builder text = new Builder();
+        text.bold(TjLocale.getString(R.string.TjAccountLogNewDevice));
+        if (update.device != null && !update.device.isEmpty()) text.line(update.device);
+        if (update.location != null && !update.location.isEmpty()) text.line(update.location);
+        TjAccountLogChat.send(account, text.text(), text.entities(), update.date);
     }
 
-    /** The chat it happened in and the person who did it, named now rather than looked up later. */
-    private static JSONObject base(int account, long dialogId, long actorId) {
-        JSONObject payload = new JSONObject();
-        put(payload, "chat", dialogId);
-        TLRPC.Chat chat = MessagesController.getInstance(account).getChat(-dialogId);
-        put(payload, "chatName", chat == null || chat.title == null ? "" : chat.title);
-        if (actorId != 0 && actorId != UserConfig.getInstance(account).getClientUserId()) {
-            put(payload, "actor", actorId);
-            TLRPC.User actor = MessagesController.getInstance(account).getUser(actorId);
-            put(payload, "actorName", actor == null ? ""
-                    : ContactsController.formatName(actor.first_name, actor.last_name));
+    /** One message for whichever of the three things this change turned out to be. */
+    private static void write(int account, long dialogId, long actorId, int date,
+                              TLRPC.TL_chatAdminRights was, TLRPC.TL_chatAdminRights now,
+                              TLRPC.TL_chatBannedRights wasBanned, TLRPC.TL_chatBannedRights nowBanned,
+                              boolean gone) {
+        if (was != null || now != null) {
+            if (!wants(TYPE_ADMIN_RIGHTS)) return;
+            Builder text = new Builder();
+            text.bold(TjLocale.getString(now == null ? R.string.TjAccountLogAdminRemoved
+                    : was == null ? R.string.TjAccountLogAdminGranted : R.string.TjAccountLogAdminChanged));
+            chatLine(text, account, dialogId);
+            actorLine(text, account, actorId);
+            rights(text, ADMIN, was, now, false);
+            TjAccountLogChat.send(account, text.text(), text.entities(), date);
+            return;
         }
-        return payload;
+        if (wasBanned != null || nowBanned != null) {
+            if (!wants(TYPE_RESTRICTED)) return;
+            Builder text = new Builder();
+            text.bold(TjLocale.getString(nowBanned == null ? R.string.TjAccountLogLifted
+                    : nowBanned.view_messages ? R.string.TjAccountLogBanned : R.string.TjAccountLogRestricted));
+            chatLine(text, account, dialogId);
+            actorLine(text, account, actorId);
+            // A banned right is something taken away, so it is shown the way it is felt: what is
+            // still allowed is a tick, what was taken is a cross.
+            rights(text, BANNED, wasBanned, nowBanned, true);
+            TjAccountLogChat.send(account, text.text(), text.entities(), date);
+            return;
+        }
+        if (!wants(TYPE_MEMBERSHIP)) return;
+        Builder text = new Builder();
+        text.bold(TjLocale.getString(gone ? R.string.TjAccountLogLeft : R.string.TjAccountLogJoined));
+        chatLine(text, account, dialogId);
+        actorLine(text, account, actorId);
+        TjAccountLogChat.send(account, text.text(), text.entities(), date);
+    }
+
+    /** The chat it happened in, as a link that opens it. */
+    private static void chatLine(Builder text, int account, long dialogId) {
+        TLRPC.Chat chat = MessagesController.getInstance(account).getChat(-dialogId);
+        String name = chat == null || chat.title == null ? "" : chat.title;
+        if (name.isEmpty()) return;
+        text.link(name, "https://t.me/id/" + (-dialogId));
+    }
+
+    /** Who did it, when the server said. When it did not, the line is simply not there. */
+    private static void actorLine(Builder text, int account, long actorId) {
+        if (actorId == 0 || actorId == UserConfig.getInstance(account).getClientUserId()) {
+            return;
+        }
+        TLRPC.User actor = MessagesController.getInstance(account).getUser(actorId);
+        String name = actor == null ? "" : ContactsController.formatName(actor.first_name, actor.last_name);
+        if (name.isEmpty()) return;
+        text.line(TjLocale.formatString(R.string.TjAccountLogBy, name));
     }
 
     /**
-     * What is on now, and which of those changed. Both lists are kept so the entry can show the
-     * whole picture and still point at what moved.
+     * What is on now, with the ones that moved gathered at the top. Showing the whole list is what
+     * makes the change readable: a tick next to a cross says more than a sentence about either.
      */
-    private static void rights(JSONObject payload, Right[] table, Object was, Object now, boolean invert) {
-        JSONArray on = new JSONArray(), off = new JSONArray(), changed = new JSONArray();
+    private static void rights(Builder text, Right[] table, Object was, Object now, boolean invert) {
+        ArrayList<String> changed = new ArrayList<>(), on = new ArrayList<>(), off = new ArrayList<>();
         for (Right right : table) {
             boolean before = read(was, right.field) != invert;
             boolean after = read(now, right.field) != invert;
             String name = TjLocale.getString(right.name);
-            if (after) on.put(name); else off.put(name);
-            if (before != after) changed.put(name);
+            if (after) on.add(name); else off.add(name);
+            if (before != after) changed.add((after ? "✅ " : "❌ ") + name);
         }
-        try {
-            payload.put("on", on);
-            payload.put("off", off);
-            payload.put("changed", changed);
-        } catch (Throwable ignored) {
+        if (!changed.isEmpty()) {
+            text.blank();
+            text.bold(TjLocale.getString(R.string.TjAccountLogChanged));
+            for (String line : changed) text.line(line);
         }
+        if (on.isEmpty() && off.isEmpty()) {
+            return;
+        }
+        text.blank();
+        text.bold(TjLocale.getString(R.string.TjAccountLogNow));
+        for (String name : on) text.line("✅ " + name);
+        for (String name : off) text.line("❌ " + name);
     }
 
     private static boolean read(Object rights, String field) {
@@ -217,42 +219,48 @@ public final class TjAccountEvents {
         }
     }
 
-    private static TLRPC.TL_chatAdminRights adminRights(TLRPC.ChannelParticipant participant) {
-        return participant == null ? null : participant.admin_rights;
+    private static String signature(TLRPC.Chat chat) {
+        StringBuilder text = new StringBuilder(chat.left ? "l" : "-").append(chat.kicked ? "k" : "-").append('|');
+        for (Right right : ADMIN) text.append(read(chat.admin_rights, right.field) ? '1' : '0');
+        text.append('|');
+        for (Right right : BANNED) text.append(read(chat.banned_rights, right.field) ? '1' : '0');
+        return text.append(chat.banned_rights != null && chat.banned_rights.view_messages ? 'v' : '-').toString();
     }
 
-    private static TLRPC.TL_chatBannedRights bannedRights(TLRPC.ChannelParticipant participant) {
-        return participant == null ? null : participant.banned_rights;
-    }
+    /** Text and the marks on it, built together so the offsets cannot drift apart. */
+    private static final class Builder {
+        private final StringBuilder text = new StringBuilder();
+        private final ArrayList<TLRPC.MessageEntity> entities = new ArrayList<>();
 
-    private static void put(JSONObject payload, String key, Object value) {
-        try { payload.put(key, value); } catch (Throwable ignored) { }
-    }
-
-    /** The headline for an entry: what happened, in the words of the thing that happened. */
-    public static String title(TjAccountLog.Entry entry) {
-        String state = entry.text("state");
-        switch (entry.type) {
-            case TjAccountLog.TYPE_ADMIN_RIGHTS:
-                return TjLocale.getString("granted".equals(state) ? R.string.TjAccountLogAdminGranted
-                        : "removed".equals(state) ? R.string.TjAccountLogAdminRemoved
-                        : R.string.TjAccountLogAdminChanged);
-            case TjAccountLog.TYPE_RESTRICTED:
-                return TjLocale.getString("banned".equals(state) ? R.string.TjAccountLogBanned
-                        : "lifted".equals(state) ? R.string.TjAccountLogLifted
-                        : R.string.TjAccountLogRestricted);
-            case TjAccountLog.TYPE_MEMBERSHIP:
-                return TjLocale.getString("joined".equals(state) ? R.string.TjAccountLogJoined
-                        : R.string.TjAccountLogLeft);
-            default:
-                return TjLocale.getString(R.string.TjAccountLogNewDevice);
+        void line(String value) {
+            if (text.length() > 0) text.append('\n');
+            text.append(value);
         }
-    }
 
-    /** The names of the rights this build knows about, for the settings screen to list. */
-    public static ArrayList<String> adminRightNames() {
-        ArrayList<String> names = new ArrayList<>();
-        for (Right right : ADMIN) names.add(TjLocale.getString(right.name));
-        return names;
+        void blank() {
+            if (text.length() > 0) text.append('\n');
+        }
+
+        void bold(String value) {
+            int start = text.length() > 0 ? text.length() + 1 : 0;
+            line(value);
+            TLRPC.TL_messageEntityBold entity = new TLRPC.TL_messageEntityBold();
+            entity.offset = start;
+            entity.length = value.length();
+            entities.add(entity);
+        }
+
+        void link(String value, String url) {
+            int start = text.length() > 0 ? text.length() + 1 : 0;
+            line(value);
+            TLRPC.TL_messageEntityTextUrl entity = new TLRPC.TL_messageEntityTextUrl();
+            entity.offset = start;
+            entity.length = value.length();
+            entity.url = url;
+            entities.add(entity);
+        }
+
+        CharSequence text() { return text; }
+        ArrayList<TLRPC.MessageEntity> entities() { return entities; }
     }
 }

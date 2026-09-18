@@ -8,7 +8,7 @@ import android.widget.ScrollView;
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.R;
 import org.telegram.messenger.TjLocale;
-import org.telegram.messenger.tj.TjAccountLog;
+import org.telegram.messenger.tj.TjAccountEvents;
 import org.telegram.messenger.tj.TjConfig;
 import org.telegram.ui.ActionBar.ActionBar;
 import org.telegram.ui.ActionBar.BaseFragment;
@@ -22,10 +22,10 @@ import org.telegram.ui.Components.TjSettingsStyle;
 public class TjAccountLogSettingsActivity extends BaseFragment {
 
     private static final int[] TYPES = {
-            TjAccountLog.TYPE_ADMIN_RIGHTS,
-            TjAccountLog.TYPE_RESTRICTED,
-            TjAccountLog.TYPE_MEMBERSHIP,
-            TjAccountLog.TYPE_NEW_DEVICE,
+            TjAccountEvents.TYPE_ADMIN_RIGHTS,
+            TjAccountEvents.TYPE_RESTRICTED,
+            TjAccountEvents.TYPE_MEMBERSHIP,
+            TjAccountEvents.TYPE_NEW_DEVICE,
     };
 
     private LinearLayout body;
@@ -105,9 +105,9 @@ public class TjAccountLogSettingsActivity extends BaseFragment {
 
     private static String name(int type) {
         switch (type) {
-            case TjAccountLog.TYPE_ADMIN_RIGHTS: return TjLocale.getString(R.string.TjAccountLogTypeAdmin);
-            case TjAccountLog.TYPE_RESTRICTED: return TjLocale.getString(R.string.TjAccountLogTypeRestricted);
-            case TjAccountLog.TYPE_MEMBERSHIP: return TjLocale.getString(R.string.TjAccountLogTypeMembership);
+            case TjAccountEvents.TYPE_ADMIN_RIGHTS: return TjLocale.getString(R.string.TjAccountLogTypeAdmin);
+            case TjAccountEvents.TYPE_RESTRICTED: return TjLocale.getString(R.string.TjAccountLogTypeRestricted);
+            case TjAccountEvents.TYPE_MEMBERSHIP: return TjLocale.getString(R.string.TjAccountLogTypeMembership);
             default: return TjLocale.getString(R.string.TjAccountLogTypeDevice);
         }
     }

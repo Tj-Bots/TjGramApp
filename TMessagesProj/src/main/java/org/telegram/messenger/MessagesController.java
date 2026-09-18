@@ -17693,6 +17693,29 @@ public class MessagesController extends BaseController implements NotificationCe
         });
     }
 
+    /**
+     * Stores a message this device made up and shows it as if it had arrived.
+     *
+     * The same three steps Telegram takes for the service messages it writes itself: keep it,
+     * tell the interface a message landed in that chat, and ask the chat list to look again. What
+     * comes out the other side is an ordinary message in an ordinary chat - it can be copied,
+     * pinned, selected and deleted, because nothing about it is special by the time it is drawn.
+     */
+    public void tjPutLocalMessage(long dialogId, TLRPC.Message message) {
+        if (message == null) {
+            return;
+        }
+        ArrayList<TLRPC.Message> messagesArr = new ArrayList<>();
+        messagesArr.add(message);
+        ArrayList<MessageObject> objects = new ArrayList<>();
+        objects.add(new MessageObject(currentAccount, message, true, false));
+        getMessagesStorage().putMessages(messagesArr, true, true, false, 0, 0, 0);
+        AndroidUtilities.runOnUIThread(() -> {
+            updateInterfaceWithMessages(dialogId, objects, 0);
+            getNotificationCenter().postNotificationName(NotificationCenter.dialogsNeedReload);
+        });
+    }
+
     protected void deleteMessagesByPush(long dialogId, ArrayList<Integer> ids, long channelId) {
         getMessagesStorage().getStorageQueue().postRunnable(() -> {
             AndroidUtilities.runOnUIThread(() -> {
@@ -22695,9 +22718,6 @@ public class MessagesController extends BaseController implements NotificationCe
                 dialogsForward.add(0, dialog);
             }
         }
-        // The account log is not the server's, so the server's rebuild of this list keeps
-        // removing it. Putting it back after every sort is what makes it stay.
-        org.telegram.messenger.tj.TjAccountLogDialog.attach(currentAccount, dialogsByFolder);
         for (int a = 0; a < dialogsByFolder.size(); a++) {
             int folderId = dialogsByFolder.keyAt(a);
             ArrayList<TLRPC.Dialog> dialogs = dialogsByFolder.valueAt(a);
