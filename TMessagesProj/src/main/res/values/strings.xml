@@ -11505,6 +11505,7 @@
     <string name="TjAccountLog">Account log</string>
     <string name="TjAccountLogChatName">TjGram</string>
     <string name="TjAccountLogNow">Now</string>
+    <string name="TjAccountLogNoWriting">You can\'t send messages here</string>
     <string name="TjAccountLogInfo">Everything the server tells this device about your account, kept here where you can see it. Nothing is asked for and nothing leaves the phone.</string>
     <string name="TjAccountLogBlockedInfo">Being blocked by someone is not here: Telegram does not report it, and guessing it from what stops working would mean telling you something the other person chose not to.</string>
     <string name="TjAccountLogEmpty">Nothing has happened yet.</string>

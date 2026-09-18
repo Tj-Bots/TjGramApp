@@ -3765,6 +3765,8 @@ public class ChatActivity extends BaseFragment implements
                     }
                 } else if (id == copy) {
                     SpannableStringBuilder str = new SpannableStringBuilder();
+                    StringBuilder styled = new StringBuilder();
+                    boolean anyStyle = false;
                     long previousUid = 0;
                     for (int a = 1; a >= 0; a--) {
                         ArrayList<Integer> ids = new ArrayList<>();
@@ -3781,13 +3783,22 @@ public class ChatActivity extends BaseFragment implements
                             MessageObject messageObject = selectedMessagesCanCopyIds[a].get(messageId);
                             if (str.length() != 0) {
                                 str.append("\n\n");
+                                styled.append("<br><br>");
                             }
-                            str.append(getMessageContent(messageObject, previousUid, ids.size() != 1 && (currentUser == null || !currentUser.self)));
+                            CharSequence content = getMessageContent(messageObject, previousUid, ids.size() != 1 && (currentUser == null || !currentUser.self));
+                            str.append(content);
+                            anyStyle |= org.telegram.messenger.tj.TjRichCopy.append(styled, content,
+                                    messageObject.messageOwner != null && TextUtils.equals(content.toString(), messageObject.messageOwner.message)
+                                            ? messageObject.messageOwner.entities : null);
                             previousUid = messageObject.getFromChatId();
                         }
                     }
                     if (str.length() != 0) {
-                        AndroidUtilities.addToClipboard(str);
+                        if (anyStyle) {
+                            AndroidUtilities.addToClipboard(str, styled.toString());
+                        } else {
+                            AndroidUtilities.addToClipboard(str);
+                        }
                         createUndoView();
                         undoView.showWithAction(0, UndoView.ACTION_TEXT_COPIED, null);
                     }
@@ -8619,8 +8630,7 @@ public class ChatActivity extends BaseFragment implements
             } else if (chatMode == MODE_PINNED) {
                 finishFragment();
                 chatActivityDelegate.onUnpin(true, bottomOverlayChatText.getTag() == null);
-            } else if (currentUser != null && (currentUser.id == UserObject.VERIFY
-                    || org.telegram.messenger.tj.TjAccountLogChat.is(currentUser.id))) {
+            } else if (currentUser != null && currentUser.id == UserObject.VERIFY) {
                 toggleMute(true);
             } else if (currentUser != null && userBlocked) {
                 if (currentUser.bot) {
@@ -28026,8 +28036,15 @@ public class ChatActivity extends BaseFragment implements
                 bottomOverlayChatText.setText(LocaleController.getString(R.string.HidePinnedMessagesNoCaps));
             }
             showBottomOverlayProgress(false, false);
-        } else if (currentUser != null && (currentUser.id == UserObject.VERIFY
-                || org.telegram.messenger.tj.TjAccountLogChat.is(currentUser.id))) {
+        } else if (currentUser != null && org.telegram.messenger.tj.TjAccountLogChat.is(currentUser.id)) {
+            // There is nobody to write to, so the bar says so instead of pretending to be a
+            // button. Muting this chat is where muting any chat is.
+            Drawable lock = getContext().getResources().getDrawable(R.drawable.msg_mini_lock2).mutate();
+            lock.setColorFilter(new PorterDuffColorFilter(getThemedColor(Theme.key_windowBackgroundWhiteGrayText), PorterDuff.Mode.MULTIPLY));
+            bottomOverlayChatText.setTextInfo(lock, TjLocale.getString(R.string.TjAccountLogNoWriting));
+            bottomOverlayChatText.setEnabled(false);
+            showBottomOverlayProgress(false, false);
+        } else if (currentUser != null && currentUser.id == UserObject.VERIFY) {
             if (!getMessagesController().isDialogMuted(dialog_id, getTopicId())) {
                 bottomOverlayChatText.setText(LocaleController.getString(R.string.ChannelMuteNoCaps), false);
                 bottomOverlayChatText.setEnabled(true);
@@ -33996,10 +34013,16 @@ public class ChatActivity extends BaseFragment implements
                     AndroidUtilities.addToClipboard(caption);
                 } else {
                     CharSequence caption = getMessageCaption(selectedObject, selectedObjectGroup);
-                    if (caption != null) {
-                        AndroidUtilities.addToClipboard(caption);
+                    if (caption == null) {
+                        caption = getMessageContent(selectedObject, 0, false);
+                    }
+                    // Carry the formatting along, so pasting it back gives the message, not a
+                    // flattened copy of its words.
+                    String styled = org.telegram.messenger.tj.TjRichCopy.html(selectedObject, caption);
+                    if (styled != null) {
+                        AndroidUtilities.addToClipboard(caption, styled);
                     } else {
-                        AndroidUtilities.addToClipboard(getMessageContent(selectedObject, 0, false));
+                        AndroidUtilities.addToClipboard(caption);
                     }
                 }
                 createUndoView();
