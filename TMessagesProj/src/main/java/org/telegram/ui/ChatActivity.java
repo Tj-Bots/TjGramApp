@@ -7581,7 +7581,7 @@ public class ChatActivity extends BaseFragment implements
             }
         });
         mentionContainer.getListView().setOnItemLongClickListener((view, position) -> {
-            if (getParentActivity() == null || !mentionContainer.getAdapter().isLongClickEnabled()) {
+            if (getParentActivity() == null) {
                 return false;
             }
             if (position == 0 || mentionContainer.getAdapter().isBannedInline()) {
@@ -7589,6 +7589,17 @@ public class ChatActivity extends BaseFragment implements
             }
             position--;
             Object object = mentionContainer.getAdapter().getItem(position);
+            // A mention does not have to read as the person's name - long press to say it in
+            // your own words and still point at them.
+            if (object instanceof TLRPC.User && !searchingForUser && !mentionContainer.getAdapter().isBotCommands()) {
+                showMentionTextAlert((TLRPC.User) object,
+                        mentionContainer.getAdapter().getResultStartPosition(),
+                        mentionContainer.getAdapter().getResultLength());
+                return true;
+            }
+            if (!mentionContainer.getAdapter().isLongClickEnabled()) {
+                return false;
+            }
             if (object instanceof MentionsAdapter.EphemeralCommand) {
                 MentionsAdapter.EphemeralCommand ephemeralCommand = (MentionsAdapter.EphemeralCommand) object;
                 if (mentionContainer.getAdapter().isBotCommands()) {
@@ -33548,6 +33559,61 @@ public class ChatActivity extends BaseFragment implements
                 drawable.restart();
             }
         }
+    }
+
+    private void showMentionTextAlert(TLRPC.User user, int start, int len) {
+        final Context context = getParentActivity();
+        if (context == null || chatActivityEnterView == null) {
+            return;
+        }
+        final org.telegram.ui.Components.EditTextBoldCursor editText = new org.telegram.ui.Components.EditTextBoldCursor(context);
+        final String name = UserObject.getFirstName(user, false);
+        editText.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 16);
+        editText.setTextColor(getThemedColor(Theme.key_dialogTextBlack));
+        editText.setHintTextColor(getThemedColor(Theme.key_dialogTextHint));
+        editText.setBackgroundDrawable(Theme.createEditTextDrawable(context, true));
+        editText.setCursorColor(getThemedColor(Theme.key_dialogTextBlack));
+        editText.setCursorSize(AndroidUtilities.dp(20));
+        editText.setCursorWidth(1.5f);
+        editText.setSingleLine(true);
+        editText.setImeOptions(EditorInfo.IME_ACTION_DONE);
+        editText.setText(name);
+        editText.setSelection(editText.getText().length());
+
+        final LinearLayout container = new LinearLayout(context);
+        container.setOrientation(LinearLayout.VERTICAL);
+        container.addView(editText, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, 24, 6, 24, 0));
+
+        final Runnable apply = () -> {
+            String text = editText.getText().toString().trim();
+            if (TextUtils.isEmpty(text)) {
+                text = name;
+            }
+            if (TextUtils.isEmpty(text)) {
+                return;
+            }
+            Spannable spannable = new SpannableString(text + " ");
+            spannable.setSpan(new URLSpanUserMention("" + user.id, 3), 0, spannable.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            chatActivityEnterView.replaceWithText(start, len, spannable, false);
+        };
+
+        AlertDialog.Builder builder = new AlertDialog.Builder(context, themeDelegate);
+        builder.setTitle(TjLocale.getString(R.string.TjCreateMention));
+        builder.setView(container);
+        builder.setPositiveButton(LocaleController.getString(R.string.OK), (d, which) -> apply.run());
+        builder.setNegativeButton(LocaleController.getString(R.string.Cancel), null);
+        AlertDialog dialog = builder.create();
+        editText.setOnEditorActionListener((v, actionId, event) -> {
+            if (actionId == EditorInfo.IME_ACTION_DONE) {
+                apply.run();
+                dialog.dismiss();
+                return true;
+            }
+            return false;
+        });
+        showDialog(dialog);
+        editText.requestFocus();
+        AndroidUtilities.runOnUIThread(() -> AndroidUtilities.showKeyboard(editText), 80);
     }
 
     public static CharSequence getMessageContent(MessageObject messageObject, long previousUid, boolean name) {

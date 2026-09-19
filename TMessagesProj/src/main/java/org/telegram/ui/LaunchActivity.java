@@ -8567,6 +8567,10 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
                     drawerLayoutContainer.closeDrawer(false);
                     presentFragment(new TjWatchActivity());
                     break;
+                case 108:
+                    drawerLayoutContainer.closeDrawer(false);
+                    presentFragment(new TjIdLookupActivity());
+                    break;
             }
         });
         final ItemTouchHelper sideMenuTouchHelper = new ItemTouchHelper(new ItemTouchHelper.SimpleCallback(ItemTouchHelper.UP | ItemTouchHelper.DOWN, 0) {

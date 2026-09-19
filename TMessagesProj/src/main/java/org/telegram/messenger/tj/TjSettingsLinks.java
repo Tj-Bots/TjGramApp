@@ -8,7 +8,8 @@ public final class TjSettingsLinks {
     public enum Section {
         GHOST("ghost"), ARCHIVE("archive"), LOCAL_PREMIUM("local-premium"),
         FOLDERS("folders"), MEDIA_CENTER("media-center"), MEDIA_METADATA("media-metadata"),
-        PLAYER("player"), MEDIA_LISTS("media-lists"), GENERAL("general");
+        PLAYER("player"), MEDIA_LISTS("media-lists"), GENERAL("general"),
+        ACCOUNT_LOG("account-log"), MENU_SHORTCUTS("menu-shortcuts"), WATCH("watch");
 
         public final String value;
 

@@ -412,6 +412,10 @@ public class TjSettingsActivity extends BaseFragment {
             case ID_DIRECT_STREAMING: key = "direct_file_streaming"; break;
             case ID_FAST_DOWNLOAD: key = "fast_download"; break;
             case ID_ACCOUNT_LOG: key = "account_log"; break;
+            case ID_GHOST_SETTINGS: key = "ghost_settings"; break;
+            case ID_PRIVACY_ARCHIVE: key = "privacy_archive"; break;
+            case ID_FOLDER_TAB_STYLE: key = "folder_tab_style"; break;
+            case ID_MENU_SHORTCUT_ACTIONS: key = "menu_shortcut_actions"; break;
             case ID_MENU_SHORTCUTS: key = "menu_shortcuts"; break;
             case ID_PROTOCOL_ERRORS: key = "show_protocol_errors"; break;
             case ID_EXACT_MEMBER_COUNT: key = "exact_member_count"; break;
@@ -563,10 +567,23 @@ public class TjSettingsActivity extends BaseFragment {
     private boolean copyLinkTo(Item item) {
         String key = keyFor(item.id);
         if (key == null || item.viewType != VIEW_TYPE_CHECK && item.viewType != VIEW_TYPE_SETTING) return false;
-        AndroidUtilities.addToClipboard(org.telegram.messenger.tj.TjSettingsLinks.build(
-                org.telegram.messenger.tj.TjSettingsLinks.Section.GENERAL, key));
+        AndroidUtilities.addToClipboard(org.telegram.messenger.tj.TjSettingsLinks.build(sectionFor(item.id), key));
         BulletinFactory.of(this).createCopyLinkBulletin().show();
         return true;
+    }
+
+    /**
+     * A row that opens a screen of its own is linked straight to that screen; everything else is
+     * linked to this list, where the link walks to the row and marks it without touching it.
+     */
+    private static org.telegram.messenger.tj.TjSettingsLinks.Section sectionFor(int id) {
+        switch (id) {
+            case ID_ACCOUNT_LOG: return org.telegram.messenger.tj.TjSettingsLinks.Section.ACCOUNT_LOG;
+            case ID_GHOST_SETTINGS: return org.telegram.messenger.tj.TjSettingsLinks.Section.GHOST;
+            case ID_PRIVACY_ARCHIVE: return org.telegram.messenger.tj.TjSettingsLinks.Section.ARCHIVE;
+            case ID_MENU_SHORTCUT_ACTIONS: return org.telegram.messenger.tj.TjSettingsLinks.Section.MENU_SHORTCUTS;
+            default: return org.telegram.messenger.tj.TjSettingsLinks.Section.GENERAL;
+        }
     }
 
     private void updateItems() {

@@ -34,6 +34,15 @@ final class TjSettingsLinkNavigator {
             case MEDIA_LISTS:
                 fragment = TjMediaCenterActivity.forSettingsLink(true);
                 break;
+            case ACCOUNT_LOG:
+                fragment = new TjAccountLogSettingsActivity();
+                break;
+            case MENU_SHORTCUTS:
+                fragment = new TjMenuShortcutsActivity();
+                break;
+            case WATCH:
+                fragment = new TjWatchActivity();
+                break;
             case PLAYER:
                 fragment = item != null ? TjSettingsActivity.forItem(item) : TjSettingsActivity.forPlayerSettings();
                 break;

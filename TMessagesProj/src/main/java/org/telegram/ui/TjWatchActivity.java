@@ -94,7 +94,7 @@ public class TjWatchActivity extends BaseFragment {
         Shelf(String title, Genre genre) { this.title = title; this.genre = genre; }
     }
 
-    private static final int MENU_HISTORY = 1, MENU_SETTINGS = 2;
+    private static final int MENU_HISTORY = 1, MENU_SETTINGS = 2, MENU_COPY_LINK = 3;
     /** How many genre rows the home screen offers before it becomes a list of lists. */
     private static final int MAX_SHELVES = 12;
 
@@ -144,6 +144,12 @@ public class TjWatchActivity extends BaseFragment {
                 if (id == -1) finishFragment();
                 else if (id == MENU_HISTORY) presentFragment(new TjWatchHistoryActivity());
                 else if (id == MENU_SETTINGS) presentFragment(new TjWatchSettingsActivity());
+                else if (id == MENU_COPY_LINK) {
+                    org.telegram.messenger.AndroidUtilities.addToClipboard(
+                            org.telegram.messenger.tj.TjSettingsLinks.build(
+                                    org.telegram.messenger.tj.TjSettingsLinks.Section.WATCH, null));
+                    org.telegram.ui.Components.BulletinFactory.of(TjWatchActivity.this).createCopyLinkBulletin().show();
+                }
             }
         });
         ActionBarMenu menu = actionBar.createMenu();
@@ -165,6 +171,7 @@ public class TjWatchActivity extends BaseFragment {
         other.setContentDescription(LocaleController.getString(R.string.AccDescrMoreOptions));
         other.addSubItem(MENU_HISTORY, R.drawable.msg_recent, TjLocale.getString(R.string.TjWatchHistory));
         other.addSubItem(MENU_SETTINGS, R.drawable.msg_settings, TjLocale.getString(R.string.TjWatchSettings));
+        other.addSubItem(MENU_COPY_LINK, R.drawable.msg_link2, LocaleController.getString(R.string.CopyLink));
 
         root = new FrameLayout(context);
         root.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundGray));
