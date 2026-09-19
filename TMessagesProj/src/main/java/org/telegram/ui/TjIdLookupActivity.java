@@ -64,6 +64,18 @@ public class TjIdLookupActivity extends BaseFragment {
     private final ArrayList<TLRPC.Chat> common = new ArrayList<>();
     private final ArrayList<Row> rows = new ArrayList<>();
 
+    /** At most this many channels are asked about, a few at a time, per lookup. */
+    private static final int CHANNEL_SCAN_LIMIT = 60;
+    private static final int CHANNEL_SCAN_PARALLEL = 4;
+
+    private final ArrayList<TLRPC.Chat> channelQueue = new ArrayList<>();
+    private int scanGeneration;
+    private int scanChecked;
+    private int scanTotal;
+    private int scanInFlight;
+    private boolean scanning;
+    private boolean scanStopped;
+
     private static class Row {
         final int type;
         final CharSequence text;
@@ -182,6 +194,7 @@ public class TjIdLookupActivity extends BaseFragment {
         userId = id;
         searched = true;
         common.clear();
+        stopChannelScan();
         user = getMessagesController().getUser(id);
         if (user != null) {
             buildRows();
@@ -243,14 +256,18 @@ public class TjIdLookupActivity extends BaseFragment {
      * business, so the server does not volunteer them. For channels this account already runs,
      * though, it may simply ask - and those are exactly the channels where anything can be done
      * about the answer anyway.
+     *
+     * The asking is paced: a handful of questions in the air at a time, and the whole thing stops
+     * the moment the server says it has had enough, rather than spending the account's goodwill
+     * on a burst of sixty.
      */
     private void loadAdminChannels() {
+        stopChannelScan();
         if (user == null || UserObject.isUserSelf(user)) {
             return;
         }
-        final ArrayList<TLRPC.Chat> candidates = new ArrayList<>();
         final ArrayList<TLRPC.Dialog> dialogs = getMessagesController().getAllDialogs();
-        for (int a = 0; a < dialogs.size() && candidates.size() < 40; a++) {
+        for (int a = 0; a < dialogs.size() && channelQueue.size() < CHANNEL_SCAN_LIMIT; a++) {
             final long dialogId = dialogs.get(a).id;
             if (dialogId >= 0) {
                 continue;
@@ -260,34 +277,77 @@ public class TjIdLookupActivity extends BaseFragment {
                     || !ChatObject.canBlockUsers(chat) || alreadyListed(chat.id)) {
                 continue;
             }
-            candidates.add(chat);
+            channelQueue.add(chat);
         }
-        if (candidates.isEmpty()) {
+        if (channelQueue.isEmpty()) {
+            buildRows();
             return;
         }
-        final int[] pending = new int[]{candidates.size()};
-        final long askedFor = userId;
-        loading = true;
+        scanGeneration++;
+        scanTotal = channelQueue.size();
+        scanChecked = 0;
+        scanInFlight = 0;
+        scanning = true;
+        scanStopped = false;
         buildRows();
-        for (int a = 0; a < candidates.size(); a++) {
-            final TLRPC.Chat chat = candidates.get(a);
+        pumpChannelScan();
+    }
+
+    private void stopChannelScan() {
+        scanGeneration++;
+        channelQueue.clear();
+        scanning = false;
+        scanStopped = false;
+        scanInFlight = 0;
+        scanChecked = 0;
+        scanTotal = 0;
+    }
+
+    private void pumpChannelScan() {
+        final int generation = scanGeneration;
+        while (scanning && scanInFlight < CHANNEL_SCAN_PARALLEL && !channelQueue.isEmpty()) {
+            final TLRPC.Chat chat = channelQueue.remove(0);
+            final long askedFor = userId;
+            scanInFlight++;
             TLRPC.TL_channels_getParticipant req = new TLRPC.TL_channels_getParticipant();
             req.channel = MessagesController.getInputChannel(chat);
             req.participant = getMessagesController().getInputPeer(askedFor);
             getConnectionsManager().sendRequest(req, (response, error) -> AndroidUtilities.runOnUIThread(() -> {
-                if (askedFor != userId) {
+                if (generation != scanGeneration) {
                     return;
                 }
-                // An error here is the ordinary answer for "not a member", not a failure.
-                if (response != null && !alreadyListed(chat.id)) {
+                scanInFlight--;
+                scanChecked++;
+                if (error != null && error.text != null && error.text.startsWith("FLOOD_WAIT")) {
+                    // The server has had enough questions for now. Show what was found.
+                    channelQueue.clear();
+                    scanStopped = true;
+                } else if (response != null && !alreadyListed(chat.id)) {
+                    // Anything else - "not a participant" included - is an ordinary answer.
                     common.add(chat);
+                    sortCommon();
                 }
-                if (--pending[0] <= 0) {
-                    loading = false;
+                if (channelQueue.isEmpty() && scanInFlight <= 0) {
+                    scanning = false;
                 }
                 buildRows();
+                pumpChannelScan();
             }));
         }
+    }
+
+    /** Groups as the server ordered them, then the channels, each by name. */
+    private void sortCommon() {
+        java.util.Collections.sort(common, (a, b) -> {
+            boolean channelA = isChannel(a), channelB = isChannel(b);
+            if (channelA != channelB) {
+                return channelA ? 1 : -1;
+            }
+            if (!channelA) {
+                return 0;
+            }
+            return String.valueOf(a.title).compareToIgnoreCase(String.valueOf(b.title));
+        });
     }
 
     private boolean alreadyListed(long chatId) {
@@ -331,8 +391,9 @@ public class TjIdLookupActivity extends BaseFragment {
             rows.add(new Row(TYPE_ACTION, TjLocale.getString(R.string.TjIdLookupCopyLink), null, ACTION_COPY, false));
             if (!UserObject.isUserSelf(user)) {
                 rows.add(new Row(TYPE_HEADER, TjLocale.getString(R.string.TjIdLookupCommon), null, 0, false));
+                rows.add(new Row(TYPE_INFO, summary(), null, 0, false));
                 if (common.isEmpty()) {
-                    rows.add(new Row(TYPE_INFO, loading
+                    rows.add(new Row(TYPE_INFO, loading || scanning
                             ? TjLocale.getString(R.string.TjIdLookupSearching)
                             : TjLocale.getString(R.string.TjIdLookupNoCommon), null, 0, false));
                 } else {
@@ -348,6 +409,27 @@ public class TjIdLookupActivity extends BaseFragment {
         if (adapter != null) {
             adapter.notifyDataSetChanged();
         }
+    }
+
+    /** What was found, and - while channels are still being asked about - how far along it is. */
+    private CharSequence summary() {
+        int groups = 0, channels = 0;
+        for (int a = 0; a < common.size(); a++) {
+            if (isChannel(common.get(a))) {
+                channels++;
+            } else {
+                groups++;
+            }
+        }
+        StringBuilder text = new StringBuilder(TjLocale.formatString(
+                R.string.TjIdLookupSummary, groups, channels, removableCount()));
+        if (scanning) {
+            text.append("\n").append(TjLocale.formatString(
+                    R.string.TjIdLookupScanning, scanChecked, scanTotal));
+        } else if (scanStopped) {
+            text.append("\n").append(TjLocale.getString(R.string.TjIdLookupScanStopped));
+        }
+        return text;
     }
 
     private int removableCount() {
@@ -403,7 +485,7 @@ public class TjIdLookupActivity extends BaseFragment {
                 ? R.string.TjIdLookupRemoveChannel : R.string.TjIdLookupRemove);
         AlertDialog.Builder first = new AlertDialog.Builder(getParentActivity());
         first.setTitle(title);
-        first.setMessage(LocaleController.formatString(R.string.TjIdLookupRemoveConfirm, UserObject.getUserName(user), chat.title));
+        first.setMessage(TjLocale.formatString(R.string.TjIdLookupRemoveConfirm, UserObject.getUserName(user), chat.title));
         first.setPositiveButton(LocaleController.getString(R.string.Remove), (d, w) -> {
             AlertDialog.Builder second = new AlertDialog.Builder(getParentActivity());
             second.setTitle(title);
@@ -431,7 +513,7 @@ public class TjIdLookupActivity extends BaseFragment {
         }
         AlertDialog.Builder first = new AlertDialog.Builder(getParentActivity());
         first.setTitle(TjLocale.getString(R.string.TjIdLookupRemoveAll));
-        first.setMessage(LocaleController.formatString(R.string.TjIdLookupRemoveAllConfirm, UserObject.getUserName(user), count));
+        first.setMessage(TjLocale.formatString(R.string.TjIdLookupRemoveAllConfirm, UserObject.getUserName(user), count));
         first.setPositiveButton(LocaleController.getString(R.string.Remove), (d, w) -> {
             AlertDialog.Builder second = new AlertDialog.Builder(getParentActivity());
             second.setTitle(TjLocale.getString(R.string.TjIdLookupRemoveAll));

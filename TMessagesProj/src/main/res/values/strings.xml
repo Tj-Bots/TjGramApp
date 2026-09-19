@@ -11512,6 +11512,9 @@
     <string name="TjIdLookupCopyLink">Copy link</string>
     <string name="TjIdLookupUnknown">This app has never seen this ID. Open a chat with them once, or find them through search, and it will be here.</string>
     <string name="TjIdLookupCommon">In common</string>
+    <string name="TjIdLookupSummary">%1$d groups · %2$d channels · admin in %3$d</string>
+    <string name="TjIdLookupScanning">Checking your channels… %1$d of %2$d</string>
+    <string name="TjIdLookupScanStopped">Telegram asked for a pause, so the channel check stopped early. Search again in a minute to finish it.</string>
     <string name="TjIdLookupNoCommon">Nothing in common</string>
     <string name="TjIdLookupRemove">Remove from this group</string>
     <string name="TjIdLookupRemoveAll">Remove from all of them</string>

@@ -453,6 +453,9 @@ public class TjLocale {
         m.put("TjIdLookupCopyLink", "העתק קישור");
         m.put("TjIdLookupUnknown", "האפליקציה מעולם לא ראתה את המזהה הזה. פתח איתו צ'אט פעם אחת, או מצא אותו בחיפוש, והוא יופיע כאן.");
         m.put("TjIdLookupCommon", "משותפים");
+        m.put("TjIdLookupSummary", "%1$d קבוצות · %2$d ערוצים · מנהל ב-%3$d");
+        m.put("TjIdLookupScanning", "בודק את הערוצים שלך… %1$d מתוך %2$d");
+        m.put("TjIdLookupScanStopped", "טלגרם ביקש הפסקה, אז בדיקת הערוצים נעצרה באמצע. חפש שוב בעוד דקה כדי להשלים אותה.");
         m.put("TjIdLookupNoCommon", "אין קבוצות או ערוצים משותפים");
         m.put("TjIdLookupRemove", "הסר מהקבוצה הזאת");
         m.put("TjIdLookupRemoveAll", "הסר מכולן");
