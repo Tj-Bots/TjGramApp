@@ -234,7 +234,69 @@ public class TjIdLookupActivity extends BaseFragment {
                 common.addAll(res.chats);
             }
             buildRows();
+            loadAdminChannels();
         }));
+    }
+
+    /**
+     * "Chats in common" answers with groups: a broadcast channel's members are the admins'
+     * business, so the server does not volunteer them. For channels this account already runs,
+     * though, it may simply ask - and those are exactly the channels where anything can be done
+     * about the answer anyway.
+     */
+    private void loadAdminChannels() {
+        if (user == null || UserObject.isUserSelf(user)) {
+            return;
+        }
+        final ArrayList<TLRPC.Chat> candidates = new ArrayList<>();
+        final ArrayList<TLRPC.Dialog> dialogs = getMessagesController().getAllDialogs();
+        for (int a = 0; a < dialogs.size() && candidates.size() < 40; a++) {
+            final long dialogId = dialogs.get(a).id;
+            if (dialogId >= 0) {
+                continue;
+            }
+            TLRPC.Chat chat = getMessagesController().getChat(-dialogId);
+            if (chat == null || !ChatObject.isChannelAndNotMegaGroup(chat)
+                    || !ChatObject.canBlockUsers(chat) || alreadyListed(chat.id)) {
+                continue;
+            }
+            candidates.add(chat);
+        }
+        if (candidates.isEmpty()) {
+            return;
+        }
+        final int[] pending = new int[]{candidates.size()};
+        final long askedFor = userId;
+        loading = true;
+        buildRows();
+        for (int a = 0; a < candidates.size(); a++) {
+            final TLRPC.Chat chat = candidates.get(a);
+            TLRPC.TL_channels_getParticipant req = new TLRPC.TL_channels_getParticipant();
+            req.channel = MessagesController.getInputChannel(chat);
+            req.participant = getMessagesController().getInputPeer(askedFor);
+            getConnectionsManager().sendRequest(req, (response, error) -> AndroidUtilities.runOnUIThread(() -> {
+                if (askedFor != userId) {
+                    return;
+                }
+                // An error here is the ordinary answer for "not a member", not a failure.
+                if (response != null && !alreadyListed(chat.id)) {
+                    common.add(chat);
+                }
+                if (--pending[0] <= 0) {
+                    loading = false;
+                }
+                buildRows();
+            }));
+        }
+    }
+
+    private boolean alreadyListed(long chatId) {
+        for (int a = 0; a < common.size(); a++) {
+            if (common.get(a).id == chatId) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private void openChat() {
@@ -298,7 +360,37 @@ public class TjIdLookupActivity extends BaseFragment {
         return count;
     }
 
-    /** Two taps for one group: the first says which, the second says it cannot be taken back. */
+    private static boolean isChannel(TLRPC.Chat chat) {
+        return ChatObject.isChannelAndNotMegaGroup(chat);
+    }
+
+    private void showChatMenu(View anchor, TLRPC.Chat chat) {
+        org.telegram.ui.Components.ItemOptions options = org.telegram.ui.Components.ItemOptions.makeOptions(this, anchor);
+        options.add(R.drawable.msg_openin, LocaleController.getString(R.string.Open), () -> {
+            Bundle args = new Bundle();
+            args.putLong("chat_id", chat.id);
+            presentFragment(new ChatActivity(args));
+        });
+        options.add(R.drawable.msg_openprofile, LocaleController.getString(R.string.OpenProfile), () -> {
+            Bundle args = new Bundle();
+            args.putLong("chat_id", chat.id);
+            presentFragment(new ProfileActivity(args));
+        });
+        final String username = ChatObject.getPublicUsername(chat);
+        if (!TextUtils.isEmpty(username)) {
+            options.add(R.drawable.msg_link2, TjLocale.getString(R.string.TjIdLookupCopyChatLink), () -> {
+                AndroidUtilities.addToClipboard("https://t.me/" + username);
+                BulletinFactory.of(this).createCopyLinkBulletin().show();
+            });
+        }
+        if (ChatObject.canBlockUsers(chat)) {
+            options.add(R.drawable.msg_remove, TjLocale.getString(isChannel(chat)
+                    ? R.string.TjIdLookupRemoveChannel : R.string.TjIdLookupRemove), true, () -> confirmRemove(chat));
+        }
+        options.setGravity(Gravity.LEFT).show();
+    }
+
+    /** Two taps for one chat: the first says which, the second says it cannot be taken back. */
     private void confirmRemove(TLRPC.Chat chat) {
         if (getParentActivity() == null || user == null) {
             return;
@@ -307,12 +399,14 @@ public class TjIdLookupActivity extends BaseFragment {
             BulletinFactory.of(this).createErrorBulletin(TjLocale.getString(R.string.TjIdLookupNoRights)).show();
             return;
         }
+        final String title = TjLocale.getString(isChannel(chat)
+                ? R.string.TjIdLookupRemoveChannel : R.string.TjIdLookupRemove);
         AlertDialog.Builder first = new AlertDialog.Builder(getParentActivity());
-        first.setTitle(TjLocale.getString(R.string.TjIdLookupRemove));
+        first.setTitle(title);
         first.setMessage(LocaleController.formatString(R.string.TjIdLookupRemoveConfirm, UserObject.getUserName(user), chat.title));
         first.setPositiveButton(LocaleController.getString(R.string.Remove), (d, w) -> {
             AlertDialog.Builder second = new AlertDialog.Builder(getParentActivity());
-            second.setTitle(TjLocale.getString(R.string.TjIdLookupRemove));
+            second.setTitle(title);
             second.setMessage(TjLocale.getString(R.string.TjIdLookupRemoveConfirmAgain));
             second.setPositiveButton(LocaleController.getString(R.string.Remove), (d2, w2) -> remove(chat, null));
             second.setNegativeButton(LocaleController.getString(R.string.Cancel), null);
@@ -421,7 +515,7 @@ public class TjIdLookupActivity extends BaseFragment {
                     cell.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundWhite));
                     cell.setDelegate((c, click) -> {
                         if (click && c.getCurrentObject() instanceof TLRPC.Chat) {
-                            confirmRemove((TLRPC.Chat) c.getCurrentObject());
+                            showChatMenu(c, (TLRPC.Chat) c.getCurrentObject());
                         }
                         return true;
                     });
@@ -448,9 +542,11 @@ public class TjIdLookupActivity extends BaseFragment {
                     break;
                 case TYPE_CHAT:
                     ManageChatUserCell cell = (ManageChatUserCell) holder.itemView;
-                    String status = ChatObject.canBlockUsers(row.chat)
-                            ? TjLocale.getString(R.string.TjIdLookupRemove)
-                            : TjLocale.getString(R.string.TjIdLookupNoRights);
+                    String status = TjLocale.getString(isChannel(row.chat)
+                            ? R.string.TjIdLookupIsChannel : R.string.TjIdLookupIsGroup);
+                    if (ChatObject.canBlockUsers(row.chat)) {
+                        status += " · " + TjLocale.getString(R.string.TjIdLookupYouAdmin);
+                    }
                     cell.setData(row.chat, null, status, position + 1 < rows.size() && rows.get(position + 1).type == TYPE_CHAT);
                     break;
                 default:
