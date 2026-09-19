@@ -150,6 +150,12 @@ public class TjMessageHistoryActivity extends BaseFragment {
         });
     }
 
+    /** The same rule the chat itself applies: a chat that forbids forwarding forbids copying. */
+    private boolean canCopy() {
+        return !getMessagesController().isChatNoForwards(-currentMessage.getDialogId())
+                || TjConfig.allowProtectedScreenshots();
+    }
+
     private static String existingFile(String path) {
         return !TextUtils.isEmpty(path) && new File(path).isFile() ? path : null;
     }
@@ -206,6 +212,8 @@ public class TjMessageHistoryActivity extends BaseFragment {
             };
             bubble.setDelegate(new ChatMessageCell.ChatMessageCellDelegate() {});
             bubble.setFullyDraw(true);
+            // A version you cannot take anything out of is a version you can only look at.
+            bubble.setOnLongClickListener(v -> copyRevision());
             addView(bubble, LayoutHelper.createLinear(-1, -2));
             notice = new TextView(context);
             notice.setText(TjLocale.getString(R.string.TjHistoryMediaNotLocal));
@@ -217,10 +225,34 @@ public class TjMessageHistoryActivity extends BaseFragment {
             addView(notice, LayoutHelper.createLinear(-1, -2, 16, 4, 16, 8));
         }
 
+        private boolean copyRevision() {
+            if (revision == null || revision.message == null || !canCopy()) {
+                return false;
+            }
+            CharSequence text = revision.message.caption != null ? revision.message.caption : revision.message.messageText;
+            if (TextUtils.isEmpty(text)) {
+                return false;
+            }
+            org.telegram.ui.Components.ItemOptions.makeOptions(TjMessageHistoryActivity.this, bubble)
+                    .add(R.drawable.msg_copy, LocaleController.getString(R.string.Copy), () -> {
+                        AndroidUtilities.addToClipboard(text);
+                        org.telegram.ui.Components.BulletinFactory.of(TjMessageHistoryActivity.this)
+                                .createCopyBulletin(LocaleController.getString(R.string.TextCopied)).show();
+                    })
+                    .setGravity(Gravity.LEFT)
+                    .show();
+            try {
+                bubble.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS);
+            } catch (Exception ignored) {}
+            return true;
+        }
+
         void bind(Revision value) {
             revision = value;
+            // To the second: two edits a minute apart and two edits a second apart looked the same.
             date.setCustomText(TjLocale.formatString(R.string.TjEditRevision, value.number) + " · "
-                    + LocaleController.getInstance().getFormatterStats().format(value.date));
+                    + LocaleController.getInstance().getFormatterYearMax().format(value.date) + ", "
+                    + LocaleController.getInstance().getFormatterDayWithSeconds().format(value.date));
             bubble.forceResetMessageObject();
             bubble.setMessageObject(value.message, null, false, false, false);
             boolean attachment = value.message.isPhoto() || value.message.getDocument() != null;
