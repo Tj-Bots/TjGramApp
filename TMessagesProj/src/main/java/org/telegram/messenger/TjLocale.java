@@ -447,8 +447,13 @@ public class TjLocale {
         m.put("TjAccountLogChatName", "TjGram");
         m.put("TjAccountLogNow", "עכשיו");
         m.put("TjCreateMention", "צור הזכרה");
+        m.put("TjCopyButtonName", "העתק שם כפתור");
+        m.put("TjCopyCallbackData", "העתק נתוני callback");
+        m.put("TjCopyUserId", "העתק מזהה משתמש");
+        m.put("TjCopyQuery", "העתק שאילתה");
         m.put("TjIdLookup", "בדיקת ID");
-        m.put("TjIdLookupHint", "מזהה משתמש");
+        m.put("TjIdLookupHint", "מזהה משתמש או @שם משתמש");
+        m.put("TjIdLookupPrompt", "הקלד למעלה מזהה משתמש או @שם משתמש.");
         m.put("TjIdLookupOpen", "פתח צ'אט");
         m.put("TjIdLookupCopyLink", "העתק קישור");
         m.put("TjIdLookupUnknown", "האפליקציה מעולם לא ראתה את המזהה הזה. פתח איתו צ'אט פעם אחת, או מצא אותו בחיפוש, והוא יופיע כאן.");

@@ -11506,8 +11506,13 @@
     <string name="TjAccountLogChatName">TjGram</string>
     <string name="TjAccountLogNow">Now</string>
     <string name="TjCreateMention">Create mention</string>
+    <string name="TjCopyButtonName">Copy button name</string>
+    <string name="TjCopyCallbackData">Copy callback data</string>
+    <string name="TjCopyUserId">Copy user ID</string>
+    <string name="TjCopyQuery">Copy query</string>
     <string name="TjIdLookup">Check an ID</string>
-    <string name="TjIdLookupHint">User ID</string>
+    <string name="TjIdLookupHint">User ID or @username</string>
+    <string name="TjIdLookupPrompt">Type a user ID or a @username above.</string>
     <string name="TjIdLookupOpen">Open chat</string>
     <string name="TjIdLookupCopyLink">Copy link</string>
     <string name="TjIdLookupUnknown">This app has never seen this ID. Open a chat with them once, or find them through search, and it will be here.</string>

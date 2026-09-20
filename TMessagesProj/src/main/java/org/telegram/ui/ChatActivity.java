@@ -40969,6 +40969,10 @@ public class ChatActivity extends BaseFragment implements
                 didLongPressCopyButton(buttonTypeCopy.copy_text);
                 return;
             }
+            // Whatever the button carries - the callback payload, the id it jumps to, the query
+            // it would share - is something you can take with you, not only something it does.
+            final ArrayList<CharSequence> copyTitles = new ArrayList<>();
+            final ArrayList<CharSequence> copyValues = new ArrayList<>();
             final TL_keyboard.TL_inlineButtonTypeCallback buttonTypeCallback = TLKeyboardHelper.getType(button, TL_keyboard.TL_inlineButtonTypeCallback.class);
             if (buttonTypeCallback != null) {
                 String callbackDataString;
@@ -40977,16 +40981,35 @@ public class ChatActivity extends BaseFragment implements
                 } catch (Exception e) {
                     callbackDataString = Utilities.bytesToHex(buttonTypeCallback.data);
                 }
-                final String finalCallbackData = callbackDataString;
+                copyTitles.add(TjLocale.getString(R.string.TjCopyCallbackData));
+                copyValues.add(callbackDataString);
+            }
+            final TL_keyboard.TL_inlineButtonTypeUserProfile buttonTypeProfile = TLKeyboardHelper.getType(button, TL_keyboard.TL_inlineButtonTypeUserProfile.class);
+            if (buttonTypeProfile != null) {
+                copyTitles.add(TjLocale.getString(R.string.TjCopyUserId));
+                copyValues.add(String.valueOf(buttonTypeProfile.user_id));
+            }
+            final TL_keyboard.TL_inlineButtonTypeSwitchInline buttonTypeSwitch = TLKeyboardHelper.getType(button, TL_keyboard.TL_inlineButtonTypeSwitchInline.class);
+            if (buttonTypeSwitch != null && !TextUtils.isEmpty(buttonTypeSwitch.query)) {
+                copyTitles.add(TjLocale.getString(R.string.TjCopyQuery));
+                copyValues.add(buttonTypeSwitch.query);
+            }
+            final TL_keyboard.TL_inlineButtonTypeUrlAuth buttonTypeUrlAuth = TLKeyboardHelper.getType(button, TL_keyboard.TL_inlineButtonTypeUrlAuth.class);
+            if (buttonTypeUrlAuth != null && !TextUtils.isEmpty(buttonTypeUrlAuth.url)) {
+                copyTitles.add(LocaleController.getString(R.string.CopyLink));
+                copyValues.add(buttonTypeUrlAuth.url);
+            }
+            if (!copyValues.isEmpty()) {
+                copyTitles.add(0, TjLocale.getString(R.string.TjCopyButtonName));
+                copyValues.add(0, button.getText());
                 BottomSheet.Builder builder = new BottomSheet.Builder(getParentActivity(), false, themeDelegate);
                 builder.setTitle(button.getText());
                 builder.setTitleMultipleLines(true);
-                builder.setItems(new CharSequence[] { "Copy button name", "Copy callback data" }, (dialog, which) -> {
-                    if (which == 0) {
-                        AndroidUtilities.addToClipboard(button.getText());
-                    } else {
-                        AndroidUtilities.addToClipboard(finalCallbackData);
+                builder.setItems(copyTitles.toArray(new CharSequence[0]), (dialog, which) -> {
+                    if (which < 0 || which >= copyValues.size()) {
+                        return;
                     }
+                    AndroidUtilities.addToClipboard(copyValues.get(which));
                     BulletinFactory.of(ChatActivity.this).createCopyBulletin(getString(R.string.TextCopied)).show();
                 });
                 showDialog(builder.create());

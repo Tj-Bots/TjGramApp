@@ -65,16 +65,29 @@ public class TjIdLookupActivity extends BaseFragment {
     private final ArrayList<Row> rows = new ArrayList<>();
 
     /** At most this many channels are asked about, a few at a time, per lookup. */
-    private static final int CHANNEL_SCAN_LIMIT = 60;
-    private static final int CHANNEL_SCAN_PARALLEL = 4;
+    private static final int CHANNEL_SCAN_LIMIT = 150;
+    private static final int CHANNEL_SCAN_PARALLEL = 3;
 
-    private final ArrayList<TLRPC.Chat> channelQueue = new ArrayList<>();
+    private final ArrayList<Probe> channelQueue = new ArrayList<>();
+
+    /** One question to the server: is this person in this chat? */
+    private static final class Probe {
+        final TLRPC.Chat chat;
+        /** True when the chat is already on the list and the answer may drop it. */
+        final boolean listed;
+
+        Probe(TLRPC.Chat chat, boolean listed) {
+            this.chat = chat;
+            this.listed = listed;
+        }
+    }
     private int scanGeneration;
     private int scanChecked;
     private int scanTotal;
     private int scanInFlight;
     private boolean scanning;
     private boolean scanStopped;
+    private int commonGeneration;
 
     private static class Row {
         final int type;
@@ -132,7 +145,7 @@ public class TjIdLookupActivity extends BaseFragment {
         field.setCursorWidth(1.5f);
         field.setBackground(null);
         field.setSingleLine(true);
-        field.setInputType(InputType.TYPE_CLASS_NUMBER);
+        field.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
         field.setImeOptions(EditorInfo.IME_ACTION_SEARCH);
         field.setGravity((LocaleController.isRTL ? Gravity.RIGHT : Gravity.LEFT) | Gravity.CENTER_VERTICAL);
         field.setOnEditorActionListener((v, actionId, event) -> {
@@ -182,18 +195,62 @@ public class TjIdLookupActivity extends BaseFragment {
 
     private void lookup() {
         AndroidUtilities.hideKeyboard(field);
+        final String typed = field.getText().toString().trim();
+        if (TextUtils.isEmpty(typed)) {
+            return;
+        }
         long id;
         try {
-            id = Long.parseLong(field.getText().toString().trim());
+            id = Long.parseLong(typed);
         } catch (NumberFormatException e) {
+            resolveUsername(typed);
             return;
         }
         if (id <= 0) {
             return;
         }
+        lookupId(id);
+    }
+
+    /** A @name, a t.me link or a bare name - whatever shape it arrives in. */
+    private void resolveUsername(String typed) {
+        String username = typed;
+        int slash = username.lastIndexOf('/');
+        if (slash >= 0) {
+            username = username.substring(slash + 1);
+        }
+        while (username.startsWith("@")) {
+            username = username.substring(1);
+        }
+        if (username.isEmpty()) {
+            return;
+        }
+        searched = true;
+        user = null;
+        userId = 0;
+        common.clear();
+        commonGeneration++;
+        stopChannelScan();
+        loading = true;
+        buildRows();
+        getMessagesController().getUserNameResolver().resolve(username, resolved -> {
+            loading = false;
+            if (resolved == null || resolved <= 0 || getMessagesController().getUser(resolved) == null) {
+                buildRows();
+                return;
+            }
+            if (field != null) {
+                field.setText(String.valueOf(resolved));
+            }
+            lookupId(resolved);
+        });
+    }
+
+    private void lookupId(long id) {
         userId = id;
         searched = true;
         common.clear();
+        commonGeneration++;
         stopChannelScan();
         user = getMessagesController().getUser(id);
         if (user != null) {
@@ -228,44 +285,86 @@ public class TjIdLookupActivity extends BaseFragment {
         }));
     }
 
+    private static final int COMMON_PAGE = 100;
+
+    /**
+     * The server hands the common chats over a page at a time, so asking once and stopping gave a
+     * hundred of them and called that the answer. It is asked again from the last chat it named,
+     * until it runs out.
+     */
     private void loadCommonChats() {
         if (user == null || UserObject.isUserSelf(user)) {
             return;
         }
-        TLRPC.TL_messages_getCommonChats req = new TLRPC.TL_messages_getCommonChats();
-        req.user_id = getMessagesController().getInputUser(user);
-        req.limit = 100;
-        req.max_id = 0;
         loading = true;
         buildRows();
-        getConnectionsManager().sendRequest(req, (response, error) -> AndroidUtilities.runOnUIThread(() -> {
+        loadCommonPage(0, ++commonGeneration);
+    }
+
+    private void loadCommonPage(long maxId, int generation) {
+        TLRPC.TL_messages_getCommonChats req = new TLRPC.TL_messages_getCommonChats();
+        req.user_id = getMessagesController().getInputUser(user);
+        if (req.user_id instanceof TLRPC.TL_inputUserEmpty) {
             loading = false;
+            buildRows();
+            return;
+        }
+        req.limit = COMMON_PAGE;
+        req.max_id = maxId;
+        getConnectionsManager().sendRequest(req, (response, error) -> AndroidUtilities.runOnUIThread(() -> {
+            if (generation != commonGeneration) {
+                return;
+            }
+            boolean more = false;
             if (response instanceof TLRPC.messages_Chats) {
                 TLRPC.messages_Chats res = (TLRPC.messages_Chats) response;
                 getMessagesController().putChats(res.chats, false);
-                common.clear();
-                common.addAll(res.chats);
+                for (int a = 0; a < res.chats.size(); a++) {
+                    if (!alreadyListed(res.chats.get(a).id)) {
+                        common.add(res.chats.get(a));
+                    }
+                }
+                more = res.chats.size() == COMMON_PAGE;
+                if (more) {
+                    loadCommonPage(res.chats.get(res.chats.size() - 1).id, generation);
+                }
+            }
+            if (!more) {
+                loading = false;
+                sortCommon();
+                loadAdminChannels();
             }
             buildRows();
-            loadAdminChannels();
         }));
     }
 
     /**
-     * "Chats in common" answers with groups: a broadcast channel's members are the admins'
-     * business, so the server does not volunteer them. For channels this account already runs,
-     * though, it may simply ask - and those are exactly the channels where anything can be done
-     * about the answer anyway.
+     * Two questions the "chats in common" answer cannot settle on its own.
+     *
+     * One: a broadcast channel's members are its admins' business, so the server does not
+     * volunteer them - but for a channel this account already runs it will answer if asked, and
+     * those are the only channels where anything could be done about the answer anyway.
+     *
+     * Two: the common-chats answer lags. Someone removed a minute ago can still be in it, which
+     * is worse than useless - it says a removal did not take. So every chat on the list that can
+     * be asked about directly is asked about, and dropped when the answer says they are gone.
      *
      * The asking is paced: a handful of questions in the air at a time, and the whole thing stops
-     * the moment the server says it has had enough, rather than spending the account's goodwill
-     * on a burst of sixty.
+     * the moment the server says it has had enough.
      */
     private void loadAdminChannels() {
         stopChannelScan();
         if (user == null || UserObject.isUserSelf(user)) {
             return;
         }
+        // Verify what is already listed, where verifying is possible at all.
+        for (int a = 0; a < common.size() && channelQueue.size() < CHANNEL_SCAN_LIMIT; a++) {
+            TLRPC.Chat chat = common.get(a);
+            if (ChatObject.isChannel(chat) && ChatObject.canBlockUsers(chat)) {
+                channelQueue.add(new Probe(chat, true));
+            }
+        }
+        // And ask about the channels that answer could never have mentioned.
         final ArrayList<TLRPC.Dialog> dialogs = getMessagesController().getAllDialogs();
         for (int a = 0; a < dialogs.size() && channelQueue.size() < CHANNEL_SCAN_LIMIT; a++) {
             final long dialogId = dialogs.get(a).id;
@@ -277,7 +376,7 @@ public class TjIdLookupActivity extends BaseFragment {
                     || !ChatObject.canBlockUsers(chat) || alreadyListed(chat.id)) {
                 continue;
             }
-            channelQueue.add(chat);
+            channelQueue.add(new Probe(chat, false));
         }
         if (channelQueue.isEmpty()) {
             buildRows();
@@ -306,11 +405,11 @@ public class TjIdLookupActivity extends BaseFragment {
     private void pumpChannelScan() {
         final int generation = scanGeneration;
         while (scanning && scanInFlight < CHANNEL_SCAN_PARALLEL && !channelQueue.isEmpty()) {
-            final TLRPC.Chat chat = channelQueue.remove(0);
+            final Probe probe = channelQueue.remove(0);
             final long askedFor = userId;
             scanInFlight++;
             TLRPC.TL_channels_getParticipant req = new TLRPC.TL_channels_getParticipant();
-            req.channel = MessagesController.getInputChannel(chat);
+            req.channel = MessagesController.getInputChannel(probe.chat);
             req.participant = getMessagesController().getInputPeer(askedFor);
             getConnectionsManager().sendRequest(req, (response, error) -> AndroidUtilities.runOnUIThread(() -> {
                 if (generation != scanGeneration) {
@@ -322,10 +421,15 @@ public class TjIdLookupActivity extends BaseFragment {
                     // The server has had enough questions for now. Show what was found.
                     channelQueue.clear();
                     scanStopped = true;
-                } else if (response != null && !alreadyListed(chat.id)) {
-                    // Anything else - "not a participant" included - is an ordinary answer.
-                    common.add(chat);
-                    sortCommon();
+                } else if (isMember(response)) {
+                    if (!alreadyListed(probe.chat.id)) {
+                        common.add(probe.chat);
+                        sortCommon();
+                    }
+                } else if (probe.listed && error == null) {
+                    // A clear "not there" - but only a clear one. A failed question leaves the
+                    // chat alone rather than quietly hiding it.
+                    removeListed(probe.chat.id);
                 }
                 if (channelQueue.isEmpty() && scanInFlight <= 0) {
                     scanning = false;
@@ -333,6 +437,34 @@ public class TjIdLookupActivity extends BaseFragment {
                 buildRows();
                 pumpChannelScan();
             }));
+        }
+    }
+
+    /**
+     * A removed member still has a record in the channel - it just says they left, or that they
+     * were banned and left. Anything that comes back is not the same as anyone being there.
+     */
+    private static boolean isMember(org.telegram.tgnet.TLObject response) {
+        if (!(response instanceof TLRPC.TL_channels_channelParticipant)) {
+            return false;
+        }
+        TLRPC.ChannelParticipant participant = ((TLRPC.TL_channels_channelParticipant) response).participant;
+        if (participant == null || participant instanceof TLRPC.TL_channelParticipantLeft) {
+            return false;
+        }
+        if (participant instanceof TLRPC.TL_channelParticipantBanned) {
+            // Banned without leaving is a member who cannot speak; banned and gone is gone.
+            return !participant.left;
+        }
+        return true;
+    }
+
+    private void removeListed(long chatId) {
+        for (int a = 0; a < common.size(); a++) {
+            if (common.get(a).id == chatId) {
+                common.remove(a);
+                return;
+            }
         }
     }
 
@@ -373,7 +505,7 @@ public class TjIdLookupActivity extends BaseFragment {
     private void buildRows() {
         rows.clear();
         if (!searched) {
-            rows.add(new Row(TYPE_INFO, TjLocale.getString(R.string.TjIdLookupUnknown), null, 0, false));
+            rows.add(new Row(TYPE_INFO, TjLocale.getString(R.string.TjIdLookupPrompt), null, 0, false));
         } else if (user == null) {
             rows.add(new Row(TYPE_INFO, loading
                     ? TjLocale.getString(R.string.TjIdLookupSearching)
@@ -401,7 +533,8 @@ public class TjIdLookupActivity extends BaseFragment {
                         rows.add(new Row(TYPE_CHAT, null, common.get(a), 0, false));
                     }
                     if (removableCount() > 0) {
-                        rows.add(new Row(TYPE_ACTION, TjLocale.getString(R.string.TjIdLookupRemoveAll), null, ACTION_REMOVE_ALL, true));
+                        rows.add(new Row(TYPE_ACTION, TjLocale.getString(R.string.TjIdLookupRemoveAll)
+                                + " (" + removableCount() + ")", null, ACTION_REMOVE_ALL, true));
                     }
                 }
             }
