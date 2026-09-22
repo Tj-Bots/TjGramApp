@@ -164,6 +164,18 @@ public class ShareAlert extends BottomSheet implements NotificationCenter.Notifi
     private ShareDialogsAdapter listAdapter;
     private ShareTopicsAdapter shareTopicsAdapter;
     private ShareSearchAdapter searchAdapter;
+    private ImageView tjFolderButton;
+    private MessagesController.DialogFilter tjFolder;
+
+    private void updateTjFolderButton() {
+        if (tjFolderButton == null) {
+            return;
+        }
+        tjFolderButton.setColorFilter(new PorterDuffColorFilter(getThemedColor(tjFolder == null
+                ? Theme.key_dialogSearchIcon : Theme.key_dialogTextBlue), PorterDuff.Mode.MULTIPLY));
+        tjFolderButton.setContentDescription(tjFolder == null
+                ? LocaleController.getString(R.string.Filters) : tjFolder.name);
+    }
     protected ArrayList<MessageObject> sendingMessageObjects;
     private String[] sendingText = new String[2];
     private int hasPoll;
@@ -1084,7 +1096,41 @@ public class ShareAlert extends BottomSheet implements NotificationCenter.Notifi
             AndroidUtilities.showKeyboard(searchView.editText);
         });
 
-        frameLayout.addView(searchView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 40, Gravity.BOTTOM | Gravity.LEFT, 11, 7, 11, 11));
+        final ArrayList<MessagesController.DialogFilter> tjFolders = new ArrayList<>();
+        for (MessagesController.DialogFilter candidate : MessagesController.getInstance(currentAccount).getDialogFilters()) {
+            if (candidate != null && !candidate.isDefault()) {
+                tjFolders.add(candidate);
+            }
+        }
+        // TJ: the chat list has folders, so the list of chats to send to has them too.
+        if (!tjFolders.isEmpty()) {
+            tjFolderButton = new ImageView(context);
+            tjFolderButton.setScaleType(ImageView.ScaleType.CENTER);
+            tjFolderButton.setImageResource(R.drawable.msg_folders);
+            tjFolderButton.setBackground(Theme.createSelectorDrawable(getThemedColor(Theme.key_listSelector), 1));
+            tjFolderButton.setOnClickListener(v -> {
+                CharSequence[] names = new CharSequence[tjFolders.size() + 1];
+                names[0] = LocaleController.getString(R.string.FilterAllChats);
+                for (int a = 0; a < tjFolders.size(); a++) {
+                    names[a + 1] = tjFolders.get(a).name;
+                }
+                AlertDialog.Builder builder = new AlertDialog.Builder(context, resourcesProvider);
+                builder.setTitle(LocaleController.getString(R.string.Filters));
+                builder.setItems(names, (dialog, which) -> {
+                    tjFolder = which == 0 ? null : tjFolders.get(which - 1);
+                    updateTjFolderButton();
+                    listAdapter.fetchDialogs();
+                    listAdapter.notifyDataSetChanged();
+                });
+                builder.show();
+            });
+            frameLayout.addView(tjFolderButton, LayoutHelper.createFrame(40, 40, Gravity.BOTTOM | (LocaleController.isRTL ? Gravity.LEFT : Gravity.RIGHT), 11, 7, 11, 11));
+            frameLayout.addView(searchView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 40, Gravity.BOTTOM | Gravity.LEFT,
+                    LocaleController.isRTL ? 58 : 11, 7, LocaleController.isRTL ? 11 : 58, 11));
+            updateTjFolderButton();
+        } else {
+            frameLayout.addView(searchView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 40, Gravity.BOTTOM | Gravity.LEFT, 11, 7, 11, 11));
+        }
         topicsBackActionBar = new ActionBar(context);
         topicsBackActionBar.setOccupyStatusBar(false);
         topicsBackActionBar.setBackButtonImage(R.drawable.ic_ab_back);
@@ -2927,6 +2973,9 @@ public class ShareAlert extends BottomSheet implements NotificationCenter.Notifi
             for (int a = 0; a < allDialogs.size(); a++) {
                 TLRPC.Dialog dialog = allDialogs.get(a);
                 if (!(dialog instanceof TLRPC.TL_dialog)) {
+                    continue;
+                }
+                if (tjFolder != null && !tjFolder.includesDialog(AccountInstance.getInstance(currentAccount), dialog.id, dialog)) {
                     continue;
                 }
                 if (dialog.id == selfUserId) {
