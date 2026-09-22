@@ -7420,6 +7420,60 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         return "0";
     }
 
+    private String pendingProfileShareLink;
+    private TLRPC.TL_username pendingProfileShareUsername;
+
+    /** Telegram's own share sheet, and the collectible-username notice that went with it. */
+    private void shareProfileLinkInApp() {
+        if (getParentActivity() == null || pendingProfileShareLink == null) {
+            return;
+        }
+        final String link = pendingProfileShareLink;
+        final TLRPC.TL_username usernameObj = pendingProfileShareUsername;
+        ShareAlert shareAlert = new ShareAlert(getParentActivity(), null, link, false, link, false) {
+            @Override
+            protected void onSend(LongSparseArray<TLRPC.Dialog> dids, int count, TLRPC.TL_forumTopic topic, boolean showToast) {
+                if (!showToast) return;
+                AndroidUtilities.runOnUIThread(() -> {
+                    BulletinFactory.createInviteSentBulletin(getParentActivity(), contentView, dids.size(), dids.size() == 1 ? dids.valueAt(0).id : 0, count, getThemedColor(Theme.key_undo_background), getThemedColor(Theme.key_undo_infoColor)).show();
+                }, 250);
+            }
+        };
+        showDialog(shareAlert);
+        if (usernameObj == null || usernameObj.editable) {
+            return;
+        }
+        TL_fragment.TL_getCollectibleInfo req = new TL_fragment.TL_getCollectibleInfo();
+        TL_fragment.TL_inputCollectibleUsername input = new TL_fragment.TL_inputCollectibleUsername();
+        input.username = usernameObj.username;
+        req.collectible = input;
+        int reqId = getConnectionsManager().sendRequest(req, (res, err) -> AndroidUtilities.runOnUIThread(() -> {
+            if (res instanceof TL_fragment.TL_collectibleInfo) {
+                TL_fragment.TL_collectibleInfo info = (TL_fragment.TL_collectibleInfo) res;
+                final String usernameStr = "@" + usernameObj.username;
+                final String date = LocaleController.getInstance().getFormatterBoostExpired().format(new Date(info.purchase_date * 1000L));
+                final String cryptoAmount = BillingController.getInstance().formatCurrency(info.crypto_amount, info.crypto_currency);
+                final String amount = BillingController.getInstance().formatCurrency(info.amount, info.currency);
+                BulletinFactory.of(shareAlert.bulletinContainer2, resourcesProvider)
+                        .createImageBulletin(
+                                R.drawable.filled_username,
+                                AndroidUtilities.withLearnMore(AndroidUtilities.replaceTags(formatString(R.string.FragmentChannelUsername, usernameStr, date, cryptoAmount, TextUtils.isEmpty(amount) ? "" : "(" + amount + ")")), () -> {
+                                    Bulletin.hideVisible();
+                                    Browser.openUrl(getContext(), info.url);
+                                })
+                        )
+                        .setOnClickListener(v -> {
+                            Bulletin.hideVisible();
+                            Browser.openUrl(getContext(), info.url);
+                        })
+                        .show(false);
+            } else {
+                BulletinFactory.showError(err);
+            }
+        }));
+        getConnectionsManager().bindRequestToGuid(reqId, getClassGuid());
+    }
+
     private boolean processOnClickOrPress(final int position, final View view, final float x, final float y) {
         if (position == usernameRow || position == setUsernameRow) {
             final String username;
@@ -7450,53 +7504,29 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 } else {
                     link = "https://" + getMessagesController().linkPrefix + "/c/" + chat.id + (topicId != 0 ? "/" + topicId : "");
                 }
-                ShareAlert shareAlert = new ShareAlert(getParentActivity(), null, link, false, link, false) {
-                    @Override
-                    protected void onSend(LongSparseArray<TLRPC.Dialog> dids, int count, TLRPC.TL_forumTopic topic, boolean showToast) {
-                        if (!showToast) return;
-                        AndroidUtilities.runOnUIThread(() -> {
-                            BulletinFactory.createInviteSentBulletin(getParentActivity(), contentView, dids.size(), dids.size() == 1 ? dids.valueAt(0).id : 0, count, getThemedColor(Theme.key_undo_background), getThemedColor(Theme.key_undo_infoColor)).show();
-                        }, 250);
-                    }
-                };
-                showDialog(shareAlert);
-                if (usernameObj != null && !usernameObj.editable) {
-                    TL_fragment.TL_getCollectibleInfo req = new TL_fragment.TL_getCollectibleInfo();
-                    TL_fragment.TL_inputCollectibleUsername input = new TL_fragment.TL_inputCollectibleUsername();
-                    input.username = usernameObj.username;
-                    req.collectible = input;
-                    int reqId = getConnectionsManager().sendRequest(req, (res, err) -> AndroidUtilities.runOnUIThread(() -> {
-                        if (res instanceof TL_fragment.TL_collectibleInfo) {
-                            TL_fragment.TL_collectibleInfo info = (TL_fragment.TL_collectibleInfo) res;
-                            TLObject obj;
-                            if (userId != 0) {
-                                obj = getMessagesController().getUser(userId);
-                            } else {
-                                obj = getMessagesController().getChat(chatId);
+                // The link is worth more than one action: out of the app, onto the clipboard, or
+                // into a chat here. Which one is the person's to pick.
+                final String finalLink = link;
+                ItemOptions.makeOptions(this, view)
+                        .add(R.drawable.msg_share, LocaleController.getString(R.string.ShareFile), () -> {
+                            try {
+                                Intent intent = new Intent(Intent.ACTION_SEND);
+                                intent.setType("text/plain");
+                                intent.putExtra(Intent.EXTRA_TEXT, finalLink);
+                                getParentActivity().startActivity(Intent.createChooser(intent, LocaleController.getString(R.string.ShareFile)));
+                            } catch (Exception e) {
+                                FileLog.e(e);
                             }
-                            final String usernameStr = "@" + usernameObj.username;
-                            final String date = LocaleController.getInstance().getFormatterBoostExpired().format(new Date(info.purchase_date * 1000L));
-                            final String cryptoAmount = BillingController.getInstance().formatCurrency(info.crypto_amount, info.crypto_currency);
-                            final String amount = BillingController.getInstance().formatCurrency(info.amount, info.currency);
-                            BulletinFactory.of(shareAlert.bulletinContainer2, resourcesProvider)
-                                    .createImageBulletin(
-                                            R.drawable.filled_username,
-                                            AndroidUtilities.withLearnMore(AndroidUtilities.replaceTags(formatString(R.string.FragmentChannelUsername, usernameStr, date, cryptoAmount, TextUtils.isEmpty(amount) ? "" : "(" + amount + ")")), () -> {
-                                                Bulletin.hideVisible();
-                                                Browser.openUrl(getContext(), info.url);
-                                            })
-                                    )
-                                    .setOnClickListener(v -> {
-                                        Bulletin.hideVisible();
-                                        Browser.openUrl(getContext(), info.url);
-                                    })
-                                    .show(false);
-                        } else {
-                            BulletinFactory.showError(err);
-                        }
-                    }));
-                    getConnectionsManager().bindRequestToGuid(reqId, getClassGuid());
-                }
+                        })
+                        .add(R.drawable.msg_copy, LocaleController.getString(R.string.Copy), () -> {
+                            AndroidUtilities.addToClipboard(finalLink);
+                            BulletinFactory.of(this).createCopyLinkBulletin().show();
+                        })
+                        .add(R.drawable.msg_forward, LocaleController.getString(R.string.LinkActionShare), this::shareProfileLinkInApp)
+                        .setGravity(Gravity.LEFT)
+                        .show();
+                pendingProfileShareLink = link;
+                pendingProfileShareUsername = usernameObj;
             } else {
                 if (editRow(view, position)) return true;
 
