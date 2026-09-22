@@ -78,6 +78,9 @@ public final class TjMessageTranslation {
         if (has(message) || isLoading(message)) {
             return true;
         }
+        if (!hasWords(message.messageOwner.message)) {
+            return false;
+        }
         String language = message.messageOwner.originalLanguage;
         if (TextUtils.isEmpty(language)) {
             language = languages.get(key(message));
@@ -87,6 +90,22 @@ public final class TjMessageTranslation {
             return false;
         }
         return !spokenHere(language);
+    }
+
+    /** Emoji, numbers and punctuation are in no language - there is nothing there to translate. */
+    private static boolean hasWords(String text) {
+        if (TextUtils.isEmpty(text)) {
+            return false;
+        }
+        int letters = 0;
+        for (int i = 0; i < text.length(); ) {
+            final int codePoint = text.codePointAt(i);
+            if (Character.isLetter(codePoint) && ++letters >= 2) {
+                return true;
+            }
+            i += Character.charCount(codePoint);
+        }
+        return false;
     }
 
     private static boolean spokenHere(String language) {

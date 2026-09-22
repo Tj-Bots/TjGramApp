@@ -5119,6 +5119,10 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 } else if (position == noteRow) {
                     editNotes(view, position);
                     return true;
+                } else if (position == usernameRow) {
+                    if (editRow(view, position)) return true;
+                    if (copyProfileUsernameRow()) return true;
+                    return processOnClickOrPress(position, view, view.getWidth() / 2f, (int) (view.getHeight() * .75f));
                 } else {
                     if (editRow(view, position)) return true;
                     return processOnClickOrPress(position, view, view.getWidth() / 2f, (int) (view.getHeight() * .75f));
@@ -7424,6 +7428,9 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
     private void showProfileLinkOptions(View view, String link, TLRPC.TL_username usernameObj) {
         pendingProfileShareLink = link;
         pendingProfileShareUsername = usernameObj;
+        // Sharing means the link, which is what is worth anything outside Telegram; copying means
+        // what the row itself shows - a person's or a bot's @username, a group's link.
+        final String copyText = profileRowText(link);
         ItemOptions.makeOptions(this, view)
                 .add(R.drawable.msg_share, LocaleController.getString(R.string.ShareFile), () -> {
                     try {
@@ -7435,13 +7442,54 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                         FileLog.e(e);
                     }
                 })
-                .add(R.drawable.msg_copy, LocaleController.getString(R.string.Copy), () -> {
-                    AndroidUtilities.addToClipboard(link);
-                    BulletinFactory.of(this).createCopyLinkBulletin().show();
-                })
+                .add(R.drawable.msg_copy, LocaleController.getString(R.string.Copy), () -> copyProfileRowText(copyText))
                 .add(R.drawable.msg_forward, TjLocale.getString(R.string.TjShareInApp), this::shareProfileLinkInApp)
                 .setGravity(Gravity.LEFT)
                 .show();
+    }
+
+    /** A person or a bot is known by their @username; a group, by its link. */
+    private String profileRowText(String link) {
+        if (userId != 0) {
+            final String username = UserObject.getPublicUsername(getMessagesController().getUser(userId));
+            if (!TextUtils.isEmpty(username)) {
+                return "@" + username;
+            }
+        }
+        return link;
+    }
+
+    private void copyProfileRowText(String text) {
+        if (TextUtils.isEmpty(text)) {
+            return;
+        }
+        AndroidUtilities.addToClipboard(text);
+        if (text.startsWith("@")) {
+            BulletinFactory.of(this).createCopyBulletin(LocaleController.getString(R.string.UsernameCopied)).show();
+        } else {
+            BulletinFactory.of(this).createCopyLinkBulletin().show();
+        }
+    }
+
+    /** A long press on the username row puts it on the clipboard at once, without asking. */
+    private boolean copyProfileUsernameRow() {
+        String text = null;
+        if (userId != 0) {
+            final String username = UserObject.getPublicUsername(getMessagesController().getUser(userId));
+            if (!TextUtils.isEmpty(username)) {
+                text = "@" + username;
+            }
+        } else if (chatId != 0) {
+            final TLRPC.Chat chat = getMessagesController().getChat(chatId);
+            if (chat != null && ChatObject.isPublic(chat)) {
+                text = "https://" + getMessagesController().linkPrefix + "/" + ChatObject.getPublicUsername(chat) + (topicId != 0 ? "/" + topicId : "");
+            }
+        }
+        if (TextUtils.isEmpty(text)) {
+            return false;
+        }
+        copyProfileRowText(text);
+        return true;
     }
 
     private String pendingProfileShareLink;
