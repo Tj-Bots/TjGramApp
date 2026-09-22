@@ -48,6 +48,7 @@ import android.view.accessibility.AccessibilityNodeInfo;
 import android.view.animation.DecelerateInterpolator;
 import android.widget.Button;
 import android.widget.FrameLayout;
+import android.widget.HorizontalScrollView;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
@@ -164,17 +165,20 @@ public class ShareAlert extends BottomSheet implements NotificationCenter.Notifi
     private ShareDialogsAdapter listAdapter;
     private ShareTopicsAdapter shareTopicsAdapter;
     private ShareSearchAdapter searchAdapter;
-    private ImageView tjFolderButton;
+    private static final int TJ_FOLDER_ROW_HEIGHT = 36;
+    private final ArrayList<MessagesController.DialogFilter> tjFolders = new ArrayList<>();
+    private final ArrayList<TextView> tjFolderChips = new ArrayList<>();
+    private HorizontalScrollView tjFolderRow;
     private MessagesController.DialogFilter tjFolder;
 
-    private void updateTjFolderButton() {
-        if (tjFolderButton == null) {
-            return;
+    private void updateTjFolderChips() {
+        for (int a = 0; a < tjFolderChips.size(); a++) {
+            TextView chip = tjFolderChips.get(a);
+            boolean selected = chip.getTag() == tjFolder;
+            chip.setTextColor(getThemedColor(selected ? Theme.key_featuredStickers_buttonText : Theme.key_dialogTextBlack));
+            chip.setBackground(Theme.createRoundRectDrawable(dp(15), getThemedColor(selected
+                    ? Theme.key_featuredStickers_addButton : Theme.key_listSelector)));
         }
-        tjFolderButton.setColorFilter(new PorterDuffColorFilter(getThemedColor(tjFolder == null
-                ? Theme.key_dialogSearchIcon : Theme.key_dialogTextBlue), PorterDuff.Mode.MULTIPLY));
-        tjFolderButton.setContentDescription(tjFolder == null
-                ? LocaleController.getString(R.string.Filters) : tjFolder.name);
     }
     protected ArrayList<MessageObject> sendingMessageObjects;
     private String[] sendingText = new String[2];
@@ -1096,112 +1100,52 @@ public class ShareAlert extends BottomSheet implements NotificationCenter.Notifi
             AndroidUtilities.showKeyboard(searchView.editText);
         });
 
-        final ArrayList<MessagesController.DialogFilter> tjFolders = new ArrayList<>();
         for (MessagesController.DialogFilter candidate : MessagesController.getInstance(currentAccount).getDialogFilters()) {
             if (candidate != null && !candidate.isDefault()) {
                 tjFolders.add(candidate);
             }
         }
-        // TJ: the chat list has folders, so the list of chats to send to has them too.
+        // TJ: the chat list has folders, so the list of chats to send to has them too. The row
+        // lives in the header with the search field, and the grid slides under both.
         if (!tjFolders.isEmpty()) {
-            tjFolderButton = new ImageView(context);
-            tjFolderButton.setScaleType(ImageView.ScaleType.CENTER);
-            tjFolderButton.setImageResource(R.drawable.msg_folders);
-            tjFolderButton.setBackground(Theme.createSelectorDrawable(getThemedColor(Theme.key_listSelector), 1));
-            tjFolderButton.setOnClickListener(v -> {
-                CharSequence[] names = new CharSequence[tjFolders.size() + 1];
-                names[0] = LocaleController.getString(R.string.FilterAllChats);
-                for (int a = 0; a < tjFolders.size(); a++) {
-                    names[a + 1] = tjFolders.get(a).name;
-                }
-                AlertDialog.Builder builder = new AlertDialog.Builder(context, resourcesProvider);
-                builder.setTitle(LocaleController.getString(R.string.Filters));
-                builder.setItems(names, (dialog, which) -> {
-                    tjFolder = which == 0 ? null : tjFolders.get(which - 1);
-                    updateTjFolderButton();
+            tjFolderRow = new HorizontalScrollView(context);
+            tjFolderRow.setHorizontalScrollBarEnabled(false);
+            tjFolderRow.setClipToPadding(false);
+            LinearLayout chips = new LinearLayout(context);
+            chips.setOrientation(LinearLayout.HORIZONTAL);
+            chips.setPadding(dp(11), 0, dp(11), 0);
+            tjFolderRow.addView(chips, new FrameLayout.LayoutParams(LayoutHelper.WRAP_CONTENT, LayoutHelper.MATCH_PARENT));
+            final ArrayList<MessagesController.DialogFilter> ordered = new ArrayList<>();
+            ordered.add(null);
+            ordered.addAll(tjFolders);
+            if (LocaleController.isRTL) {
+                Collections.reverse(ordered);
+            }
+            for (MessagesController.DialogFilter folder : ordered) {
+                TextView chip = new TextView(context);
+                chip.setTag(folder);
+                chip.setText(folder == null ? LocaleController.getString(R.string.FilterAllChats) : folder.name);
+                chip.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
+                chip.setTypeface(AndroidUtilities.bold());
+                chip.setGravity(Gravity.CENTER);
+                chip.setPadding(dp(14), 0, dp(14), 0);
+                chip.setSingleLine(true);
+                chip.setOnClickListener(v -> {
+                    tjFolder = (MessagesController.DialogFilter) v.getTag();
+                    updateTjFolderChips();
                     listAdapter.fetchDialogs();
                     listAdapter.notifyDataSetChanged();
                 });
-                builder.show();
-            });
-            frameLayout.addView(tjFolderButton, LayoutHelper.createFrame(40, 40, Gravity.BOTTOM | (LocaleController.isRTL ? Gravity.LEFT : Gravity.RIGHT), 11, 7, 11, 11));
-            frameLayout.addView(searchView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 40, Gravity.BOTTOM | Gravity.LEFT,
-                    LocaleController.isRTL ? 58 : 11, 7, LocaleController.isRTL ? 11 : 58, 11));
-            updateTjFolderButton();
-        } else {
-            frameLayout.addView(searchView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 40, Gravity.BOTTOM | Gravity.LEFT, 11, 7, 11, 11));
+                tjFolderChips.add(chip);
+                chips.addView(chip, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, 30, 0, 0, 6, 0));
+            }
+            frameLayout.addView(tjFolderRow, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 30, Gravity.BOTTOM | Gravity.LEFT, 0, 0, 0, 5));
+            if (LocaleController.isRTL) {
+                tjFolderRow.post(() -> tjFolderRow.fullScroll(HorizontalScrollView.FOCUS_RIGHT));
+            }
+            updateTjFolderChips();
         }
-        topicsBackActionBar = new ActionBar(context);
-        topicsBackActionBar.setOccupyStatusBar(false);
-        topicsBackActionBar.setBackButtonImage(R.drawable.ic_ab_back);
-        topicsBackActionBar.setTitleColor(getThemedColor(Theme.key_dialogTextBlack));
-        topicsBackActionBar.setSubtitleColor(getThemedColor(Theme.key_dialogTextGray2));
-        topicsBackActionBar.setItemsColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText2), false);
-        topicsBackActionBar.setItemsBackgroundColor(Theme.getColor(Theme.key_actionBarWhiteSelector), false);
-        topicsBackActionBar.setActionBarMenuOnItemClick(new ActionBar.ActionBarMenuOnItemClick() {
-            @Override
-            public void onItemClick(int id) {
-                onBackPressed();
-            }
-        });
-        topicsBackActionBar.setVisibility(View.GONE);
-        frameLayout.addView(topicsBackActionBar, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 58, Gravity.BOTTOM | Gravity.LEFT));
-
-        topicsGridView = new RecyclerListView(context, resourcesProvider);
-        topicsGridView.setLayoutManager(topicsLayoutManager = new GridLayoutManager(context, 4));
-        topicsLayoutManager.setSpanSizeLookup(new GridLayoutManager.SpanSizeLookup() {
-            @Override
-            public int getSpanSize(int position) {
-                if (position == 0) {
-                    return topicsLayoutManager.getSpanCount();
-                }
-                return 1;
-            }
-        });
-        topicsGridView.setOnScrollListener(new RecyclerView.OnScrollListener() {
-            @Override
-            public void onScrolled(RecyclerView recyclerView, int dx, int dy) {
-                if (dy != 0) {
-                    updateLayout();
-                    previousScrollOffsetY = scrollOffsetY;
-                }
-            }
-        });
-        topicsGridView.setAdapter(shareTopicsAdapter = new ShareTopicsAdapter(context));
-        topicsGridView.setGlowColor(getThemedColor(Theme.key_dialogScrollGlow));
-        topicsGridView.setVerticalScrollBarEnabled(false);
-        topicsGridView.setHorizontalScrollBarEnabled(false);
-        topicsGridView.setOverScrollMode(View.OVER_SCROLL_NEVER);
-        topicsGridView.setSelectorDrawableColor(0);
-        topicsGridView.setItemSelectorColorProvider(i -> 0);
-        topicsGridView.setPadding(0, 0, 0, dp(48));
-        topicsGridView.setClipToPadding(false);
-        topicsGridView.addItemDecoration(new RecyclerView.ItemDecoration() {
-            @Override
-            public void getItemOffsets(@NonNull android.graphics.Rect outRect, @NonNull View view, @NonNull RecyclerView parent, @NonNull RecyclerView.State state) {
-                RecyclerListView.Holder holder = (RecyclerListView.Holder) parent.getChildViewHolder(view);
-                if (holder != null) {
-                    int pos = holder.getAdapterPosition();
-                    outRect.left = pos % 4 == 0 ? 0 : dp(4);
-                    outRect.right = pos % 4 == 3 ? 0 : dp(4);
-                } else {
-                    outRect.left = dp(4);
-                    outRect.right = dp(4);
-                }
-            }
-        });
-        topicsGridView.setOnItemClickListener((view, position) -> {
-            if (shareTopicsAdapter.isBotForum && position == 1) {
-                onTopicCreateCellClick();
-                return;
-            }
-            TLRPC.TL_forumTopic topic = shareTopicsAdapter.getItemTopic(position);
-            if (topic != null) {
-                onTopicCellClick(topic);
-            }
-        });
-        topicsGridView.setVisibility(View.GONE);
-        containerView.addView(topicsGridView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT, Gravity.TOP | Gravity.LEFT));
+        frameLayout.addView(searchView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 40, Gravity.BOTTOM | Gravity.LEFT, 11, 7, 11, tjFolders.isEmpty() ? 11 : 11 + TJ_FOLDER_ROW_HEIGHT));
 
         gridView = new RecyclerListView(context, resourcesProvider) {
 
@@ -1390,14 +1334,14 @@ public class ShareAlert extends BottomSheet implements NotificationCenter.Notifi
         containerView.addView(bottomFadeView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 300, Gravity.BOTTOM));
 
         FrameLayout.LayoutParams frameLayoutParams = new FrameLayout.LayoutParams(LayoutHelper.MATCH_PARENT, AndroidUtilities.getShadowHeight(), Gravity.TOP | Gravity.LEFT);
-        frameLayoutParams.topMargin = dp(darkTheme && linkToCopy[1] != null ? 111 : 58);
+        frameLayoutParams.topMargin = dp((darkTheme && linkToCopy[1] != null ? 111 : 58) + (tjFolders.isEmpty() ? 0 : TJ_FOLDER_ROW_HEIGHT));
         shadow[0] = new View(context);
         shadow[0].setBackgroundColor(getThemedColor(Theme.key_dialogShadowLine));
         shadow[0].setAlpha(0.0f);
         shadow[0].setTag(1);
         containerView.addView(shadow[0], frameLayoutParams);
 
-        containerView.addView(frameLayout, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, darkTheme && linkToCopy[1] != null ? 111 : 58, Gravity.LEFT | Gravity.TOP));
+        containerView.addView(frameLayout, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, (darkTheme && linkToCopy[1] != null ? 111 : 58) + (tjFolders.isEmpty() ? 0 : TJ_FOLDER_ROW_HEIGHT), Gravity.LEFT | Gravity.TOP));
 
         frameLayoutParams = new FrameLayout.LayoutParams(LayoutHelper.MATCH_PARENT, AndroidUtilities.getShadowHeight(), Gravity.BOTTOM | Gravity.LEFT);
         frameLayoutParams.bottomMargin = dp(48);

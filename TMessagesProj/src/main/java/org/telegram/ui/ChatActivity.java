@@ -36995,9 +36995,6 @@ public class ChatActivity extends BaseFragment implements
                         linkActions.add(4);
                     }
                     if (!str.startsWith("video?") && !str.startsWith("tg:")) {
-                        // Out of the app, and inside it: the system sheet and Telegram's own.
-                        linkItems.add(LocaleController.getString(R.string.ShareFile));
-                        linkActions.add(3);
                         linkItems.add(LocaleController.getString(R.string.LinkActionShare));
                         linkActions.add(2);
                     }
@@ -37007,19 +37004,6 @@ public class ChatActivity extends BaseFragment implements
                     if (which == 4) {
                         AndroidUtilities.addToClipboard(buttonName);
                         BulletinFactory.of(ChatActivity.this).createCopyBulletin(getString(R.string.TextCopied)).show();
-                        return;
-                    }
-                    if (which == 3) {
-                        if (getParentActivity() != null) {
-                            try {
-                                Intent intent = new Intent(Intent.ACTION_SEND);
-                                intent.setType("text/plain");
-                                intent.putExtra(Intent.EXTRA_TEXT, str.startsWith("@") ? "https://t.me/" + str.substring(1) : str);
-                                getParentActivity().startActivity(Intent.createChooser(intent, LocaleController.getString(R.string.ShareFile)));
-                            } catch (Exception e) {
-                                FileLog.e(e);
-                            }
-                        }
                         return;
                     }
                     if (which == 2) {

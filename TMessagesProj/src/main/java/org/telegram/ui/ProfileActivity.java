@@ -7420,6 +7420,30 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         return "0";
     }
 
+    /** Out of the app, onto the clipboard, or into a chat here - the person picks. */
+    private void showProfileLinkOptions(View view, String link, TLRPC.TL_username usernameObj) {
+        pendingProfileShareLink = link;
+        pendingProfileShareUsername = usernameObj;
+        ItemOptions.makeOptions(this, view)
+                .add(R.drawable.msg_share, LocaleController.getString(R.string.ShareFile), () -> {
+                    try {
+                        Intent intent = new Intent(Intent.ACTION_SEND);
+                        intent.setType("text/plain");
+                        intent.putExtra(Intent.EXTRA_TEXT, link);
+                        getParentActivity().startActivity(Intent.createChooser(intent, LocaleController.getString(R.string.ShareFile)));
+                    } catch (Exception e) {
+                        FileLog.e(e);
+                    }
+                })
+                .add(R.drawable.msg_copy, LocaleController.getString(R.string.Copy), () -> {
+                    AndroidUtilities.addToClipboard(link);
+                    BulletinFactory.of(this).createCopyLinkBulletin().show();
+                })
+                .add(R.drawable.msg_forward, TjLocale.getString(R.string.TjShareInApp), this::shareProfileLinkInApp)
+                .setGravity(Gravity.LEFT)
+                .show();
+    }
+
     private String pendingProfileShareLink;
     private TLRPC.TL_username pendingProfileShareUsername;
 
@@ -7504,29 +7528,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 } else {
                     link = "https://" + getMessagesController().linkPrefix + "/c/" + chat.id + (topicId != 0 ? "/" + topicId : "");
                 }
-                // The link is worth more than one action: out of the app, onto the clipboard, or
-                // into a chat here. Which one is the person's to pick.
-                final String finalLink = link;
-                ItemOptions.makeOptions(this, view)
-                        .add(R.drawable.msg_share, LocaleController.getString(R.string.ShareFile), () -> {
-                            try {
-                                Intent intent = new Intent(Intent.ACTION_SEND);
-                                intent.setType("text/plain");
-                                intent.putExtra(Intent.EXTRA_TEXT, finalLink);
-                                getParentActivity().startActivity(Intent.createChooser(intent, LocaleController.getString(R.string.ShareFile)));
-                            } catch (Exception e) {
-                                FileLog.e(e);
-                            }
-                        })
-                        .add(R.drawable.msg_copy, LocaleController.getString(R.string.Copy), () -> {
-                            AndroidUtilities.addToClipboard(finalLink);
-                            BulletinFactory.of(this).createCopyLinkBulletin().show();
-                        })
-                        .add(R.drawable.msg_forward, LocaleController.getString(R.string.LinkActionShare), this::shareProfileLinkInApp)
-                        .setGravity(Gravity.LEFT)
-                        .show();
-                pendingProfileShareLink = link;
-                pendingProfileShareUsername = usernameObj;
+                showProfileLinkOptions(view, link, usernameObj);
             } else {
                 if (editRow(view, position)) return true;
 
@@ -7552,15 +7554,8 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                     return true;
                 }
 
-                try {
-                    android.content.ClipboardManager clipboard = (android.content.ClipboardManager) ApplicationLoader.applicationContext.getSystemService(Context.CLIPBOARD_SERVICE);
-                    String text = "@" + username;
-                    BulletinFactory.of(this).createCopyBulletin(LocaleController.getString(R.string.UsernameCopied), resourcesProvider).show();
-                    android.content.ClipData clip = android.content.ClipData.newPlainText("label", text);
-                    clipboard.setPrimaryClip(clip);
-                } catch (Exception e) {
-                    FileLog.e(e);
-                }
+                // A person's link gets the same choice a group's does.
+                showProfileLinkOptions(view, "https://" + getMessagesController().linkPrefix + "/" + username, usernameObj);
             }
             return true;
         } else if (position == noteRow) {
