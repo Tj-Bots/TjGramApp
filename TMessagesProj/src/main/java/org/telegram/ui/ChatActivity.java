@@ -36988,9 +36988,11 @@ public class ChatActivity extends BaseFragment implements
                 linkItems.add(LocaleController.getString(R.string.Open));
                 linkActions.add(0);
                 if (!noforwards) {
-                    linkItems.add(LocaleController.getString(R.string.Copy));
+                    // On a button there are two things to copy, so each one says which it is.
+                    final boolean fromButton = !TextUtils.isEmpty(buttonName);
+                    linkItems.add(LocaleController.getString(fromButton ? R.string.CopyLink : R.string.Copy));
                     linkActions.add(1);
-                    if (!TextUtils.isEmpty(buttonName)) {
+                    if (fromButton) {
                         linkItems.add(TjLocale.getString(R.string.TjCopyButtonName));
                         linkActions.add(4);
                     }

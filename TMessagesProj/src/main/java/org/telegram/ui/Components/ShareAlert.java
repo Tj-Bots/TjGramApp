@@ -171,6 +171,23 @@ public class ShareAlert extends BottomSheet implements NotificationCenter.Notifi
     private HorizontalScrollView tjFolderRow;
     private MessagesController.DialogFilter tjFolder;
 
+    /** The folder the way the chat list's own tabs show it - icon, name, or both. */
+    private CharSequence tjChipLabel(MessagesController.DialogFilter folder) {
+        final String name = folder == null ? LocaleController.getString(R.string.FilterAllChats) : folder.name;
+        final String emoticon = folder == null
+                ? org.telegram.ui.Components.TjFolderIcons.ALL_CHATS
+                : org.telegram.ui.Components.TjFolderIcons.getFolderEmoticon(folder);
+        final boolean icon = emoticon != null && org.telegram.ui.Components.TjFolderIcons.showsIcon();
+        final boolean title = org.telegram.ui.Components.TjFolderIcons.showsTitle();
+        if (icon && title) {
+            return emoticon + "  " + name;
+        }
+        if (icon) {
+            return emoticon;
+        }
+        return name;
+    }
+
     private void updateTjFolderChips() {
         for (int a = 0; a < tjFolderChips.size(); a++) {
             TextView chip = tjFolderChips.get(a);
@@ -1124,7 +1141,7 @@ public class ShareAlert extends BottomSheet implements NotificationCenter.Notifi
             for (MessagesController.DialogFilter folder : ordered) {
                 TextView chip = new TextView(context);
                 chip.setTag(folder);
-                chip.setText(folder == null ? LocaleController.getString(R.string.FilterAllChats) : folder.name);
+                chip.setText(tjChipLabel(folder));
                 chip.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
                 chip.setTypeface(AndroidUtilities.bold());
                 chip.setGravity(Gravity.CENTER);

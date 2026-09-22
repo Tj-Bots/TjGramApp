@@ -449,7 +449,7 @@ public class TjLocale {
         m.put("TjAddToFolder", "הוסף לתקייה");
         m.put("TjShareInApp", "שיתוף ישיר");
         m.put("TjCreateMention", "צור הזכרה");
-        m.put("TjCopyButtonName", "העתק שם כפתור");
+        m.put("TjCopyButtonName", "העתק טקסט כפתור");
         m.put("TjCopyCallbackData", "העתק נתוני callback");
         m.put("TjCopyUserId", "העתק מזהה משתמש");
         m.put("TjCopyQuery", "העתק שאילתה");
