@@ -57498,6 +57498,7 @@ public class TLRPC {
         public int local_id = 0; //custom
         public long dialog_id; //custom
         public boolean tjDeleted; //custom, local archive marker
+        public TL_textWithEntities tjTranslation; //custom, the message with its translation under it
         public int ttl; //custom
         public int destroyTime; //custom
         public long destroyTimeMillis; //custom

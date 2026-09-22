@@ -90,19 +90,15 @@ public class TranslateController extends BaseController {
         AndroidUtilities.runOnUIThread(this::loadTranslatingDialogsCached, 150);
     }
 
+    // TJ: translating a whole chat is the server doing the same work it does for one message.
+    // The subscription is what the official app checks before offering it, not something the
+    // translation itself needs, so the offer is not withheld here.
     public boolean isFeatureAvailable() {
-        return isChatTranslateEnabled() && UserConfig.getInstance(currentAccount).isPremium();
+        return isChatTranslateEnabled();
     }
 
     public boolean isFeatureAvailable(long dialogId) {
-        if (!isChatTranslateEnabled()) {
-            return false;
-        }
-        final TLRPC.Chat chat = getMessagesController().getChat(-dialogId);
-        return (
-            UserConfig.getInstance(currentAccount).isPremium() ||
-            chat != null && chat.autotranslation
-        );
+        return isChatTranslateEnabled();
     }
 
     private Boolean chatTranslateEnabled;

@@ -321,7 +321,7 @@ public class DrawerLayoutAdapter extends RecyclerListView.SelectionAdapter {
         items.add(null);
 
         items.add(new Item(8, LocaleController.getString(R.string.Settings), settingsIcon));
-        items.add(new Item(103, TjLocale.getString(R.string.TjSettings), R.drawable.msg_settings));
+        items.add(new Item(103, TjLocale.getString(R.string.TjSettings), R.drawable.tj_menu_logo));
     }
 
     public int getId(int position) {
