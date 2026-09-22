@@ -64,6 +64,7 @@ import androidx.dynamicanimation.animation.FloatValueHolder;
 import androidx.dynamicanimation.animation.SpringAnimation;
 import androidx.dynamicanimation.animation.SpringForce;
 import androidx.recyclerview.widget.GridLayoutManager;
+import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
@@ -171,21 +172,36 @@ public class ShareAlert extends BottomSheet implements NotificationCenter.Notifi
     private HorizontalScrollView tjFolderRow;
     private MessagesController.DialogFilter tjFolder;
 
-    /** The folder the way the chat list's own tabs show it - icon, name, or both. */
-    private CharSequence tjChipLabel(MessagesController.DialogFilter folder) {
+    /** How much taller the header is than Telegram built it. */
+    private int tjHeaderExtra() {
+        return tjFolders.isEmpty() ? 0 : TJ_FOLDER_ROW_HEIGHT;
+    }
+
+    /**
+     * The folder the way the chat list's own tabs wear it: the app's folder icon, not the raw
+     * emoji behind it, and the name beside it unless the tab style says otherwise.
+     */
+    private void tjDressChip(TextView chip, MessagesController.DialogFilter folder) {
         final String name = folder == null ? LocaleController.getString(R.string.FilterAllChats) : folder.name;
         final String emoticon = folder == null
-                ? org.telegram.ui.Components.TjFolderIcons.ALL_CHATS
-                : org.telegram.ui.Components.TjFolderIcons.getFolderEmoticon(folder);
-        final boolean icon = emoticon != null && org.telegram.ui.Components.TjFolderIcons.showsIcon();
-        final boolean title = org.telegram.ui.Components.TjFolderIcons.showsTitle();
-        if (icon && title) {
-            return emoticon + "  " + name;
+                ? TjFolderIcons.ALL_CHATS
+                : TjFolderIcons.getFolderEmoticon(folder);
+        final boolean wantsIcon = emoticon != null && TjFolderIcons.showsIcon();
+        final boolean wantsName = TjFolderIcons.showsTitle() || !wantsIcon;
+        chip.setText(wantsName ? name : "");
+        if (!wantsIcon) {
+            chip.setCompoundDrawables(null, null, null, null);
+            return;
         }
-        if (icon) {
-            return emoticon;
+        Drawable icon = ContextCompat.getDrawable(chip.getContext(), TjFolderIcons.getTabIcon(emoticon));
+        if (icon == null) {
+            chip.setCompoundDrawables(null, null, null, null);
+            return;
         }
-        return name;
+        icon = icon.mutate();
+        icon.setBounds(0, 0, dp(18), dp(18));
+        chip.setCompoundDrawables(LocaleController.isRTL ? null : icon, null, LocaleController.isRTL ? icon : null, null);
+        chip.setCompoundDrawablePadding(wantsName ? dp(6) : 0);
     }
 
     private void buildTjFolderRow(Context context) {
@@ -211,7 +227,7 @@ public class ShareAlert extends BottomSheet implements NotificationCenter.Notifi
             for (MessagesController.DialogFilter folder : ordered) {
                 TextView chip = new TextView(context);
                 chip.setTag(folder);
-                chip.setText(tjChipLabel(folder));
+                tjDressChip(chip, folder);
                 chip.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
                 chip.setTypeface(AndroidUtilities.bold());
                 chip.setGravity(Gravity.CENTER);
@@ -238,7 +254,13 @@ public class ShareAlert extends BottomSheet implements NotificationCenter.Notifi
         for (int a = 0; a < tjFolderChips.size(); a++) {
             TextView chip = tjFolderChips.get(a);
             boolean selected = chip.getTag() == tjFolder;
-            chip.setTextColor(getThemedColor(selected ? Theme.key_featuredStickers_buttonText : Theme.key_dialogTextBlack));
+            int color = getThemedColor(selected ? Theme.key_featuredStickers_buttonText : Theme.key_dialogTextBlack);
+            chip.setTextColor(color);
+            for (Drawable drawable : chip.getCompoundDrawables()) {
+                if (drawable != null) {
+                    drawable.setColorFilter(new PorterDuffColorFilter(color, PorterDuff.Mode.SRC_IN));
+                }
+            }
             chip.setBackground(Theme.createRoundRectDrawable(dp(15), getThemedColor(selected
                     ? Theme.key_featuredStickers_addButton : Theme.key_listSelector)));
         }
@@ -778,7 +800,7 @@ public class ShareAlert extends BottomSheet implements NotificationCenter.Notifi
                 int availableHeight = totalHeight - getPaddingTop();
 
                 int size = Math.max(searchAdapter.getItemCount(), listAdapter.getItemCount() - 1);
-                int contentSize = dp(103) + dp(48) + Math.max(2, (int) Math.ceil(size / 4.0f)) * dp(103) + backgroundPaddingTop;
+                int contentSize = dp(103 + tjHeaderExtra()) + dp(48) + Math.max(2, (int) Math.ceil(size / 4.0f)) * dp(103) + backgroundPaddingTop;
                 if (topicsGridView.getVisibility() != View.GONE) {
                     int topicsSize = dp(103) + dp(48) + Math.max(2, (int) Math.ceil((shareTopicsAdapter.getItemCount() - 1) / 4.0f)) * dp(103) + backgroundPaddingTop;
                     if (topicsSize > contentSize) {
@@ -3118,7 +3140,7 @@ public class ShareAlert extends BottomSheet implements NotificationCenter.Notifi
                 case 1:
                 default: {
                     view = new View(context);
-                    view.setLayoutParams(new RecyclerView.LayoutParams(RecyclerView.LayoutParams.MATCH_PARENT, dp(darkTheme && linkToCopy[1] != null ? 109 : 56)));
+                    view.setLayoutParams(new RecyclerView.LayoutParams(RecyclerView.LayoutParams.MATCH_PARENT, dp((darkTheme && linkToCopy[1] != null ? 109 : 56) + tjHeaderExtra())));
                     break;
                 }
             }
@@ -3665,7 +3687,7 @@ public class ShareAlert extends BottomSheet implements NotificationCenter.Notifi
                 default:
                 case 1: {
                     view = new View(context);
-                    view.setLayoutParams(new RecyclerView.LayoutParams(RecyclerView.LayoutParams.MATCH_PARENT, dp(darkTheme && linkToCopy[1] != null ? 109 : 56)));
+                    view.setLayoutParams(new RecyclerView.LayoutParams(RecyclerView.LayoutParams.MATCH_PARENT, dp((darkTheme && linkToCopy[1] != null ? 109 : 56) + tjHeaderExtra())));
                     break;
                 }
                 case 2: {
