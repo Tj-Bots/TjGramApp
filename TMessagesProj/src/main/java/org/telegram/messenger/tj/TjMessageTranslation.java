@@ -1,7 +1,13 @@
 package org.telegram.messenger.tj;
 
+import android.text.TextUtils;
+
+import org.telegram.messenger.AndroidUtilities;
+import org.telegram.messenger.LanguageDetector;
 import org.telegram.messenger.MessageObject;
+import org.telegram.messenger.TranslateController;
 import org.telegram.tgnet.TLRPC;
+import org.telegram.ui.Components.TranslateAlert2;
 
 import java.util.ArrayList;
 import java.util.Set;
@@ -27,6 +33,13 @@ public final class TjMessageTranslation {
     private static final ConcurrentHashMap<String, Original> originals = new ConcurrentHashMap<>();
     /** The messages whose translation is on its way, so the button can say so. */
     private static final Set<String> loading = ConcurrentHashMap.newKeySet();
+    /** What language each message turned out to be written in, once someone asked. */
+    private static final ConcurrentHashMap<String, String> languages = new ConcurrentHashMap<>();
+    private static final Set<String> detecting = ConcurrentHashMap.newKeySet();
+
+    private static final String UNKNOWN = "und";
+    /** The detector could not be reached at all - then the offer stands, we simply do not know. */
+    private static final String UNDETECTABLE = "?";
 
     private TjMessageTranslation() { }
 
@@ -50,6 +63,71 @@ public final class TjMessageTranslation {
             loading.add(key(message));
         } else {
             loading.remove(key(message));
+        }
+    }
+
+    /**
+     * Whether it is worth offering to translate this message: only if it is not already written in
+     * the language the app itself is in. The first time a message is asked about the answer is not
+     * there yet - the detector is sent after it and {@code onDetected} runs once it comes back.
+     */
+    public static boolean worthTranslating(MessageObject message, Runnable onDetected) {
+        if (message == null || message.messageOwner == null) {
+            return false;
+        }
+        if (has(message) || isLoading(message)) {
+            return true;
+        }
+        String language = message.messageOwner.originalLanguage;
+        if (TextUtils.isEmpty(language)) {
+            language = languages.get(key(message));
+        }
+        if (TextUtils.isEmpty(language)) {
+            detect(message, onDetected);
+            return false;
+        }
+        return !spokenHere(language);
+    }
+
+    private static boolean spokenHere(String language) {
+        if (UNDETECTABLE.equals(language)) {
+            return false;
+        }
+        if (TextUtils.isEmpty(language) || UNKNOWN.equals(language)) {
+            return true;
+        }
+        final String lang = root(language);
+        return lang.equals(root(TranslateController.currentLanguage()))
+                || lang.equals(root(TranslateAlert2.getToLanguage()));
+    }
+
+    private static String root(String language) {
+        if (TextUtils.isEmpty(language)) {
+            return "";
+        }
+        return language.split("[-_]")[0].toLowerCase();
+    }
+
+    private static void detect(MessageObject message, Runnable onDetected) {
+        final String key = key(message);
+        final String text = message.messageOwner.message;
+        if (TextUtils.isEmpty(text) || !detecting.add(key)) {
+            return;
+        }
+        if (!LanguageDetector.hasSupport()) {
+            detected(key, UNDETECTABLE, onDetected);
+            return;
+        }
+        LanguageDetector.detectLanguage(text,
+                language -> detected(key, language, onDetected),
+                error -> detected(key, UNDETECTABLE, onDetected));
+    }
+
+    private static void detected(String key, String language, Runnable onDetected) {
+        languages.put(key, TextUtils.isEmpty(language) ? UNKNOWN : language);
+        detecting.remove(key);
+        if (onDetected != null) {
+            AndroidUtilities.runOnUIThread(onDetected);
         }
     }
 

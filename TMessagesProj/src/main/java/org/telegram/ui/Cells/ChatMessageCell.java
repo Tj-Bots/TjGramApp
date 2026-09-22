@@ -6979,10 +6979,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
             canStreamVideo = false;
             animatingNoSound = 0;
             drawSideButton2 = 0;
-            tjTranslateButtonVisible = org.telegram.messenger.tj.TjConfig.messageTranslateButton()
-                    && !messageObject.isSponsored()
-                    && currentPosition == null
-                    && !TextUtils.isEmpty(messageObject.messageOwner != null ? messageObject.messageOwner.message : null);
+            tjUpdateTranslateButton(messageObject);
             if (messageObject.isSponsored()) {
                 drawSideButton = 4;
                 if (messageObject.sponsoredCanReport) {
@@ -21661,10 +21658,31 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         }
     }
 
-    /** The bounds of the translate button: one circle above wherever the share button sits. */
+    /**
+     * Whether this message gets a translate button: someone else's words, in a language that is not
+     * the one the app is in. The language is not always known at once, so once it is, we look again.
+     */
+    private void tjUpdateTranslateButton(MessageObject messageObject) {
+        tjTranslateButtonVisible = org.telegram.messenger.tj.TjConfig.messageTranslateButton()
+                && !messageObject.isSponsored()
+                && !messageObject.isOutOwner()
+                && currentPosition == null
+                && !TextUtils.isEmpty(messageObject.messageOwner != null ? messageObject.messageOwner.message : null)
+                && org.telegram.messenger.tj.TjMessageTranslation.worthTranslating(messageObject, () -> {
+                    if (currentMessageObject == messageObject) {
+                        tjUpdateTranslateButton(messageObject);
+                        invalidateOutbounds();
+                        invalidate();
+                    }
+                });
+    }
+
+    /** The bounds of the translate button: one small circle above wherever the share button sits. */
     private void tjTranslateButtonRect(RectF out) {
-        final float bottom = drawSideButton == 0 ? sideStartY + dp(32) : sideStartY - dp(8);
-        out.set(sideStartX, bottom - dp(32), sideStartX + dp(32), bottom);
+        final float size = dp(26);
+        final float cx = sideStartX + dp(16);
+        final float bottom = drawSideButton == 0 ? sideStartY + dp(32) : sideStartY - dp(6);
+        out.set(cx - size / 2f, bottom - size, cx + size / 2f, bottom);
     }
 
     private void tjDrawTranslateButton(Canvas canvas) {
@@ -21673,10 +21691,10 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
             return;
         }
         applyServiceShaderMatrix();
-        canvas.drawRoundRect(AndroidUtilities.rectTmp, dp(16), dp(16), getThemedPaint(tjTranslateButtonPressed
+        canvas.drawRoundRect(AndroidUtilities.rectTmp, dp(13), dp(13), getThemedPaint(tjTranslateButtonPressed
                 ? Theme.key_paint_chatActionBackgroundSelected : Theme.key_paint_chatActionBackground));
         if (hasGradientService()) {
-            canvas.drawRoundRect(AndroidUtilities.rectTmp, dp(16), dp(16), Theme.chat_actionBackgroundGradientDarkenPaint);
+            canvas.drawRoundRect(AndroidUtilities.rectTmp, dp(13), dp(13), Theme.chat_actionBackgroundGradientDarkenPaint);
         }
         if (org.telegram.messenger.tj.TjMessageTranslation.isLoading(currentMessageObject)) {
             tjDrawTranslateSpinner(canvas, AndroidUtilities.rectTmp);
@@ -21686,7 +21704,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         Drawable drawable = getContext().getResources().getDrawable(R.drawable.msg_translate).mutate();
         drawable.setColorFilter(new PorterDuffColorFilter(getThemedColor(Theme.key_chat_serviceText), PorterDuff.Mode.SRC_IN));
         final int cx = (int) AndroidUtilities.rectTmp.centerX(), cy = (int) AndroidUtilities.rectTmp.centerY();
-        final int half = dp(10);
+        final int half = dp(8);
         drawable.setBounds(cx - half, cy - half, cx + half, cy + half);
         drawable.draw(canvas);
     }
@@ -21706,7 +21724,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         final long time = System.currentTimeMillis() - tjTranslateSpinnerStart;
         final float start = time % 1300L / 1300f * 360f;
         final float sweep = 30 + 250 * (float) Math.abs(Math.sin(time / 900.0));
-        final float radius = dp(8);
+        final float radius = dp(7);
         final float cx = button.centerX(), cy = button.centerY();
         canvas.drawArc(cx - radius, cy - radius, cx + radius, cy + radius, start, sweep, false, tjTranslateSpinnerPaint);
         invalidateOutbounds();
