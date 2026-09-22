@@ -3217,6 +3217,12 @@ public class ChatActivity extends BaseFragment implements
         if (chatMode == MODE_SAVED) {
             getMessagesController().getSavedMessagesController().checkSavedDialogCount(getTopicId());
         }
+        if (chatMode == MODE_DEFAULT && dialog_id != 0 && TjConfig.saveDeletedMessages()) {
+            // Read the chat's archived deletions now, off the main thread, so that putting them
+            // back into the first page of history is a memory lookup rather than a wait.
+            org.telegram.messenger.tj.TjMessageArchive.getInstance()
+                    .warmDeleted(currentAccount, dialog_id, (int) getTopicId());
+        }
 
         return true;
     }

@@ -331,6 +331,8 @@ public final class TjMessageArchive extends SQLiteOpenHelper {
                 // finds nothing; a chat missing from it would hide what was saved.
                 Set<Long> known = deletedDialogs.get(snapshot.ownerUserId);
                 if (known != null) known.add(snapshot.dialogId);
+                deletedCache.remove(cacheKey(snapshot.accountId, snapshot.ownerUserId,
+                        snapshot.dialogId, snapshot.topicId));
             }
             return stored;
         } catch (Throwable error) {
@@ -365,26 +367,84 @@ public final class TjMessageArchive extends SQLiteOpenHelper {
         query(accountId, dialogId, topicId, minId, maxId, KIND_DELETED, limit, callback);
     }
 
-    public ArrayList<Snapshot> getDeletedSync(int accountId, long dialogId, int topicId,
-                                              int minId, int maxId, int limit) {
-        ArrayList<Snapshot> result = new ArrayList<>();
-        long ownerUserId = UserConfig.getInstance(accountId).getClientUserId();
-        String selection = "owner_user_id=? AND account_id=? AND dialog_id=? AND topic_id=? AND kind=? AND message_id>=? AND message_id<=?";
-        String[] args = {String.valueOf(ownerUserId), String.valueOf(accountId), String.valueOf(dialogId), String.valueOf(topicId),
-                String.valueOf(KIND_DELETED), String.valueOf(minId), String.valueOf(maxId)};
+    /**
+     * Every deleted message this chat has in the archive, kept in memory once it has been read.
+     *
+     * The merge that puts them back into a history page runs on the main thread, and reading them
+     * out of the database there - several hundred rows, each one a message to deserialize - is
+     * what made some chats sit still on the way in and again on every page scrolled up. It is read
+     * once, off the main thread where possible, and answered from memory after that.
+     */
+    private final java.util.Map<String, ArrayList<Snapshot>> deletedCache = new ConcurrentHashMap<>();
+
+    private static String cacheKey(int accountId, long ownerUserId, long dialogId, int topicId) {
+        return ownerUserId + ":" + accountId + ":" + dialogId + ":" + topicId;
+    }
+
+    /** Reads the chat's archived deletions ahead of time, so the merge never has to wait. */
+    public void warmDeleted(int accountId, long dialogId, int topicId) {
+        if (dialogId == 0 || !mayHaveDeleted(accountId, dialogId)) {
+            return;
+        }
+        final long ownerUserId = UserConfig.getInstance(accountId).getClientUserId();
+        if (deletedCache.containsKey(cacheKey(accountId, ownerUserId, dialogId, topicId))) {
+            return;
+        }
+        queue.postRunnable(() -> readDeleted(accountId, ownerUserId, dialogId, topicId));
+    }
+
+    private ArrayList<Snapshot> readDeleted(int accountId, long ownerUserId, long dialogId, int topicId) {
+        final String key = cacheKey(accountId, ownerUserId, dialogId, topicId);
+        ArrayList<Snapshot> cached = deletedCache.get(key);
+        if (cached != null) {
+            return cached;
+        }
+        ArrayList<Snapshot> all = new ArrayList<>();
         try (Cursor cursor = getReadableDatabase().query(
-                "snapshots", null, selection, args, null, null, "message_id ASC",
-                String.valueOf(Math.max(1, limit)))) {
+                "snapshots", null,
+                "owner_user_id=? AND account_id=? AND dialog_id=? AND topic_id=? AND kind=?",
+                new String[]{String.valueOf(ownerUserId), String.valueOf(accountId),
+                        String.valueOf(dialogId), String.valueOf(topicId), String.valueOf(KIND_DELETED)},
+                null, null, "message_id ASC")) {
             while (cursor.moveToNext()) {
                 Snapshot snapshot = read(cursor);
                 if (snapshot != null) {
-                    result.add(snapshot);
+                    all.add(snapshot);
                 }
             }
         } catch (Throwable error) {
-            FileLog.e("Tj deleted messages sync query failed", error);
+            FileLog.e("Tj deleted messages query failed", error);
+            return all;
         }
-        return result;
+        deletedCache.put(key, all);
+        return all;
+    }
+
+    private void forgetDeletedCache(long ownerUserId) {
+        if (ownerUserId == 0) {
+            deletedCache.clear();
+            return;
+        }
+        final String prefix = ownerUserId + ":";
+        for (String key : new ArrayList<>(deletedCache.keySet())) {
+            if (key.startsWith(prefix)) {
+                deletedCache.remove(key);
+            }
+        }
+    }
+
+    public ArrayList<Snapshot> getDeletedSync(int accountId, long dialogId, int topicId,
+                                              int minId, int maxId, int limit) {
+        long ownerUserId = UserConfig.getInstance(accountId).getClientUserId();
+        ArrayList<Snapshot> all = readDeleted(accountId, ownerUserId, dialogId, topicId);
+        ArrayList<Snapshot> picked = new ArrayList<>();
+        for (int a = 0; a < all.size() && picked.size() < Math.max(1, limit); a++) {
+            Snapshot snapshot = all.get(a);
+            if (snapshot.message != null && snapshot.message.id >= minId && snapshot.message.id <= maxId) {
+                picked.add(snapshot);
+            }
+        }
+        return picked;
     }
 
     public void getRevisions(int accountId, long dialogId, int messageId,
@@ -489,6 +549,12 @@ public final class TjMessageArchive extends SQLiteOpenHelper {
         }
         ArrayList<Integer> ids = new ArrayList<>(messageIds);
         queue.postRunnable(() -> {
+            final String prefix = ownerUserId + ":" + accountId + ":" + dialogId + ":";
+            for (String key : new ArrayList<>(deletedCache.keySet())) {
+                if (key.startsWith(prefix)) {
+                    deletedCache.remove(key);
+                }
+            }
             for (Integer messageId : ids) {
                 if (messageId == null) {
                     continue;
@@ -546,6 +612,7 @@ public final class TjMessageArchive extends SQLiteOpenHelper {
                     }
                 }
                 deletedDialogs.remove(ownerUserId);
+                forgetDeletedCache(ownerUserId);
                 success = true;
             } catch (Throwable error) {
                 FileLog.e("Tj message archive clear failed", error);
