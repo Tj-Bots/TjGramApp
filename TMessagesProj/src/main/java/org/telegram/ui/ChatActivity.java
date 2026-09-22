@@ -33614,6 +33614,43 @@ public class ChatActivity extends BaseFragment implements
         showDialog(sheet);
     }
 
+    /**
+     * TJ: the little button beside the bubble. The message is shown translated in place, and the
+     * next press puts the original back - the chat is never covered and nothing else moves.
+     */
+    private void tjTranslateMessage(MessageObject message) {
+        if (message == null || message.messageOwner == null || TextUtils.isEmpty(message.messageOwner.message)) {
+            return;
+        }
+        if (org.telegram.messenger.tj.TjMessageTranslation.has(message)) {
+            org.telegram.messenger.tj.TjMessageTranslation.revert(message);
+            if (chatAdapter != null) {
+                chatAdapter.updateRowWithMessageObject(message, true, false);
+            }
+            return;
+        }
+        final TLRPC.TL_messages_translateText req = new TLRPC.TL_messages_translateText();
+        req.flags |= 1;
+        req.peer = getMessagesController().getInputPeer(dialog_id);
+        req.id.add(message.getId());
+        req.to_lang = TranslateAlert2.getToLanguage();
+        getConnectionsManager().sendRequest(req, (res, err) -> AndroidUtilities.runOnUIThread(() -> {
+            if (!(res instanceof TLRPC.TL_messages_translateResult)) {
+                BulletinFactory.showError(err);
+                return;
+            }
+            ArrayList<TLRPC.TL_textWithEntities> result = ((TLRPC.TL_messages_translateResult) res).result;
+            if (result.isEmpty()) {
+                BulletinFactory.of(this).createErrorBulletin(LocaleController.getString(R.string.ErrorOccurred)).show();
+                return;
+            }
+            org.telegram.messenger.tj.TjMessageTranslation.apply(message, result.get(0));
+            if (chatAdapter != null) {
+                chatAdapter.updateRowWithMessageObject(message, true, false);
+            }
+        }));
+    }
+
     private void showMentionTextAlert(TLRPC.User user, int start, int len) {
         final Context context = getParentActivity();
         if (context == null || chatActivityEnterView == null) {
@@ -42785,6 +42822,11 @@ public class ChatActivity extends BaseFragment implements
                 long id = giveaway.winners.get(pressedPos);
                 presentFragment(ProfileActivity.of(id));
             }
+        }
+
+        @Override
+        public void didPressTranslateButton(ChatMessageCell cell) {
+            tjTranslateMessage(cell.getMessageObject());
         }
 
         @Override

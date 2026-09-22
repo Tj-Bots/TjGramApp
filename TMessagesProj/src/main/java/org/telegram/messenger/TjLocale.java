@@ -447,6 +447,7 @@ public class TjLocale {
         m.put("TjAccountLogChatName", "TjGram");
         m.put("TjAccountLogNow", "עכשיו");
         m.put("TjAddToFolder", "הוסף לתקייה");
+        m.put("TjTranslateButton", "כפתור תרגום ליד הודעות");
         m.put("TjShareInApp", "שיתוף ישיר");
         m.put("TjCreateMention", "צור הזכרה");
         m.put("TjCopyButtonName", "העתק טקסט כפתור");

@@ -758,6 +758,10 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         default void didPressGiveawayChatButton(ChatMessageCell cell, int pressedPos) {
         }
 
+        /** TJ: the small translate button beside the bubble was pressed. */
+        default void didPressTranslateButton(ChatMessageCell cell) {
+        }
+
         default void didPressCommentButton(ChatMessageCell cell) {
         }
 
@@ -1695,6 +1699,9 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
     private boolean inQuickShareMode;
     private Path sideButtonPath1, sideButtonPath2;
     private float[] sideButtonPathCorners1, sideButtonPathCorners2;
+    /** TJ: a translate button of its own, sitting above the share button beside the bubble. */
+    public boolean tjTranslateButtonVisible;
+    private boolean tjTranslateButtonPressed;
     private static final int SIDE_BUTTON_SPONSORED_CLOSE = 4;
     private static final int SIDE_BUTTON_SPONSORED_MORE = 5;
     private float sideStartX, sideStartY;
@@ -4940,6 +4947,10 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
             }
         }
 
+        if (tjTranslateButtonTouch(event)) {
+            return true;
+        }
+
         if (checkTextSelection(event)) {
             return true;
         }
@@ -6966,6 +6977,10 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
             canStreamVideo = false;
             animatingNoSound = 0;
             drawSideButton2 = 0;
+            tjTranslateButtonVisible = org.telegram.messenger.tj.TjConfig.messageTranslateButton()
+                    && !messageObject.isSponsored()
+                    && currentPosition == null
+                    && !TextUtils.isEmpty(messageObject.messageOwner != null ? messageObject.messageOwner.message : null);
             if (messageObject.isSponsored()) {
                 drawSideButton = 4;
                 if (messageObject.sponsoredCanReport) {
@@ -21643,12 +21658,72 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         }
     }
 
+    /** The bounds of the translate button: one circle above wherever the share button sits. */
+    private void tjTranslateButtonRect(RectF out) {
+        final float bottom = drawSideButton == 0 ? sideStartY + dp(32) : sideStartY - dp(8);
+        out.set(sideStartX, bottom - dp(32), sideStartX + dp(32), bottom);
+    }
+
+    private void tjDrawTranslateButton(Canvas canvas) {
+        tjTranslateButtonRect(AndroidUtilities.rectTmp);
+        if (AndroidUtilities.rectTmp.right >= getMeasuredWidth()) {
+            return;
+        }
+        applyServiceShaderMatrix();
+        canvas.drawRoundRect(AndroidUtilities.rectTmp, dp(16), dp(16), getThemedPaint(tjTranslateButtonPressed
+                ? Theme.key_paint_chatActionBackgroundSelected : Theme.key_paint_chatActionBackground));
+        if (hasGradientService()) {
+            canvas.drawRoundRect(AndroidUtilities.rectTmp, dp(16), dp(16), Theme.chat_actionBackgroundGradientDarkenPaint);
+        }
+        Drawable drawable = getContext().getResources().getDrawable(R.drawable.msg_translate).mutate();
+        drawable.setColorFilter(new PorterDuffColorFilter(getThemedColor(Theme.key_chat_serviceText), PorterDuff.Mode.SRC_IN));
+        final int cx = (int) AndroidUtilities.rectTmp.centerX(), cy = (int) AndroidUtilities.rectTmp.centerY();
+        final int half = dp(10);
+        drawable.setBounds(cx - half, cy - half, cx + half, cy + half);
+        drawable.draw(canvas);
+    }
+
+    /** True when the touch landed on the translate button, which then handles it. */
+    private boolean tjTranslateButtonTouch(MotionEvent event) {
+        if (!tjTranslateButtonVisible || !sideButtonVisible || currentMessageObject == null) {
+            return false;
+        }
+        tjTranslateButtonRect(AndroidUtilities.rectTmp);
+        final boolean inside = AndroidUtilities.rectTmp.contains(event.getX(), event.getY());
+        if (event.getAction() == MotionEvent.ACTION_DOWN) {
+            if (!inside) {
+                return false;
+            }
+            tjTranslateButtonPressed = true;
+            invalidate();
+            return true;
+        }
+        if (!tjTranslateButtonPressed) {
+            return false;
+        }
+        if (event.getAction() == MotionEvent.ACTION_UP) {
+            tjTranslateButtonPressed = false;
+            invalidate();
+            if (inside && delegate != null) {
+                playSoundEffect(android.view.SoundEffectConstants.CLICK);
+                delegate.didPressTranslateButton(this);
+            }
+            return true;
+        }
+        if (event.getAction() == MotionEvent.ACTION_CANCEL || event.getAction() == MotionEvent.ACTION_MOVE && !inside) {
+            tjTranslateButtonPressed = false;
+            invalidate();
+        }
+        return true;
+    }
+
     public void drawSideButton(Canvas canvas) {
         drawSideButton(canvas, false);
     }
 
     public void drawSideButton(Canvas canvas, boolean fromQuickShare) {
-        if (hideSideButtonByQuickShare && !fromQuickShare || drawSideButton == 0) {
+        final boolean tjTranslate = tjTranslateButtonVisible && currentMessageObject != null;
+        if (hideSideButtonByQuickShare && !fromQuickShare || drawSideButton == 0 && !tjTranslate) {
             return;
         }
 
@@ -21713,6 +21788,12 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
             sideStartY -= offsetY;
         }
         sideButtonVisible = true;
+        if (tjTranslate && !SizeNotifierFrameLayout.drawingBlur) {
+            tjDrawTranslateButton(canvas);
+        }
+        if (drawSideButton == 0) {
+            return;
+        }
         if (drawSideButton == 3) {
             if (!(enterTransitionInProgress && !currentMessageObject.isVoice())) {
                 drawCommentButton(canvas, 1f);
