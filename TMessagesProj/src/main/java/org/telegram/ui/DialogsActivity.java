@@ -3558,11 +3558,9 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             }
         });
 
-        // TJ: the archive gets the same folder tabs the chat list has, over what is in it.
         if (
             (initialDialogsType == DIALOGS_TYPE_DEFAULT && !onlySelect || initialDialogsType == DIALOGS_TYPE_FORWARD) &&
-            (folderId == 0 || folderId == 1 && initialDialogsType == DIALOGS_TYPE_DEFAULT && !onlySelect)
-            && communityId == 0 && TextUtils.isEmpty(searchString)
+            folderId == 0 && communityId == 0 && TextUtils.isEmpty(searchString)
         ) {
             filterTabsView = new FilterTabsView(context, resourceProvider) {
                 @Override
@@ -11318,17 +11316,6 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
             } else {
                 if (initialDialogsType == DIALOGS_TYPE_FORWARD) {
                     return dialogFilter.dialogsForward;
-                }
-                if (folderId != 0) {
-                    // Inside the archive a folder means "this folder, among what is archived".
-                    ArrayList<TLRPC.Dialog> inFolder = new ArrayList<>();
-                    for (int a = 0; a < dialogFilter.dialogs.size(); a++) {
-                        TLRPC.Dialog dialog = dialogFilter.dialogs.get(a);
-                        if (dialog != null && dialog.folder_id == folderId) {
-                            inFolder.add(dialog);
-                        }
-                    }
-                    return inFolder;
                 }
                 return dialogFilter.dialogs;
             }

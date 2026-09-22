@@ -3749,8 +3749,7 @@ public class MessageObject {
     public void applyNewText() {
         translated = false;
         summarized = false;
-        CharSequence tjTranslated = org.telegram.messenger.tj.TjMessageTranslation.text(messageOwner);
-        applyNewText(tjTranslated != null ? tjTranslated : messageOwner.message);
+        applyNewText(messageOwner.message);
     }
 
     public void applyNewText(CharSequence text) {
@@ -6084,11 +6083,6 @@ public class MessageObject {
         if (messageText == null) {
             messageText = "";
         }
-        // TJ: a message that is showing its translation shows it wherever its own text is shown.
-        CharSequence tjTranslated = org.telegram.messenger.tj.TjMessageTranslation.text(messageOwner);
-        if (tjTranslated != null && isMediaEmpty()) {
-            messageText = tjTranslated;
-        }
 
         isEmbedVideoCached = null;
         cachedStartsTimestamp = null;
@@ -7636,11 +7630,6 @@ public class MessageObject {
             captionTranslated = true;
             text = messageOwner.translatedText.text;
             entities = messageOwner.translatedText.entities;
-        } else if (messageOwner.tjTranslation != null) {
-            captionSummarized = false;
-            captionTranslated = false;
-            text = messageOwner.tjTranslation.text;
-            entities = messageOwner.tjTranslation.entities;
         } else {
             captionSummarized = false;
             captionTranslated = false;
@@ -7990,9 +7979,6 @@ public class MessageObject {
             } else {
                 return messageOwner.translatedText != null ? messageOwner.translatedText.entities : null;
             }
-        }
-        if (messageOwner.tjTranslation != null) {
-            return messageOwner.tjTranslation.entities;
         }
         return messageOwner.entities;
     }

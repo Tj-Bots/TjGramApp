@@ -9961,12 +9961,8 @@ public class ChatActivity extends BaseFragment implements
         translateButton = new TranslateButton(getContext(), this, themeDelegate) {
             @Override
             protected void onButtonClick() {
-                if (getUserConfig().isPremium() || currentChat != null && currentChat.autotranslation) {
-                    getMessagesController().getTranslateController().toggleTranslatingDialog(getDialogId());
-                } else {
-                    MessagesController.getNotificationsSettings(currentAccount).edit().putInt("dialog_show_translate_count" + getDialogId(), 14).commit();
-                    showDialog(new PremiumFeatureBottomSheet(ChatActivity.this, PremiumPreviewFragment.PREMIUM_FEATURE_TRANSLATIONS, false));
-                }
+                // TJ: pressing it translates the chat. It does not sell a subscription first.
+                getMessagesController().getTranslateController().toggleTranslatingDialog(getDialogId());
                 updateTopPanel(true);
             }
 
@@ -32241,7 +32237,6 @@ public class ChatActivity extends BaseFragment implements
                             waitForLangDetection.set(false);
                             String fromLang = selectedObject.messageOwner.originalLanguage;
                             cell.setVisibility(
-                                org.telegram.messenger.tj.TjMessageTranslation.has(selectedObject) ||
                                 fromLang != null && (!fromLang.equals(toLang) || !fromLang.equals(toLangDefault) || fromLang.equals(TranslateController.UNKNOWN_LANGUAGE)) && (
                                     translateEnabled ||
                                     (currentChat != null && (currentChat.has_link || ChatObject.isPublic(currentChat)) || selectedObject.messageOwner.fwd_from != null) && ("uk".equals(fromLang) || "ru".equals(fromLang))
@@ -32254,7 +32249,8 @@ public class ChatActivity extends BaseFragment implements
 
                                 String toLangValue = fromLang != null && fromLang.equals(toLang) ? toLangDefault : toLang;
                                 ArrayList<TLRPC.MessageEntity> entities = selectedObject != null && selectedObject.messageOwner != null ? selectedObject.messageOwner.entities : null;
-                                tjTranslateInline(selectedObject, inputPeer, messageIdToTranslate[0], fromLang, toLangValue, finalMessageText, entities);
+                                TranslateAlert2 alert = TranslateAlert2.showAlert(getParentActivity(), this, currentAccount, inputPeer, messageIdToTranslate[0], selectedObject.summarized, fromLang, toLangValue, finalMessageText, entities, noforwardsOrPaidMedia, onLinkPress, () -> dimBehindView(false));
+                                alert.setDimBehind(false);
                                 closeMenu(false);
                                 
 //                                final TranslateAlert3 alert =
@@ -32311,7 +32307,8 @@ public class ChatActivity extends BaseFragment implements
                                 }
                                 String toLangValue = fromLang[0] != null && fromLang[0].equals(toLang) ? toLangDefault : toLang;
                                 ArrayList<TLRPC.MessageEntity> entities = selectedObject != null && selectedObject.messageOwner != null ? selectedObject.messageOwner.entities : null;
-                                tjTranslateInline(selectedObject, inputPeer, messageIdToTranslate[0], fromLang[0], toLangValue, finalMessageText, entities);
+                                TranslateAlert2 alert = TranslateAlert2.showAlert(getParentActivity(), this, currentAccount, inputPeer, messageIdToTranslate[0], selectedObject.summarized, fromLang[0], toLangValue, finalMessageText, entities, noforwardsOrPaidMedia, onLinkPress, () -> dimBehindView(false));
+                                alert.setDimBehind(false);
                                 closeMenu(false);
 
 //                                final TranslateAlert3 alert =
@@ -32344,7 +32341,8 @@ public class ChatActivity extends BaseFragment implements
                                     return;
                                 }
 
-                                tjTranslateInline(selectedObject, inputPeer, messageIdToTranslate[0], "und", toLang, finalMessageText, null);
+                                TranslateAlert2 alert = TranslateAlert2.showAlert(getParentActivity(), this, currentAccount, inputPeer, messageIdToTranslate[0], selectedObject.summarized, "und", toLang, finalMessageText, null, noforwardsOrPaidMedia, onLinkPress, () -> dimBehindView(false));
+                                alert.setDimBehind(false);
                                 closeMenu(false);
 
 //                                final TranslateAlert3 alert = new TranslateAlert3(getContext(), getResourceProvider())
@@ -33614,59 +33612,6 @@ public class ChatActivity extends BaseFragment implements
                     filter.name).show();
         });
         showDialog(sheet);
-    }
-
-    /**
-     * TJ: the translation belongs under the message, not in a sheet over the chat. The message
-     * keeps its own text and grows the translation beneath it, so it can be read in place,
-     * selected and copied with the rest, and put away by asking again.
-     */
-    private void tjTranslateInline(MessageObject message, TLRPC.InputPeer peer, int messageId, String fromLang, String toLang, CharSequence text, ArrayList<TLRPC.MessageEntity> entities) {
-        if (message == null || message.messageOwner == null) {
-            return;
-        }
-        if (org.telegram.messenger.tj.TjMessageTranslation.has(message)) {
-            org.telegram.messenger.tj.TjMessageTranslation.clear(message);
-            tjRefreshMessageRow(message);
-            return;
-        }
-        final CharSequence original = text != null ? text : message.messageOwner.message;
-        final ArrayList<TLRPC.MessageEntity> originalEntities = entities != null ? entities : message.messageOwner.entities;
-        final TLRPC.TL_messages_translateText req = new TLRPC.TL_messages_translateText();
-        if (peer != null && messageId != 0) {
-            req.flags |= 1;
-            req.peer = peer;
-            req.id.add(messageId);
-        } else {
-            req.flags |= 2;
-            TLRPC.TL_textWithEntities source = new TLRPC.TL_textWithEntities();
-            source.text = original == null ? "" : original.toString();
-            if (originalEntities != null) {
-                source.entities.addAll(originalEntities);
-            }
-            req.text.add(source);
-        }
-        req.to_lang = toLang;
-        getConnectionsManager().sendRequest(req, (res, err) -> AndroidUtilities.runOnUIThread(() -> {
-            if (!(res instanceof TLRPC.TL_messages_translateResult)) {
-                BulletinFactory.showError(err);
-                return;
-            }
-            ArrayList<TLRPC.TL_textWithEntities> result = ((TLRPC.TL_messages_translateResult) res).result;
-            if (result.isEmpty()) {
-                BulletinFactory.of(this).createErrorBulletin(LocaleController.getString(R.string.ErrorOccurred)).show();
-                return;
-            }
-            org.telegram.messenger.tj.TjMessageTranslation.apply(message, original, originalEntities, fromLang, toLang, result.get(0));
-            tjRefreshMessageRow(message);
-        }));
-    }
-
-    private void tjRefreshMessageRow(MessageObject message) {
-        if (chatAdapter == null) {
-            return;
-        }
-        chatAdapter.updateRowWithMessageObject(message, true, false);
     }
 
     private void showMentionTextAlert(TLRPC.User user, int start, int len) {
@@ -46785,7 +46730,7 @@ public class ChatActivity extends BaseFragment implements
                     icons.add(R.drawable.msg_pin);
                 }
                 if (selectedObject != null && !selectedObject.isEphemeral() && selectedObject.contentType == 0 && ((!TextUtils.isEmpty(selectedObject.getMessageTextToTranslate(groupedMessages, null)) && !selectedObject.isAnimatedEmoji() && !selectedObject.isDice()) || (selectedObject.type == MessageObject.TYPE_ARTICLE && selectedObject.messageOwner != null && selectedObject.messageOwner.rich_message != null && !selectedObject.translated))) {
-                    items.add(LocaleController.getString(org.telegram.messenger.tj.TjMessageTranslation.has(selectedObject) ? R.string.ShowOriginalButton : R.string.TranslateMessage));
+                    items.add(LocaleController.getString(R.string.TranslateMessage));
                     options.add(OPTION_TRANSLATE);
                     icons.add(R.drawable.msg_translate);
                 }
@@ -47153,7 +47098,7 @@ public class ChatActivity extends BaseFragment implements
                     icons.add(R.drawable.msg_pin);
                 }
                 if (selectedObject != null && !selectedObject.isEphemeral() && selectedObject.contentType == 0 && ((!TextUtils.isEmpty(selectedObject.getMessageTextToTranslate(selectedObjectGroup, null)) && !selectedObject.isAnimatedEmoji() && !selectedObject.isDice()) || (selectedObject.type == MessageObject.TYPE_ARTICLE && selectedObject.messageOwner != null && selectedObject.messageOwner.rich_message != null && !selectedObject.translated))) {
-                    items.add(LocaleController.getString(org.telegram.messenger.tj.TjMessageTranslation.has(selectedObject) ? R.string.ShowOriginalButton : R.string.TranslateMessage));
+                    items.add(LocaleController.getString(R.string.TranslateMessage));
                     options.add(OPTION_TRANSLATE);
                     icons.add(R.drawable.msg_translate);
                 }
