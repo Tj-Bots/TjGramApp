@@ -446,6 +446,7 @@ public class TjLocale {
         m.put("TjAccountLog", "יומן חשבון");
         m.put("TjAccountLogChatName", "TjGram");
         m.put("TjAccountLogNow", "עכשיו");
+        m.put("TjAddToFolder", "הוסף לתקייה");
         m.put("TjCreateMention", "צור הזכרה");
         m.put("TjCopyButtonName", "העתק שם כפתור");
         m.put("TjCopyCallbackData", "העתק נתוני callback");

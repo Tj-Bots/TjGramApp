@@ -11505,6 +11505,7 @@
     <string name="TjAccountLog">Account log</string>
     <string name="TjAccountLogChatName">TjGram</string>
     <string name="TjAccountLogNow">Now</string>
+    <string name="TjAddToFolder">Add to folder</string>
     <string name="TjCreateMention">Create mention</string>
     <string name="TjCopyButtonName">Copy button name</string>
     <string name="TjCopyCallbackData">Copy callback data</string>

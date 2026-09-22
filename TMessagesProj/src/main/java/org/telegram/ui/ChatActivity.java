@@ -1671,6 +1671,7 @@ public class ChatActivity extends BaseFragment implements
     private final static int forward_no_tag = 1003;
     private final static int toggle_pinned_visibility = 1008;
     private final static int toggle_chat_ghost = 1015;
+    private final static int tj_add_to_folder = 1016;
     private final static int edit = 23;
     private final static int add_shortcut = 24;
     private final static int save_to = 25;
@@ -3897,6 +3898,8 @@ public class ChatActivity extends BaseFragment implements
                         return;
                     }
                     showDialog(AlertsCreator.createTTLAlert(getParentActivity(), currentEncryptedChat, themeDelegate).create());
+                } else if (id == tj_add_to_folder) {
+                    showAddToFolder();
                 } else if (id == jump_to_first_message) {
                     jumpToDate(1);
                 } else if (id == toggle_pinned_visibility) {
@@ -4546,6 +4549,9 @@ public class ChatActivity extends BaseFragment implements
             if (!isTopic && !ChatObject.isMonoForum(currentChat)) {
                 clearHistoryItem = headerItem.lazilyAddSubItem(clear_history, R.drawable.msg_clear,
                     LocaleController.getString(UserObject.isBotForum(currentUser) ? R.string.ClearAllHistory : R.string.ClearHistory));
+            }
+            if (currentEncryptedChat == null && !isTopic && chatMode == MODE_DEFAULT && !isInScheduleMode() && !inPreviewMode) {
+                headerItem.lazilyAddSubItem(tj_add_to_folder, R.drawable.msg_addfolder, TjLocale.getString(R.string.TjAddToFolder));
             }
             headerItem.lazilyAddSubItem(jump_to_first_message, R.drawable.msg_go_up, TjLocale.getString(R.string.TjGoToFirstMessage));
             pinnedVisibilityItem = headerItem.lazilyAddSubItem(toggle_pinned_visibility, R.drawable.msg_archive, TjLocale.getString(R.string.TjHidePinnedMessage));
@@ -33561,6 +33567,50 @@ public class ChatActivity extends BaseFragment implements
         }
     }
 
+    /** The same folder sheet the chat list uses, for the one chat that is open. */
+    private void showAddToFolder() {
+        if (getParentActivity() == null || dialog_id == 0) {
+            return;
+        }
+        final ArrayList<Long> selected = new ArrayList<>();
+        selected.add(dialog_id);
+        org.telegram.ui.Components.FiltersListBottomSheet sheet =
+                new org.telegram.ui.Components.FiltersListBottomSheet(this, selected);
+        sheet.setDelegate((filter, checked) -> {
+            ArrayList<Long> alwaysShow = org.telegram.ui.Components.FiltersListBottomSheet
+                    .getDialogsCount(this, filter, selected, true, false);
+            if (filter == null) {
+                presentFragment(new FilterCreateActivity(null, alwaysShow));
+                return;
+            }
+            if (checked) {
+                filter.neverShow.add(dialog_id);
+                filter.alwaysShow.remove(dialog_id);
+            } else {
+                if (alwaysShow.isEmpty()) {
+                    return;
+                }
+                for (int a = 0; a < alwaysShow.size(); a++) {
+                    filter.neverShow.remove(alwaysShow.get(a));
+                }
+                filter.alwaysShow.addAll(alwaysShow);
+                int total = filter.alwaysShow.size();
+                if (total > getMessagesController().dialogFiltersChatsLimitDefault && !getUserConfig().isPremium()
+                        || total > getMessagesController().dialogFiltersChatsLimitPremium) {
+                    showDialog(new LimitReachedBottomSheet(this, getParentActivity(),
+                            LimitReachedBottomSheet.TYPE_CHATS_IN_FOLDER, currentAccount, null));
+                    return;
+                }
+            }
+            FilterCreateActivity.saveFilterToServer(filter, filter.flags, filter.name, filter.entities,
+                    filter.title_noanimate, filter.color, filter.alwaysShow, filter.neverShow,
+                    filter.pinnedDialogs, false, false, true, true, false, this, null);
+            BulletinFactory.of(this).createSimpleBulletin(checked ? R.raw.folder_out : R.raw.folder_in,
+                    filter.name).show();
+        });
+        showDialog(sheet);
+    }
+
     private void showMentionTextAlert(TLRPC.User user, int start, int len) {
         final Context context = getParentActivity();
         if (context == null || chatActivityEnterView == null) {
@@ -36887,6 +36937,10 @@ public class ChatActivity extends BaseFragment implements
     }
 
     private void openClickableLink(CharacterStyle url, String str, boolean longPress, final ChatMessageCell cell, final MessageObject messageObject, boolean forceNoIV) {
+        openClickableLink(url, str, longPress, cell, messageObject, forceNoIV, null);
+    }
+
+    private void openClickableLink(CharacterStyle url, String str, boolean longPress, final ChatMessageCell cell, final MessageObject messageObject, boolean forceNoIV, CharSequence buttonName) {
         if (longPress) {
             if (str.startsWith("@")) {
                 if (cell != null) {
@@ -36930,13 +36984,38 @@ public class ChatActivity extends BaseFragment implements
                 if (!noforwards) {
                     linkItems.add(LocaleController.getString(R.string.Copy));
                     linkActions.add(1);
+                    if (!TextUtils.isEmpty(buttonName)) {
+                        linkItems.add(TjLocale.getString(R.string.TjCopyButtonName));
+                        linkActions.add(4);
+                    }
                     if (!str.startsWith("video?") && !str.startsWith("tg:")) {
+                        // Out of the app, and inside it: the system sheet and Telegram's own.
+                        linkItems.add(LocaleController.getString(R.string.ShareFile));
+                        linkActions.add(3);
                         linkItems.add(LocaleController.getString(R.string.LinkActionShare));
                         linkActions.add(2);
                     }
                 }
                 builder.setItems(linkItems.toArray(new CharSequence[0]), (dialog, index) -> {
                     final int which = linkActions.get(index);
+                    if (which == 4) {
+                        AndroidUtilities.addToClipboard(buttonName);
+                        BulletinFactory.of(ChatActivity.this).createCopyBulletin(getString(R.string.TextCopied)).show();
+                        return;
+                    }
+                    if (which == 3) {
+                        if (getParentActivity() != null) {
+                            try {
+                                Intent intent = new Intent(Intent.ACTION_SEND);
+                                intent.setType("text/plain");
+                                intent.putExtra(Intent.EXTRA_TEXT, str.startsWith("@") ? "https://t.me/" + str.substring(1) : str);
+                                getParentActivity().startActivity(Intent.createChooser(intent, LocaleController.getString(R.string.ShareFile)));
+                            } catch (Exception e) {
+                                FileLog.e(e);
+                            }
+                        }
+                        return;
+                    }
                     if (which == 2) {
                         if (getParentActivity() != null) {
                             String shareLink = str.startsWith("@") ? "https://t.me/" + str.substring(1) : str;
@@ -41016,7 +41095,7 @@ public class ChatActivity extends BaseFragment implements
                 return;
             }
             if (buttonTypeUrl != null) {
-                openClickableLink(null, buttonTypeUrl.url, true, cell, cell.getMessageObject(), false);
+                openClickableLink(null, buttonTypeUrl.url, true, cell, cell.getMessageObject(), false, button.getText());
                 try {
                     cell.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS, HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING);
                 } catch (Exception ignore) {}

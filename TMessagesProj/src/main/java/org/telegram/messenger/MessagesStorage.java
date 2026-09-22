@@ -14816,7 +14816,10 @@ public class MessagesStorage extends BaseController {
                         if (data != null) {
                             TLRPC.Message message = TLRPC.Message.TLdeserialize(data, data.readInt32(false), false);
                             message.readAttachPath(data, currentUser);
-                            TjMessageArchive.getInstance().saveDeleted(currentAccount, message);
+                            // A deletion the user asked for without keeping a copy is a deletion.
+                            if (!TjDeletionPolicy.isLocalRemoval(currentAccount, did, mid)) {
+                                TjMessageArchive.getInstance().saveDeleted(currentAccount, message);
+                            }
                             if (deletedMessages != null) {
                                 deletedMessages.add(message);
                             }
@@ -15543,7 +15546,9 @@ public class MessagesStorage extends BaseController {
                     if (data != null) {
                         TLRPC.Message message = TLRPC.Message.TLdeserialize(data, data.readInt32(false), false);
                         message.readAttachPath(data, getUserConfig().clientUserId);
-                        TjMessageArchive.getInstance().saveDeleted(currentAccount, message);
+                        if (!TjDeletionPolicy.isLocalRemoval(currentAccount, did, message.id)) {
+                            TjMessageArchive.getInstance().saveDeleted(currentAccount, message);
+                        }
                         data.reuse();
                         addFilesToDelete(message, filesToDelete, idsToDelete, namesToDelete, false);
                     }
