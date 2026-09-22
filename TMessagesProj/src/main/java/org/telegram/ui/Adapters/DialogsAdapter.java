@@ -1099,7 +1099,12 @@ public class DialogsAdapter extends RecyclerListView.SelectionAdapter implements
                 cell.setTextSize(14);
                 cell.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText));
                 cell.setBackgroundColor(Theme.getColor(Theme.key_graySection));
-                switch (((DialogsActivity.DialogsHeader) getItem(i)).headerType) {
+                final DialogsActivity.DialogsHeader header = (DialogsActivity.DialogsHeader) getItem(i);
+                if (header.headerType == DialogsActivity.DialogsHeader.HEADER_TYPE_TITLE) {
+                    cell.setText(header.title);
+                    break;
+                }
+                switch (header.headerType) {
                     case DialogsActivity.DialogsHeader.HEADER_TYPE_MY_CHANNELS:
                         cell.setText(getString(R.string.MyChannels));
                         break;
@@ -1623,6 +1628,9 @@ public class DialogsAdapter extends RecyclerListView.SelectionAdapter implements
             if (array == null) {
                 array = new ArrayList<>();
             }
+            // TJ: the archive is one long list of everything put away. Split by the folders the
+            // chats already belong to, so it reads like the chat list does.
+            array = org.telegram.messenger.tj.TjArchiveSections.split(currentAccount, dialogsType, folderId, array);
         }
 
         dialogsCount = array.size();
@@ -1705,7 +1713,7 @@ public class DialogsAdapter extends RecyclerListView.SelectionAdapter implements
 
         if (collapsedView || isTransitionSupport) {
             for (int k = 0; k < array.size(); k++) {
-                if (dialogsType == 2 && array.get(k) instanceof DialogsActivity.DialogsHeader) {
+                if (array.get(k) instanceof DialogsActivity.DialogsHeader) {
                     itemInternals.add(new ItemInternal(VIEW_TYPE_HEADER_2, array.get(k)));
                 } else {
                     itemInternals.add(new ItemInternal(VIEW_TYPE_DIALOG, array.get(k)));
@@ -1772,7 +1780,7 @@ public class DialogsAdapter extends RecyclerListView.SelectionAdapter implements
 
         if (!stopUpdate) {
             for (int k = 0; k < array.size(); k++) {
-                if (dialogsType == DialogsActivity.DIALOGS_TYPE_ADD_USERS_TO && array.get(k) instanceof DialogsActivity.DialogsHeader) {
+                if (array.get(k) instanceof DialogsActivity.DialogsHeader) {
                     itemInternals.add(new ItemInternal(VIEW_TYPE_HEADER_2, array.get(k)));
                 } else {
                     itemInternals.add(new ItemInternal(VIEW_TYPE_DIALOG, array.get(k)));

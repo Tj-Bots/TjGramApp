@@ -11222,10 +11222,18 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
         public static final int HEADER_TYPE_MY_CHANNELS = 0;
         public static final int HEADER_TYPE_MY_GROUPS = 1;
         public static final int HEADER_TYPE_GROUPS = 2;
+        /** A header that carries its own words, for a section the app names itself. */
+        public static final int HEADER_TYPE_TITLE = 3;
         public int headerType;
+        public CharSequence title;
 
         public DialogsHeader(int type) {
             this.headerType = type;
+        }
+
+        public DialogsHeader(CharSequence title) {
+            this.headerType = HEADER_TYPE_TITLE;
+            this.title = title;
         }
     }
 
