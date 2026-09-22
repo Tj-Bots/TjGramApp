@@ -1177,6 +1177,78 @@ public class ShareAlert extends BottomSheet implements NotificationCenter.Notifi
             tjFolderRow = null;
         }
         frameLayout.addView(searchView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 40, Gravity.BOTTOM | Gravity.LEFT, 11, 7, 11, tjFolders.isEmpty() ? 11 : 11 + TJ_FOLDER_ROW_HEIGHT));
+        topicsBackActionBar = new ActionBar(context);
+        topicsBackActionBar.setOccupyStatusBar(false);
+        topicsBackActionBar.setBackButtonImage(R.drawable.ic_ab_back);
+        topicsBackActionBar.setTitleColor(getThemedColor(Theme.key_dialogTextBlack));
+        topicsBackActionBar.setSubtitleColor(getThemedColor(Theme.key_dialogTextGray2));
+        topicsBackActionBar.setItemsColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText2), false);
+        topicsBackActionBar.setItemsBackgroundColor(Theme.getColor(Theme.key_actionBarWhiteSelector), false);
+        topicsBackActionBar.setActionBarMenuOnItemClick(new ActionBar.ActionBarMenuOnItemClick() {
+            @Override
+            public void onItemClick(int id) {
+                onBackPressed();
+            }
+        });
+        topicsBackActionBar.setVisibility(View.GONE);
+        frameLayout.addView(topicsBackActionBar, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 58, Gravity.BOTTOM | Gravity.LEFT));
+
+        topicsGridView = new RecyclerListView(context, resourcesProvider);
+        topicsGridView.setLayoutManager(topicsLayoutManager = new GridLayoutManager(context, 4));
+        topicsLayoutManager.setSpanSizeLookup(new GridLayoutManager.SpanSizeLookup() {
+            @Override
+            public int getSpanSize(int position) {
+                if (position == 0) {
+                    return topicsLayoutManager.getSpanCount();
+                }
+                return 1;
+            }
+        });
+        topicsGridView.setOnScrollListener(new RecyclerView.OnScrollListener() {
+            @Override
+            public void onScrolled(RecyclerView recyclerView, int dx, int dy) {
+                if (dy != 0) {
+                    updateLayout();
+                    previousScrollOffsetY = scrollOffsetY;
+                }
+            }
+        });
+        topicsGridView.setAdapter(shareTopicsAdapter = new ShareTopicsAdapter(context));
+        topicsGridView.setGlowColor(getThemedColor(Theme.key_dialogScrollGlow));
+        topicsGridView.setVerticalScrollBarEnabled(false);
+        topicsGridView.setHorizontalScrollBarEnabled(false);
+        topicsGridView.setOverScrollMode(View.OVER_SCROLL_NEVER);
+        topicsGridView.setSelectorDrawableColor(0);
+        topicsGridView.setItemSelectorColorProvider(i -> 0);
+        topicsGridView.setPadding(0, 0, 0, dp(48));
+        topicsGridView.setClipToPadding(false);
+        topicsGridView.addItemDecoration(new RecyclerView.ItemDecoration() {
+            @Override
+            public void getItemOffsets(@NonNull android.graphics.Rect outRect, @NonNull View view, @NonNull RecyclerView parent, @NonNull RecyclerView.State state) {
+                RecyclerListView.Holder holder = (RecyclerListView.Holder) parent.getChildViewHolder(view);
+                if (holder != null) {
+                    int pos = holder.getAdapterPosition();
+                    outRect.left = pos % 4 == 0 ? 0 : dp(4);
+                    outRect.right = pos % 4 == 3 ? 0 : dp(4);
+                } else {
+                    outRect.left = dp(4);
+                    outRect.right = dp(4);
+                }
+            }
+        });
+        topicsGridView.setOnItemClickListener((view, position) -> {
+            if (shareTopicsAdapter.isBotForum && position == 1) {
+                onTopicCreateCellClick();
+                return;
+            }
+            TLRPC.TL_forumTopic topic = shareTopicsAdapter.getItemTopic(position);
+            if (topic != null) {
+                onTopicCellClick(topic);
+            }
+        });
+        topicsGridView.setVisibility(View.GONE);
+        containerView.addView(topicsGridView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT, Gravity.TOP | Gravity.LEFT));
+
 
         gridView = new RecyclerListView(context, resourcesProvider) {
 
@@ -2083,6 +2155,9 @@ public class ShareAlert extends BottomSheet implements NotificationCenter.Notifi
                                     gridView.setVisibility(View.GONE);
                                     searchGridView.setVisibility(View.GONE);
                                     searchView.setVisibility(View.GONE);
+                                if (tjFolderRow != null) {
+                                    tjFolderRow.setVisibility(View.GONE);
+                                }
 
                                     topicsAnimation = null;
                                 });
@@ -2178,6 +2253,9 @@ public class ShareAlert extends BottomSheet implements NotificationCenter.Notifi
 
         getMainGridView().setVisibility(View.VISIBLE);
         searchView.setVisibility(View.VISIBLE);
+        if (tjFolderRow != null) {
+            tjFolderRow.setVisibility(View.VISIBLE);
+        }
 
         if (searchIsVisible || searchWasVisibleBeforeTopics) {
             sizeNotifierFrameLayout.adjustPanLayoutHelper.ignoreOnce();
