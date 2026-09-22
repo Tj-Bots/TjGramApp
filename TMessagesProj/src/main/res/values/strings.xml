@@ -11506,9 +11506,6 @@
     <string name="TjAccountLogChatName">TjGram</string>
     <string name="TjAccountLogNow">Now</string>
     <string name="TjAddToFolder">Add to folder</string>
-    <string name="TjArchiveOtherChats">Other chats</string>
-    <string name="TjArchiveFolderSections">Split the archive by folders</string>
-    <string name="TjArchiveFolderSectionsInfo">The archive is one long list of everything put away. This shows it under the names of the chat folders its chats already belong to, each chat under the first folder that claims it.</string>
     <string name="TjShareInApp">Share in Telegram</string>
     <string name="TjCreateMention">Create mention</string>
     <string name="TjCopyButtonName">Copy button text</string>

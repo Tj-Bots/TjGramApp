@@ -1757,15 +1757,10 @@ public class TranslateController extends BaseController {
         keptReplyMessageObjects.remove(dialogId);
     }
 
+    // TJ: no language is held back from being offered a translation. Whether a translation is
+    // worth having is the reader's call, not a list's.
     private boolean isLanguageRestricted(String lng) {
-        if (getUserConfig().isPremium()) {
-            return RestrictedLanguagesSelectActivity.getRestrictedLanguages().contains(lng);
-        }
-        try {
-            return TextUtils.equals(LocaleController.getInstance().getCurrentLocaleInfo().pluralLangCode, lng);
-        } catch (Exception ignore) {
-            return false;
-        }
+        return false;
     }
 
     private void loadTranslatingDialogsCached() {

@@ -334,7 +334,6 @@ public class TjSettingsActivity extends BaseFragment {
     private static final int ID_WATCH_TAB = 32;
     private static final int ID_FAST_DOWNLOAD = 33;
     private static final int ID_ACCOUNT_LOG = 34;
-    private static final int ID_ARCHIVE_SECTIONS = 35;
 
     private static class Item {
         final int viewType;
@@ -376,7 +375,6 @@ public class TjSettingsActivity extends BaseFragment {
             case ID_MENU_SHORTCUTS: return TjConfig.menuShortcuts();
             case ID_PROTOCOL_ERRORS: return TjConfig.showProtocolErrors();
             case ID_EXACT_MEMBER_COUNT: return TjConfig.exactMemberCount();
-            case ID_ARCHIVE_SECTIONS: return TjConfig.archiveFolderSections();
             case ID_WATCH_IN_DRAWER: return TjConfig.showWatchInDrawer();
             case ID_WATCH_TAB: return TjConfig.showWatchTab();
         }
@@ -421,7 +419,6 @@ public class TjSettingsActivity extends BaseFragment {
             case ID_MENU_SHORTCUTS: key = "menu_shortcuts"; break;
             case ID_PROTOCOL_ERRORS: key = "show_protocol_errors"; break;
             case ID_EXACT_MEMBER_COUNT: key = "exact_member_count"; break;
-            case ID_ARCHIVE_SECTIONS: key = "archive_folder_sections"; break;
             case ID_WATCH_IN_DRAWER: key = "show_watch_in_drawer"; break;
             case ID_WATCH_TAB: key = "show_watch_tab"; break;
         }
@@ -601,7 +598,6 @@ public class TjSettingsActivity extends BaseFragment {
         items.add(new Item(VIEW_TYPE_CHECK, ID_SHOW_CALL_BUTTON, TjLocale.getString(R.string.TjShowCallButton)));
         items.add(new Item(VIEW_TYPE_CHECK, ID_ONLINE_INDICATOR, TjLocale.getString(R.string.TjOnlineIndicator)));
         items.add(new Item(VIEW_TYPE_CHECK, ID_EXACT_MEMBER_COUNT, TjLocale.getString(R.string.TjExactMemberCount)));
-        items.add(new Item(VIEW_TYPE_CHECK, ID_ARCHIVE_SECTIONS, TjLocale.getString(R.string.TjArchiveFolderSections)));
         items.add(new Item(VIEW_TYPE_CHECK, ID_WATCH_IN_DRAWER, TjLocale.getString(R.string.TjWatchInDrawer)));
         items.add(new Item(VIEW_TYPE_CHECK, ID_WATCH_TAB, TjLocale.getString(R.string.TjWatchInTabs)));
         items.add(new Item(VIEW_TYPE_SHADOW, 0, TjLocale.getString(R.string.TjOnlineIndicatorInfo)));

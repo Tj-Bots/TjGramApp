@@ -287,9 +287,6 @@ public final class TjConfig {
     /** Writes a chat's member count out in full instead of rounding it to "6.4K". */
     public static boolean exactMemberCount() { return get("exact_member_count", false); }
 
-    /** Whether the archive is broken into sections by the folders its chats belong to. */
-    public static boolean archiveFolderSections() { return get("archive_folder_sections", true); }
-
     /** Whether the message menu ends in a row of shortcut icons. */
     public static boolean menuShortcuts() { return get("menu_shortcuts", true); }
     /** The chosen shortcut actions, stored as the option numbers in the order they appear. */

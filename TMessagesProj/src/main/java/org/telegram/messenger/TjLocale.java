@@ -447,9 +447,6 @@ public class TjLocale {
         m.put("TjAccountLogChatName", "TjGram");
         m.put("TjAccountLogNow", "עכשיו");
         m.put("TjAddToFolder", "הוסף לתקייה");
-        m.put("TjArchiveOtherChats", "שאר הצ'אטים");
-        m.put("TjArchiveFolderSections", "פצל את הארכיון לפי תיקיות");
-        m.put("TjArchiveFolderSectionsInfo", "הארכיון הוא רשימה אחת ארוכה של כל מה שהוסתר. זה מציג אותו תחת השמות של תיקיות הצ'אטים שהצ'אטים כבר שייכים אליהן, כל צ'אט תחת התיקייה הראשונה שתופסת אותו.");
         m.put("TjShareInApp", "שיתוף ישיר");
         m.put("TjCreateMention", "צור הזכרה");
         m.put("TjCopyButtonName", "העתק טקסט כפתור");
