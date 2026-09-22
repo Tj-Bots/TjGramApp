@@ -32241,6 +32241,7 @@ public class ChatActivity extends BaseFragment implements
                             waitForLangDetection.set(false);
                             String fromLang = selectedObject.messageOwner.originalLanguage;
                             cell.setVisibility(
+                                org.telegram.messenger.tj.TjMessageTranslation.has(selectedObject) ||
                                 fromLang != null && (!fromLang.equals(toLang) || !fromLang.equals(toLangDefault) || fromLang.equals(TranslateController.UNKNOWN_LANGUAGE)) && (
                                     translateEnabled ||
                                     (currentChat != null && (currentChat.has_link || ChatObject.isPublic(currentChat)) || selectedObject.messageOwner.fwd_from != null) && ("uk".equals(fromLang) || "ru".equals(fromLang))
@@ -46784,7 +46785,7 @@ public class ChatActivity extends BaseFragment implements
                     icons.add(R.drawable.msg_pin);
                 }
                 if (selectedObject != null && !selectedObject.isEphemeral() && selectedObject.contentType == 0 && ((!TextUtils.isEmpty(selectedObject.getMessageTextToTranslate(groupedMessages, null)) && !selectedObject.isAnimatedEmoji() && !selectedObject.isDice()) || (selectedObject.type == MessageObject.TYPE_ARTICLE && selectedObject.messageOwner != null && selectedObject.messageOwner.rich_message != null && !selectedObject.translated))) {
-                    items.add(LocaleController.getString(R.string.TranslateMessage));
+                    items.add(LocaleController.getString(org.telegram.messenger.tj.TjMessageTranslation.has(selectedObject) ? R.string.ShowOriginalButton : R.string.TranslateMessage));
                     options.add(OPTION_TRANSLATE);
                     icons.add(R.drawable.msg_translate);
                 }
@@ -47152,7 +47153,7 @@ public class ChatActivity extends BaseFragment implements
                     icons.add(R.drawable.msg_pin);
                 }
                 if (selectedObject != null && !selectedObject.isEphemeral() && selectedObject.contentType == 0 && ((!TextUtils.isEmpty(selectedObject.getMessageTextToTranslate(selectedObjectGroup, null)) && !selectedObject.isAnimatedEmoji() && !selectedObject.isDice()) || (selectedObject.type == MessageObject.TYPE_ARTICLE && selectedObject.messageOwner != null && selectedObject.messageOwner.rich_message != null && !selectedObject.translated))) {
-                    items.add(LocaleController.getString(R.string.TranslateMessage));
+                    items.add(LocaleController.getString(org.telegram.messenger.tj.TjMessageTranslation.has(selectedObject) ? R.string.ShowOriginalButton : R.string.TranslateMessage));
                     options.add(OPTION_TRANSLATE);
                     icons.add(R.drawable.msg_translate);
                 }
