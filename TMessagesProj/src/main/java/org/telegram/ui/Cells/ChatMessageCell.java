@@ -1702,6 +1702,8 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
     /** TJ: a translate button of its own, sitting above the share button beside the bubble. */
     public boolean tjTranslateButtonVisible;
     private boolean tjTranslateButtonPressed;
+    private long tjTranslateSpinnerStart;
+    private Paint tjTranslateSpinnerPaint;
     private static final int SIDE_BUTTON_SPONSORED_CLOSE = 4;
     private static final int SIDE_BUTTON_SPONSORED_MORE = 5;
     private float sideStartX, sideStartY;
@@ -21095,6 +21097,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
             (!transitionParams.transitionBotButtons.isEmpty() && transitionParams.animateBotButtonsChanged) ||
             !botButtons.isEmpty() ||
             drawSideButton != 0 ||
+            tjTranslateButtonVisible ||
             drawNameLayout && nameLayout != null && currentNameEmojiStatusDrawable != null && !currentNameEmojiStatusDrawable.isEmpty() ||
             animatedEmojiStack != null && !animatedEmojiStack.holders.isEmpty() ||
             currentNameStatusDrawable != null && !currentNameStatusDrawable.isEmpty() ||
@@ -21675,12 +21678,39 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         if (hasGradientService()) {
             canvas.drawRoundRect(AndroidUtilities.rectTmp, dp(16), dp(16), Theme.chat_actionBackgroundGradientDarkenPaint);
         }
+        if (org.telegram.messenger.tj.TjMessageTranslation.isLoading(currentMessageObject)) {
+            tjDrawTranslateSpinner(canvas, AndroidUtilities.rectTmp);
+            return;
+        }
+        tjTranslateSpinnerStart = 0;
         Drawable drawable = getContext().getResources().getDrawable(R.drawable.msg_translate).mutate();
         drawable.setColorFilter(new PorterDuffColorFilter(getThemedColor(Theme.key_chat_serviceText), PorterDuff.Mode.SRC_IN));
         final int cx = (int) AndroidUtilities.rectTmp.centerX(), cy = (int) AndroidUtilities.rectTmp.centerY();
         final int half = dp(10);
         drawable.setBounds(cx - half, cy - half, cx + half, cy + half);
         drawable.draw(canvas);
+    }
+
+    /** While the translation is on its way, the glyph gives way to a turning ring. */
+    private void tjDrawTranslateSpinner(Canvas canvas, RectF button) {
+        if (tjTranslateSpinnerStart == 0) {
+            tjTranslateSpinnerStart = System.currentTimeMillis();
+        }
+        if (tjTranslateSpinnerPaint == null) {
+            tjTranslateSpinnerPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+            tjTranslateSpinnerPaint.setStyle(Paint.Style.STROKE);
+            tjTranslateSpinnerPaint.setStrokeCap(Paint.Cap.ROUND);
+            tjTranslateSpinnerPaint.setStrokeWidth(dp(2));
+        }
+        tjTranslateSpinnerPaint.setColor(getThemedColor(Theme.key_chat_serviceText));
+        final long time = System.currentTimeMillis() - tjTranslateSpinnerStart;
+        final float start = time % 1300L / 1300f * 360f;
+        final float sweep = 30 + 250 * (float) Math.abs(Math.sin(time / 900.0));
+        final float radius = dp(8);
+        final float cx = button.centerX(), cy = button.centerY();
+        canvas.drawArc(cx - radius, cy - radius, cx + radius, cy + radius, start, sweep, false, tjTranslateSpinnerPaint);
+        invalidateOutbounds();
+        invalidate();
     }
 
     /** True when the touch landed on the translate button, which then handles it. */

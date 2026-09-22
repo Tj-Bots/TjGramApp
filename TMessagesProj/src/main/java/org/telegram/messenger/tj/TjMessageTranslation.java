@@ -4,6 +4,7 @@ import org.telegram.messenger.MessageObject;
 import org.telegram.tgnet.TLRPC;
 
 import java.util.ArrayList;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -24,6 +25,8 @@ public final class TjMessageTranslation {
     }
 
     private static final ConcurrentHashMap<String, Original> originals = new ConcurrentHashMap<>();
+    /** The messages whose translation is on its way, so the button can say so. */
+    private static final Set<String> loading = ConcurrentHashMap.newKeySet();
 
     private TjMessageTranslation() { }
 
@@ -33,6 +36,21 @@ public final class TjMessageTranslation {
 
     public static boolean has(MessageObject message) {
         return message != null && message.messageOwner != null && originals.containsKey(key(message));
+    }
+
+    public static boolean isLoading(MessageObject message) {
+        return message != null && message.messageOwner != null && loading.contains(key(message));
+    }
+
+    public static void setLoading(MessageObject message, boolean value) {
+        if (message == null || message.messageOwner == null) {
+            return;
+        }
+        if (value) {
+            loading.add(key(message));
+        } else {
+            loading.remove(key(message));
+        }
     }
 
     public static void apply(MessageObject message, TLRPC.TL_textWithEntities translated) {

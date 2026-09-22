@@ -33629,12 +33629,19 @@ public class ChatActivity extends BaseFragment implements
             }
             return;
         }
+        if (org.telegram.messenger.tj.TjMessageTranslation.isLoading(message)) {
+            return;
+        }
+        org.telegram.messenger.tj.TjMessageTranslation.setLoading(message, true);
+        tjInvalidateMessageCell(message);
         final TLRPC.TL_messages_translateText req = new TLRPC.TL_messages_translateText();
         req.flags |= 1;
         req.peer = getMessagesController().getInputPeer(dialog_id);
         req.id.add(message.getId());
         req.to_lang = TranslateAlert2.getToLanguage();
         getConnectionsManager().sendRequest(req, (res, err) -> AndroidUtilities.runOnUIThread(() -> {
+            org.telegram.messenger.tj.TjMessageTranslation.setLoading(message, false);
+            tjInvalidateMessageCell(message);
             if (!(res instanceof TLRPC.TL_messages_translateResult)) {
                 BulletinFactory.showError(err);
                 return;
@@ -33649,6 +33656,23 @@ public class ChatActivity extends BaseFragment implements
                 chatAdapter.updateRowWithMessageObject(message, true, false);
             }
         }));
+    }
+
+    /** Repaints the cell showing this message, so the translate button can change what it shows. */
+    private void tjInvalidateMessageCell(MessageObject message) {
+        if (chatListView == null || message == null) {
+            return;
+        }
+        for (int i = 0; i < chatListView.getChildCount(); i++) {
+            View child = chatListView.getChildAt(i);
+            if (child instanceof ChatMessageCell) {
+                ChatMessageCell cell = (ChatMessageCell) child;
+                if (cell.getMessageObject() != null && cell.getMessageObject().getId() == message.getId()) {
+                    cell.invalidateOutbounds();
+                    cell.invalidate();
+                }
+            }
+        }
     }
 
     private void showMentionTextAlert(TLRPC.User user, int start, int len) {
