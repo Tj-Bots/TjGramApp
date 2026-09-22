@@ -86,6 +86,18 @@ public class ConnectionsManager extends BaseController {
     public final static int ConnectionTypeUpload = 4;
     public final static int ConnectionTypePush = 8;
     public final static int ConnectionTypeDownload2 = ConnectionTypeDownload | (1 << 16);
+    public final static int ConnectionTypeDownload3 = ConnectionTypeDownload | (2 << 16);
+    public final static int ConnectionTypeDownload4 = ConnectionTypeDownload | (3 << 16);
+
+    /** The nth download socket. There are DOWNLOAD_CONNECTIONS_COUNT of them on the other side. */
+    public static int downloadConnectionType(int index) {
+        switch (index & 3) {
+            case 1: return ConnectionTypeDownload2;
+            case 2: return ConnectionTypeDownload3;
+            case 3: return ConnectionTypeDownload4;
+            default: return ConnectionTypeDownload;
+        }
+    }
 
     public final static int FileTypePhoto = 0x01000000;
     public final static int FileTypeVideo = 0x02000000;

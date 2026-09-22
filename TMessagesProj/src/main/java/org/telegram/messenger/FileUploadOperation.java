@@ -44,6 +44,13 @@ public class FileUploadOperation {
     private static final int maxUploadingKBytes = 1024 * 2;
     private static final int maxUploadingSlowNetworkKBytes = 32;
 
+    private int initialRequests() {
+        if (slowNetwork) {
+            return initialRequestsSlowNetworkCount;
+        }
+        return org.telegram.messenger.tj.TjConfig.fastDownload() ? initialRequestsCount * 2 : initialRequestsCount;
+    }
+
     private int maxRequestsCount;
     private int uploadChunkSize = 64 * 1024;
     private boolean slowNetwork;
@@ -121,7 +128,7 @@ public class FileUploadOperation {
             if (BuildVars.LOGS_ENABLED) {
                 FileLog.d("start upload on slow network = " + slowNetwork);
             }
-            for (int a = 0, count = (slowNetwork ? initialRequestsSlowNetworkCount : initialRequestsCount); a < count; a++) {
+            for (int a = 0, count = initialRequests(); a < count; a++) {
                 startUploadRequest();
             }
         });
@@ -158,7 +165,7 @@ public class FileUploadOperation {
                 cachedResults.clear();
 
                 operationGuid++;
-                for (int a = 0, count = (slowNetwork ? initialRequestsSlowNetworkCount : initialRequestsCount); a < count; a++) {
+                for (int a = 0, count = initialRequests(); a < count; a++) {
                     startUploadRequest();
                 }
             }
@@ -317,7 +324,12 @@ public class FileUploadOperation {
                     }
                     uploadChunkSize = chunkSize;
                 }
-                maxRequestsCount = Math.max(1, (slowNetwork ? maxUploadingSlowNetworkKBytes : maxUploadingKBytes) / uploadChunkSize);
+                int uploadingKBytes = slowNetwork ? maxUploadingSlowNetworkKBytes : maxUploadingKBytes;
+                if (!slowNetwork && org.telegram.messenger.tj.TjConfig.fastDownload()) {
+                    // Four times as much of the file in the air at once, over twice the sockets.
+                    uploadingKBytes *= 4;
+                }
+                maxRequestsCount = Math.max(1, uploadingKBytes / uploadChunkSize);
 
                 if (isEncrypted) {
                     freeRequestIvs = new ArrayList<>(maxRequestsCount);
@@ -543,7 +555,9 @@ public class FileUploadOperation {
         if (slowNetwork) {
             connectionType = ConnectionsManager.ConnectionTypeUpload;
         } else {
-            connectionType = ConnectionsManager.ConnectionTypeUpload | ((requestNumFinal % 4) << 16);
+            // TJ: the same door as the faster downloads - eight sockets instead of four.
+            final int sockets = org.telegram.messenger.tj.TjConfig.fastDownload() ? 8 : 4;
+            connectionType = ConnectionsManager.ConnectionTypeUpload | ((requestNumFinal % sockets) << 16);
         }
         long time = System.currentTimeMillis();
         int[] requestToken = new int[1];

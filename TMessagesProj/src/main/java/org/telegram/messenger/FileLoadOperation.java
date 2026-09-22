@@ -285,21 +285,31 @@ public class FileLoadOperation {
         boolean isLocallyCreatedFile(String path);
     }
 
+    /** How many of the datacenter's download sockets this operation spreads its pieces over. */
+    private int downloadConnections = 2;
+
     private void updateParams() {
         // TJ: the faster shape is Telegram's own - 512 KB pieces, eight in the air instead of four -
         // but it is reached through a server flag that is off for most people. The switch is the
         // same door. A server that will not serve a piece this size answers LIMIT_INVALID, and the
         // operation already falls back to small pieces on its own when that happens.
+        //
+        // The switch goes one step further than the flag does: the pieces are spread over four
+        // sockets instead of two, with twice as many in the air. Two sockets is what caps the
+        // speed once the pieces themselves are big enough - the data arrives faster than one pair
+        // of sockets can carry it.
+        final boolean fast = org.telegram.messenger.tj.TjConfig.fastDownload() && !forceSmallChunk;
         if ((preloadPrefixSize > 0 || MessagesController.getInstance(currentAccount).getfileExperimentalParams
-                || org.telegram.messenger.tj.TjConfig.fastDownload()) && !forceSmallChunk) {
+                || fast) && !forceSmallChunk) {
             downloadChunkSizeBig = 1024 * 512;
-            maxDownloadRequests = 8;
-            maxDownloadRequestsBig = 8;
+            maxDownloadRequests = fast ? 16 : 8;
+            maxDownloadRequestsBig = fast ? 16 : 8;
         } else {
             downloadChunkSizeBig = 1024 * 128;
             maxDownloadRequests = 4;
             maxDownloadRequestsBig = 4;
         }
+        downloadConnections = fast ? 4 : 2;
         maxCdnParts = (int) (FileLoader.DEFAULT_MAX_FILE_SIZE / downloadChunkSizeBig);
     }
 
@@ -1414,7 +1424,7 @@ public class FileLoadOperation {
         FileLog.d("cancelRequests" + (fullyCancelled != null ? " with callback" : ""));
         if (requestInfos != null) {
             int[] waitingForCancelledCount = new int[1];
-            int[] waitingDownloadSize = new int[2];
+            int[] waitingDownloadSize = new int[4];
             for (int a = 0; a < requestInfos.size(); a++) {
                 RequestInfo requestInfo = requestInfos.get(a);
                 if (requestInfo.requestToken != 0) {
@@ -1440,12 +1450,12 @@ public class FileLoadOperation {
                             }
                         });
                     }
-                    int index = requestInfo.connectionType == ConnectionsManager.ConnectionTypeDownload ? 0 : 1;
+                    int index = (requestInfo.connectionType >> 16) & 3;
                     waitingDownloadSize[index] += requestInfo.chunkSize;
                 }
             }
-            for (int i = 0; i < 2; i++) {
-                int connectionType = i == 0 ? ConnectionsManager.ConnectionTypeDownload : ConnectionsManager.ConnectionTypeDownload2;
+            for (int i = 0; i < downloadConnections; i++) {
+                int connectionType = ConnectionsManager.downloadConnectionType(i);
                 if (waitingDownloadSize[i] > 1024 * 1024)  {
                     int datacenterId = isCdn ? cdnDatacenterId : this.datacenterId;
                     ConnectionsManager.getInstance(currentAccount).discardConnection(datacenterId, connectionType);
@@ -2148,7 +2158,7 @@ public class FileLoadOperation {
 
     private void clearOperation(RequestInfo currentInfo, boolean preloadChanged, boolean acceptChunksAfterCancel) {
         long minOffset = Long.MAX_VALUE;
-        int[] waitingDownloadSize = new int[2];
+        int[] waitingDownloadSize = new int[4];
         for (int a = 0; a < requestInfos.size(); a++) {
             RequestInfo info = requestInfos.get(a);
             minOffset = Math.min(info.offset, minOffset);
@@ -2180,8 +2190,8 @@ public class FileLoadOperation {
                 }
             }
         }
-        for (int i = 0; i < 2; i++) {
-            int connectionType = i == 0 ? ConnectionsManager.ConnectionTypeDownload : ConnectionsManager.ConnectionTypeDownload2;
+        for (int i = 0; i < downloadConnections; i++) {
+            int connectionType = ConnectionsManager.downloadConnectionType(i);
             if (waitingDownloadSize[i] > 512 * 1024 * 2)  {
                 int datacenterId = isCdn ? cdnDatacenterId : this.datacenterId;
                 ConnectionsManager.getInstance(currentAccount).discardConnection(datacenterId, connectionType);
@@ -2371,7 +2381,7 @@ public class FileLoadOperation {
             final TLObject request;
             int connectionType;
             if (useConnectionType == -1) {
-                connectionType = requestsCount % 2 == 0 ? ConnectionsManager.ConnectionTypeDownload : ConnectionsManager.ConnectionTypeDownload2;
+                connectionType = ConnectionsManager.downloadConnectionType(requestsCount % downloadConnections);
                 //globalRequestPointer++;
             } else {
                 connectionType = useConnectionType;

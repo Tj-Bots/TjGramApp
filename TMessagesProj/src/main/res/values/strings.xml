@@ -11500,7 +11500,7 @@
     <string name="TjWatchAll">All</string>
     <string name="TjWatchInDrawer">Watch in the side menu</string>
     <string name="TjWatchInTabs">Watch in the bottom bar</string>
-    <string name="TjFastDownload">Faster downloads</string>
+    <string name="TjFastDownload">Faster downloads and uploads</string>
     <string name="TjCacheCleared">Cleared from cache</string>
     <string name="TjAccountLog">Account log</string>
     <string name="TjAccountLogChatName">TjGram</string>
@@ -11559,7 +11559,7 @@
     <string name="TjAccountLogNewDevice">A new device signed in</string>
     <string name="TjAccountLogBy">by %1$s</string>
     <string name="TjAccountLogChanged">What changed</string>
-    <string name="TjFastDownloadInfo">Asks for files in 512 KB pieces with eight in the air instead of 128 KB with four. These are Telegram\'s own faster settings, which it normally enables for itself and only for some people. Speed is still capped by the server, so the gain varies; turn it off if downloads get slower or stall.</string>
+    <string name="TjFastDownloadInfo">Asks for files in 512 KB pieces, sixteen in the air, spread over four connections instead of two - and sends them over eight connections instead of four. The piece size is Telegram\'s own faster setting, which it enables for itself and only for some people; the extra connections are what lifts the ceiling once the pieces are big. Speed is still capped by the server and by your network, so the gain varies. Turn it off if transfers get slower or stall.</string>
     <string name="TjWatchTitle">Watch</string>
     <string name="TjWatchNeedsKey">Browsing films and series needs a TMDB key of your own. It is free, it stays on this device, and nothing about your account is ever sent with it.</string>
     <string name="TjWatchAddKey">Add a key</string>
