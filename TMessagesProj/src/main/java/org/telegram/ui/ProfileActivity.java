@@ -7454,7 +7454,25 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         }
         final String link = pendingProfileShareLink;
         final TLRPC.TL_username usernameObj = pendingProfileShareUsername;
-        ShareAlert shareAlert = new ShareAlert(getParentActivity(), null, link, false, link, false) {
+        final ShareAlert shareAlert;
+        try {
+            shareAlert = buildProfileShareAlert(link);
+        } catch (Throwable error) {
+            // The sheet failing is not a reason to take the app with it - the link is still on
+            // the menu behind this, and copying it still works.
+            FileLog.e("Tj profile share failed", error);
+            BulletinFactory.of(this).createErrorBulletin(LocaleController.getString(R.string.ErrorOccurred)).show();
+            return;
+        }
+        showDialog(shareAlert);
+        if (usernameObj == null || usernameObj.editable) {
+            return;
+        }
+        collectibleUsernameNotice(shareAlert, usernameObj);
+    }
+
+    private ShareAlert buildProfileShareAlert(String link) {
+        return new ShareAlert(getParentActivity(), null, link, false, link, false) {
             @Override
             protected void onSend(LongSparseArray<TLRPC.Dialog> dids, int count, TLRPC.TL_forumTopic topic, boolean showToast) {
                 if (!showToast) return;
@@ -7463,10 +7481,9 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 }, 250);
             }
         };
-        showDialog(shareAlert);
-        if (usernameObj == null || usernameObj.editable) {
-            return;
-        }
+    }
+
+    private void collectibleUsernameNotice(ShareAlert shareAlert, TLRPC.TL_username usernameObj) {
         TL_fragment.TL_getCollectibleInfo req = new TL_fragment.TL_getCollectibleInfo();
         TL_fragment.TL_inputCollectibleUsername input = new TL_fragment.TL_inputCollectibleUsername();
         input.username = usernameObj.username;

@@ -188,6 +188,52 @@ public class ShareAlert extends BottomSheet implements NotificationCenter.Notifi
         return name;
     }
 
+    private void buildTjFolderRow(Context context) {
+        for (MessagesController.DialogFilter candidate : MessagesController.getInstance(currentAccount).getDialogFilters()) {
+            if (candidate != null && !candidate.isDefault()) {
+                tjFolders.add(candidate);
+            }
+        }
+        if (!tjFolders.isEmpty()) {
+            tjFolderRow = new HorizontalScrollView(context);
+            tjFolderRow.setHorizontalScrollBarEnabled(false);
+            tjFolderRow.setClipToPadding(false);
+            LinearLayout chips = new LinearLayout(context);
+            chips.setOrientation(LinearLayout.HORIZONTAL);
+            chips.setPadding(dp(11), 0, dp(11), 0);
+            tjFolderRow.addView(chips, new FrameLayout.LayoutParams(LayoutHelper.WRAP_CONTENT, LayoutHelper.MATCH_PARENT));
+            final ArrayList<MessagesController.DialogFilter> ordered = new ArrayList<>();
+            ordered.add(null);
+            ordered.addAll(tjFolders);
+            if (LocaleController.isRTL) {
+                Collections.reverse(ordered);
+            }
+            for (MessagesController.DialogFilter folder : ordered) {
+                TextView chip = new TextView(context);
+                chip.setTag(folder);
+                chip.setText(tjChipLabel(folder));
+                chip.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
+                chip.setTypeface(AndroidUtilities.bold());
+                chip.setGravity(Gravity.CENTER);
+                chip.setPadding(dp(14), 0, dp(14), 0);
+                chip.setSingleLine(true);
+                chip.setOnClickListener(v -> {
+                    tjFolder = (MessagesController.DialogFilter) v.getTag();
+                    updateTjFolderChips();
+                    listAdapter.fetchDialogs();
+                    listAdapter.notifyDataSetChanged();
+                });
+                tjFolderChips.add(chip);
+                chips.addView(chip, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, 30, 0, 0, 6, 0));
+            }
+            frameLayout.addView(tjFolderRow, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 30, Gravity.BOTTOM | Gravity.LEFT, 0, 0, 0, 5));
+            if (LocaleController.isRTL) {
+                tjFolderRow.post(() -> tjFolderRow.fullScroll(HorizontalScrollView.FOCUS_RIGHT));
+            }
+            updateTjFolderChips();
+        }
+        }
+
     private void updateTjFolderChips() {
         for (int a = 0; a < tjFolderChips.size(); a++) {
             TextView chip = tjFolderChips.get(a);
@@ -1117,50 +1163,18 @@ public class ShareAlert extends BottomSheet implements NotificationCenter.Notifi
             AndroidUtilities.showKeyboard(searchView.editText);
         });
 
-        for (MessagesController.DialogFilter candidate : MessagesController.getInstance(currentAccount).getDialogFilters()) {
-            if (candidate != null && !candidate.isDefault()) {
-                tjFolders.add(candidate);
-            }
-        }
         // TJ: the chat list has folders, so the list of chats to send to has them too. The row
         // lives in the header with the search field, and the grid slides under both.
-        if (!tjFolders.isEmpty()) {
-            tjFolderRow = new HorizontalScrollView(context);
-            tjFolderRow.setHorizontalScrollBarEnabled(false);
-            tjFolderRow.setClipToPadding(false);
-            LinearLayout chips = new LinearLayout(context);
-            chips.setOrientation(LinearLayout.HORIZONTAL);
-            chips.setPadding(dp(11), 0, dp(11), 0);
-            tjFolderRow.addView(chips, new FrameLayout.LayoutParams(LayoutHelper.WRAP_CONTENT, LayoutHelper.MATCH_PARENT));
-            final ArrayList<MessagesController.DialogFilter> ordered = new ArrayList<>();
-            ordered.add(null);
-            ordered.addAll(tjFolders);
-            if (LocaleController.isRTL) {
-                Collections.reverse(ordered);
-            }
-            for (MessagesController.DialogFilter folder : ordered) {
-                TextView chip = new TextView(context);
-                chip.setTag(folder);
-                chip.setText(tjChipLabel(folder));
-                chip.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
-                chip.setTypeface(AndroidUtilities.bold());
-                chip.setGravity(Gravity.CENTER);
-                chip.setPadding(dp(14), 0, dp(14), 0);
-                chip.setSingleLine(true);
-                chip.setOnClickListener(v -> {
-                    tjFolder = (MessagesController.DialogFilter) v.getTag();
-                    updateTjFolderChips();
-                    listAdapter.fetchDialogs();
-                    listAdapter.notifyDataSetChanged();
-                });
-                tjFolderChips.add(chip);
-                chips.addView(chip, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, 30, 0, 0, 6, 0));
-            }
-            frameLayout.addView(tjFolderRow, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 30, Gravity.BOTTOM | Gravity.LEFT, 0, 0, 0, 5));
-            if (LocaleController.isRTL) {
-                tjFolderRow.post(() -> tjFolderRow.fullScroll(HorizontalScrollView.FOCUS_RIGHT));
-            }
-            updateTjFolderChips();
+        //
+        // Wrapped, because a share sheet that will not open is worse than one without folders:
+        // whatever goes wrong in here must not take the sheet down with it.
+        try {
+            buildTjFolderRow(context);
+        } catch (Throwable error) {
+            FileLog.e("Tj share folders failed", error);
+            tjFolders.clear();
+            tjFolderChips.clear();
+            tjFolderRow = null;
         }
         frameLayout.addView(searchView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 40, Gravity.BOTTOM | Gravity.LEFT, 11, 7, 11, tjFolders.isEmpty() ? 11 : 11 + TJ_FOLDER_ROW_HEIGHT));
 
