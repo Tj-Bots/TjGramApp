@@ -8604,14 +8604,9 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                 toggleDialogArchived(dialog.id, archived);
             });
         }
-        final TLRPC.Chat quickChat = DialogObject.isChatDialog(dialog.id) ? getMessagesController().getChat(-dialog.id) : null;
-        final int leaveText;
-        if (quickChat != null) {
-            leaveText = ChatObject.isChannelAndNotMegaGroup(quickChat) ? R.string.LeaveChannelMenu : R.string.LeaveMegaMenu;
-        } else {
-            leaveText = R.string.DeleteChatUser;
-        }
-        options.add(R.drawable.msg_leave, LocaleController.getString(leaveText), true, () -> {
+        // One name for it whatever the chat is: the confirmation that follows already says whether
+        // it leaves a group, leaves a channel or blocks a bot.
+        options.add(R.drawable.msg_delete, LocaleController.getString(R.string.DeleteChatUser), true, () -> {
             leaveOrDeleteDialog(dialog.id);
         });
         options.add(R.drawable.msg_select, LocaleController.getString(R.string.Select), () -> {
