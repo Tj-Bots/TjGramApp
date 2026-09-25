@@ -218,6 +218,11 @@
     <string name="TjClearChatDeletedText">כל ההודעות שנמחקו ש‑TjGram שמר מהצ׳אט הזה יימחקו מהמכשיר. היסטוריית העריכות נשארת.</string>
     <string name="TjClearChatDeletedDone">נוקו %1$d הודעות שנמחקו</string>
     <string name="TjClearChatDeletedNone">אין הודעות שנמחקו שמורות בצ׳אט הזה</string>
+    <string name="TjClearChatEdited">נקה הודעות שנערכו</string>
+    <string name="TjClearChatEditedTitle">לנקות היסטוריית עריכות?</string>
+    <string name="TjClearChatEditedText">כל הגרסאות הקודמות של הודעות שנערכו ש‑TjGram שמר מהצ׳אט הזה יימחקו מהמכשיר. ההודעות עצמן נשארות.</string>
+    <string name="TjClearChatEditedDone">נוקו %1$d גרסאות קודמות</string>
+    <string name="TjClearChatEditedNone">אין היסטוריית עריכות שמורה בצ׳אט הזה</string>
     <string name="TjChatGhostResetText">המצב הנקודתי והבחירות עבור אישורי קריאה והקלדה יוסרו.</string>
     <string name="TjChatGhostInherited">פועל לפי הגדרות מצב הרפאים הכלליות</string>
     <string name="TjDeletedMarkerTrash">פח</string>

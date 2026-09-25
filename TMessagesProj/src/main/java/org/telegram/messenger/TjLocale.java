@@ -391,6 +391,11 @@ public class TjLocale {
         m.put("TjClearChatDeletedText", "כל ההודעות שנמחקו ש‑TjGram שמר מהצ׳אט הזה יימחקו מהמכשיר. היסטוריית העריכות נשארת.");
         m.put("TjClearChatDeletedDone", "נוקו %1$d הודעות שנמחקו");
         m.put("TjClearChatDeletedNone", "אין הודעות שנמחקו שמורות בצ׳אט הזה");
+        m.put("TjClearChatEdited", "נקה הודעות שנערכו");
+        m.put("TjClearChatEditedTitle", "לנקות היסטוריית עריכות?");
+        m.put("TjClearChatEditedText", "כל הגרסאות הקודמות של הודעות שנערכו ש‑TjGram שמר מהצ׳אט הזה יימחקו מהמכשיר. ההודעות עצמן נשארות.");
+        m.put("TjClearChatEditedDone", "נוקו %1$d גרסאות קודמות");
+        m.put("TjClearChatEditedNone", "אין היסטוריית עריכות שמורה בצ׳אט הזה");
         m.put("TjChatGhostResetTitle", "לאפס את הגדרות מצב הרפאים בצ׳אט הזה?");
         m.put("TjChatGhostResetText", "המצב הנקודתי והבחירות עבור אישורי קריאה והקלדה יוסרו.");
         m.put("TjChatGhostInherited", "פועל לפי הגדרות מצב הרפאים הכלליות");

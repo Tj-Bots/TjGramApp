@@ -8548,9 +8548,12 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
     }
 
     private boolean isDrawerBeyondFoldersDirection(boolean forward) {
+        // The side menu sits on the left in every language (the layout is mirrored by hand, not
+        // by Android), so it is a left-to-right swipe - "not forward" - that opens it. Tying this
+        // to the locale meant English only opened it on a swipe the other way.
         return initialDialogsType == DIALOGS_TYPE_DEFAULT
                 && !onlySelect && folderId == 0 && communityId == 0
-                && forward != LocaleController.isRTL;
+                && !forward;
     }
 
     private void openDrawerFromFoldersEdge() {

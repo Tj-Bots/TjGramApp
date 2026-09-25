@@ -332,6 +332,26 @@ public class TjTitleActivity extends BaseFragment {
         });
     }
 
+    /**
+     * "Season 1 Episode 3", and the episode's own name after it when it has one. TMDB fills a
+     * missing translation with "Episode 3" in the viewer's language, which is no name at all - that
+     * is what used to read as "3. Episode 3".
+     */
+    private static String episodeLabel(int season, Episode episode) {
+        StringBuilder label = new StringBuilder();
+        if (season > 0) {
+            label.append(TjLocale.getString(R.string.TjMediaSeason)).append(' ').append(season).append(' ');
+        }
+        label.append(TjLocale.getString(R.string.TjMediaEpisode)).append(' ').append(episode.number);
+        final String name = episode.name.trim();
+        final boolean placeholder = name.isEmpty()
+                || name.contains(String.valueOf(episode.number)) && name.replaceAll("[\\d\\s.:#\\-]", "").length() <= 10;
+        if (!placeholder) {
+            label.append(" · ").append(name);
+        }
+        return label.toString();
+    }
+
     private View episodeRow(Episode episode) {
         Context context = episodeList.getContext();
         LinearLayout row = new LinearLayout(context);
@@ -352,8 +372,7 @@ public class TjTitleActivity extends BaseFragment {
         title.setTypeface(AndroidUtilities.getTypeface("fonts/rmedium.ttf"));
         title.setMaxLines(2);
         title.setEllipsize(TextUtils.TruncateAt.END);
-        title.setText(episode.number + ". " + (episode.name.isEmpty()
-                ? TjLocale.getString(R.string.TjMediaEpisode) + " " + episode.number : episode.name));
+        title.setText(episodeLabel(selectedSeason, episode));
         texts.addView(title, LayoutHelper.createLinear(-1, -2));
         if (!episode.overview.isEmpty()) {
             TextView overview = text(context, 12, Theme.key_windowBackgroundWhiteGrayText2);

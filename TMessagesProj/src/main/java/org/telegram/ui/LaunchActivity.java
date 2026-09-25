@@ -8455,8 +8455,8 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
 
         FrameLayout.LayoutParams layoutParams = (FrameLayout.LayoutParams) sideMenuContainer.getLayoutParams();
         Point screenSize = AndroidUtilities.getRealScreenSize();
-        // TjGram: a little narrower than upstream's 320dp - the rows never needed the room.
-        layoutParams.width = AndroidUtilities.isTablet() ? AndroidUtilities.dp(320) : Math.min(AndroidUtilities.dp(284), Math.min(screenSize.x, screenSize.y) - AndroidUtilities.dp(80));
+        // TjGram: a little narrower than upstream's 320dp - the rows never needed all of it.
+        layoutParams.width = AndroidUtilities.isTablet() ? AndroidUtilities.dp(320) : Math.min(AndroidUtilities.dp(300), Math.min(screenSize.x, screenSize.y) - AndroidUtilities.dp(68));
         layoutParams.height = LayoutHelper.MATCH_PARENT;
         sideMenuContainer.setLayoutParams(layoutParams);
 

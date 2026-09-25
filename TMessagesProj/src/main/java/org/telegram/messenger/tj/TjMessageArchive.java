@@ -594,6 +594,15 @@ public final class TjMessageArchive extends SQLiteOpenHelper {
      * not what was asked to go.
      */
     public void clearDeletedInDialog(int accountId, long dialogId, Callback<Integer> callback) {
+        clearKindInDialog(accountId, dialogId, KIND_DELETED, callback);
+    }
+
+    /** Forgets the earlier versions of every edited message kept from one chat; deletions stay. */
+    public void clearEditedInDialog(int accountId, long dialogId, Callback<Integer> callback) {
+        clearKindInDialog(accountId, dialogId, KIND_EDITED, callback);
+    }
+
+    private void clearKindInDialog(int accountId, long dialogId, int kind, Callback<Integer> callback) {
         final long ownerUserId = UserConfig.getInstance(accountId).getClientUserId();
         if (ownerUserId == 0 || dialogId == 0) {
             if (callback != null) {
@@ -604,7 +613,7 @@ public final class TjMessageArchive extends SQLiteOpenHelper {
         queue.postRunnable(() -> {
             int removed = 0;
             final String[] arguments = new String[]{String.valueOf(ownerUserId), String.valueOf(accountId),
-                    String.valueOf(dialogId), String.valueOf(KIND_DELETED)};
+                    String.valueOf(dialogId), String.valueOf(kind)};
             final String where = "owner_user_id=? AND account_id=? AND dialog_id=? AND kind=?";
             final ArrayList<String> mediaPaths = new ArrayList<>();
             try (Cursor cursor = getReadableDatabase().query("snapshots", new String[]{"media_path"},
@@ -640,14 +649,23 @@ public final class TjMessageArchive extends SQLiteOpenHelper {
                 }
             }
             final String prefix = ownerUserId + ":" + accountId + ":" + dialogId + ":";
-            for (String key : new ArrayList<>(deletedCache.keySet())) {
-                if (key.startsWith(prefix)) {
-                    deletedCache.remove(key);
+            if (kind == KIND_DELETED) {
+                for (String key : new ArrayList<>(deletedCache.keySet())) {
+                    if (key.startsWith(prefix)) {
+                        deletedCache.remove(key);
+                    }
                 }
-            }
-            Set<Long> known = deletedDialogs.get(ownerUserId);
-            if (known != null) {
-                known.remove(dialogId);
+                Set<Long> known = deletedDialogs.get(ownerUserId);
+                if (known != null) {
+                    known.remove(dialogId);
+                }
+            } else {
+                // The revision index says which bubbles offer a history; nothing is left to offer.
+                for (String key : new ArrayList<>(revisionIndex)) {
+                    if (key.startsWith(prefix)) {
+                        revisionIndex.remove(key);
+                    }
+                }
             }
             final int result = removed;
             if (callback != null) {

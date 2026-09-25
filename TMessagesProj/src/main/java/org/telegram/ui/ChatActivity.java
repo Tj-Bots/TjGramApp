@@ -19790,6 +19790,36 @@ public class ChatActivity extends BaseFragment implements
         }
     }
 
+    private void tjConfirmClearChatEdited() {
+        if (getParentActivity() == null) {
+            return;
+        }
+        AlertDialog.Builder builder = new AlertDialog.Builder(getParentActivity(), getResourceProvider());
+        builder.setTitle(TjLocale.getString(R.string.TjClearChatEditedTitle));
+        builder.setMessage(TjLocale.getString(R.string.TjClearChatEditedText));
+        builder.setPositiveButton(LocaleController.getString(R.string.Delete), (dialog, which) ->
+                TjMessageArchive.getInstance().clearEditedInDialog(currentAccount, dialog_id, count -> {
+                    // The history entry and its mark on each bubble read the index just emptied.
+                    if (chatAdapter != null) {
+                        chatAdapter.notifyDataSetChanged(false);
+                    }
+                    if (count == 0) {
+                        BulletinFactory.of(ChatActivity.this).createSimpleBulletin(R.raw.chats_infotip,
+                                TjLocale.getString(R.string.TjClearChatEditedNone)).show();
+                    } else {
+                        BulletinFactory.of(ChatActivity.this).createSimpleBulletin(R.raw.ic_delete,
+                                TjLocale.formatString(R.string.TjClearChatEditedDone, count)).show();
+                    }
+                }));
+        builder.setNegativeButton(LocaleController.getString(R.string.Cancel), null);
+        AlertDialog alert = builder.create();
+        showDialog(alert);
+        TextView button = (TextView) alert.getButton(DialogInterface.BUTTON_POSITIVE);
+        if (button != null) {
+            button.setTextColor(getThemedColor(Theme.key_text_RedBold));
+        }
+    }
+
     /**
      * Removes this chat's kept deletions everywhere they live: the archive the history merge reads
      * from, the copies in Telegram's own table, and the bubbles already on screen.
@@ -19864,13 +19894,21 @@ public class ChatActivity extends BaseFragment implements
                     presentFragment(new TjChatGhostSettingsActivity(dialog_id));
                 });
 
+        final int red = getThemedColor(Theme.key_text_RedRegular);
         tjChatSubmenu.addAction(R.drawable.msg_delete,
                 TjLocale.getString(R.string.TjClearChatDeleted), () -> {
                     if (headerItem != null) {
                         headerItem.toggleSubMenu();
                     }
                     tjConfirmClearChatDeleted();
-                });
+                }).setColors(red, red);
+        tjChatSubmenu.addAction(R.drawable.msg_clear,
+                TjLocale.getString(R.string.TjClearChatEdited), () -> {
+                    if (headerItem != null) {
+                        headerItem.toggleSubMenu();
+                    }
+                    tjConfirmClearChatEdited();
+                }).setColors(red, red);
 
         if (TjConfig.hasChatGhostOverrides(currentAccount, dialog_id)) {
             tjChatSubmenu.addAction(R.drawable.msg_clear,
