@@ -23401,7 +23401,7 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
     }
 
     /** The language the app itself is in, as a plain two-letter code. */
-    private static String currentAppLanguage() {
+    static String currentAppLanguage() {
         try {
             final LocaleController.LocaleInfo info = LocaleController.getInstance().getCurrentLocaleInfo();
             if (info != null) {
@@ -23429,7 +23429,7 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
         return null;
     }
 
-    private static int matchTrackLanguage(ArrayList<VideoPlayer.TjTrack> tracks, String language) {
+    static int matchTrackLanguage(ArrayList<VideoPlayer.TjTrack> tracks, String language) {
         if (TextUtils.isEmpty(language)) {
             return -1;
         }

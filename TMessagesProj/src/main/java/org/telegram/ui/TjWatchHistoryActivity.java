@@ -117,7 +117,7 @@ public class TjWatchHistoryActivity extends BaseFragment {
             refresh();
             return;
         }
-        TjMediaPlayback.open(this, new TjMediaLibrary.Entry(entry.account, entry.owner, message), entry.position);
+        TjWatchPlayerActivity.resume(this, entry, message);
     }
 
     private void askToForget(TjWatchHistory.Entry entry) {

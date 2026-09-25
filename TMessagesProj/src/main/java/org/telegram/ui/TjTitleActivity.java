@@ -425,19 +425,6 @@ public class TjTitleActivity extends BaseFragment {
         return targets;
     }
 
-    /** One copy of the thing, from wherever it was found. */
-    private static final class Candidate {
-        final org.telegram.messenger.MessageObject message;
-        final long position;
-        final int score;
-        Candidate(org.telegram.messenger.MessageObject message, long position, int score) {
-            this.message = message;
-            this.position = position;
-            this.score = score;
-        }
-        String identity() { return org.telegram.messenger.tj.TjWatchSearch.identity(message); }
-        long size() { return message.getDocument() == null ? 0 : message.getDocument().size; }
-    }
 
     /**
      * The one step that touches the chats. Two places are asked: what this device has already
@@ -449,44 +436,19 @@ public class TjTitleActivity extends BaseFragment {
         if (getParentActivity() == null) return;
         pendingSeason = season;
         pendingEpisode = episode;
-        final ArrayList<Candidate> found = new ArrayList<>();
-        final HashSet<String> seen = new HashSet<>();
         final AlertDialog progress = new AlertDialog(getParentActivity(), AlertDialog.ALERT_TYPE_SPINNER);
         progress.show();
-        final int[] pending = {accounts.size() + 1};
-        final Runnable done = () -> {
-            if (--pending[0] > 0) return;
+        finder().find(season, episode, found -> {
             try { progress.dismiss(); } catch (Exception ignore) { }
             offer(found);
-        };
-        final ArrayList<String> targets = targets();
-        for (int account : accounts) {
-            TjMediaStore.getInstance().load(account, 0, name, "", null, new HashSet<>(), 0, 0, page -> {
-                if (page != null) {
-                    for (TjMediaStore.Record record : page) {
-                        if (TjMediaKind.of(record.message) != TjMediaKind.VIDEO) continue;
-                        int score = org.telegram.messenger.tj.TjTitleMatch.score(
-                                record.message.getDocumentName(),
-                                record.message.messageOwner == null ? "" : record.message.messageOwner.message,
-                                targets, year, season, episode);
-                        if (score == org.telegram.messenger.tj.TjTitleMatch.REJECT) continue;
-                        Candidate candidate = new Candidate(record.message, record.position, score);
-                        if (seen.add(candidate.identity())) found.add(candidate);
-                    }
-                }
-                done.run();
-            });
-        }
-        org.telegram.messenger.tj.TjWatchSearch.search(accounts, targets, year, season, episode, results -> {
-            for (org.telegram.messenger.tj.TjWatchSearch.Result result : results) {
-                Candidate candidate = new Candidate(result.message, 0, result.score);
-                if (seen.add(candidate.identity())) found.add(candidate);
-            }
-            done.run();
         });
     }
 
-    private void offer(ArrayList<Candidate> found) {
+    private org.telegram.messenger.tj.TjWatchFinder finder() {
+        return new org.telegram.messenger.tj.TjWatchFinder(name, targets(), year);
+    }
+
+    private void offer(ArrayList<org.telegram.messenger.tj.TjWatchFinder.Copy> found) {
         if (getParentActivity() == null) return;
         if (found.isEmpty()) {
             showDialog(new AlertDialog.Builder(getParentActivity())
@@ -495,13 +457,7 @@ public class TjTitleActivity extends BaseFragment {
                     .setPositiveButton(LocaleController.getString(R.string.OK), null).create());
             return;
         }
-        // Closest match first, then the better picture, then the larger file of that picture.
-        found.sort((a, b) -> {
-            if (a.score != b.score) return Integer.compare(b.score, a.score);
-            int quality = Integer.compare(qualityRank(b), qualityRank(a));
-            return quality != 0 ? quality : Long.compare(b.size(), a.size());
-        });
-        if (found.size() == 1) { play(found.get(0)); return; }
+        if (found.size() == 1) { play(found.get(0), found); return; }
 
         Context context = getParentActivity();
         LinearLayout list = new LinearLayout(context);
@@ -509,7 +465,7 @@ public class TjTitleActivity extends BaseFragment {
         final AlertDialog[] dialog = new AlertDialog[1];
         for (int a = 0; a < found.size(); a++) {
             if (a > 0) list.addView(separator(context));
-            list.addView(copyRow(context, found.get(a), dialog));
+            list.addView(copyRow(context, found.get(a), found, dialog));
         }
         ScrollView scroll = new ScrollView(context);
         scroll.addView(list, new FrameLayout.LayoutParams(-1, -2));
@@ -537,13 +493,11 @@ public class TjTitleActivity extends BaseFragment {
      * from on the third. Put on one line they run into each other, and in a language read the
      * other way round they run into each other backwards.
      */
-    private View copyRow(Context context, Candidate candidate, AlertDialog[] dialog) {
-        String caption = candidate.message.messageOwner == null ? "" : candidate.message.messageOwner.message;
-        String quality = org.telegram.messenger.tj.TjMediaTitle.parse(
-                candidate.message.getDocumentName(), caption).quality;
-        String described = org.telegram.messenger.tj.TjTitleMatch.describe(
-                candidate.message.getDocumentName(), caption);
-        String source = sourceName(candidate.message);
+    private View copyRow(Context context, org.telegram.messenger.tj.TjWatchFinder.Copy candidate,
+                         ArrayList<org.telegram.messenger.tj.TjWatchFinder.Copy> found, AlertDialog[] dialog) {
+        String quality = candidate.quality();
+        String described = candidate.described();
+        String source = candidate.sourceName();
 
         LinearLayout row = new LinearLayout(context);
         row.setOrientation(LinearLayout.VERTICAL);
@@ -551,7 +505,7 @@ public class TjTitleActivity extends BaseFragment {
         row.setBackground(Theme.getSelectorDrawable(false));
         row.setOnClickListener(v -> {
             if (dialog[0] != null) dialog[0].dismiss();
-            play(candidate);
+            play(candidate, found);
         });
 
         LinearLayout head = new LinearLayout(context);
@@ -599,51 +553,28 @@ public class TjTitleActivity extends BaseFragment {
         return row;
     }
 
-    /** Bigger picture first, and an unlabelled copy last because nobody knows what it is. */
-    private static int qualityRank(Candidate candidate) {
-        String quality = org.telegram.messenger.tj.TjMediaTitle.parse(
-                candidate.message.getDocumentName(),
-                candidate.message.messageOwner == null ? "" : candidate.message.messageOwner.message).quality;
-        switch (quality.toUpperCase(Locale.ROOT)) {
-            case "2160P": case "4K": return 4;
-            case "1080P": return 3;
-            case "720P": return 2;
-            case "480P": return 1;
-            default: return 0;
-        }
-    }
-
-    /** Which chat a copy came from, because that is how people tell two copies apart. */
-    private static String sourceName(org.telegram.messenger.MessageObject message) {
-        long dialogId = message.getDialogId();
-        org.telegram.messenger.MessagesController controller =
-                org.telegram.messenger.MessagesController.getInstance(message.currentAccount);
-        if (dialogId < 0) {
-            org.telegram.tgnet.TLRPC.Chat chat = controller.getChat(-dialogId);
-            return chat == null ? "" : chat.title;
-        }
-        org.telegram.tgnet.TLRPC.User user = controller.getUser(dialogId);
-        return user == null ? "" : org.telegram.messenger.UserObject.getUserName(user);
-    }
-
     /**
-     * Opens the copy, and writes down that it was opened. The position comes from whichever of the
-     * two records is further in: the library knows files it indexed, the watch history knows the
-     * ones that were only ever found by searching.
+     * Opens the copy in the Watch player, with the other copies it was found alongside so the
+     * source can be changed without searching again, and with what it takes to find the next
+     * episode.
      */
-    private void play(Candidate candidate) {
-        int account = candidate.message.currentAccount;
-        long document = candidate.message.getDocument() == null ? 0 : candidate.message.getDocument().id;
-        long position = Math.max(candidate.position,
-                org.telegram.messenger.tj.TjWatchHistory.positionFor(account, document));
-        org.telegram.messenger.tj.TjWatchHistory.Entry entry = org.telegram.messenger.tj.TjWatchHistory.entryFor(
-                id, series, name, posterPath, year, pendingSeason, pendingEpisode, candidate.message);
-        if (entry != null) {
-            entry.position = position;
-            org.telegram.messenger.tj.TjWatchHistory.remember(entry);
+    private void play(org.telegram.messenger.tj.TjWatchFinder.Copy copy,
+                      ArrayList<org.telegram.messenger.tj.TjWatchFinder.Copy> found) {
+        TjWatchPlayerActivity.Session session = new TjWatchPlayerActivity.Session();
+        session.tmdbId = id;
+        session.series = series;
+        session.name = name;
+        session.poster = posterPath;
+        session.year = year;
+        session.season = pendingSeason;
+        session.episode = pendingEpisode;
+        session.finder = finder();
+        if (series && pendingSeason == selectedSeason) {
+            session.episodesSeason = selectedSeason;
+            for (Episode episode : episodes) {
+                session.episodes.add(new TjWatchPlayerActivity.EpisodeInfo(episode.number, episode.name));
+            }
         }
-        org.telegram.ui.Components.TjMediaPlayback.open(this,
-                new TjMediaLibrary.Entry(account, UserConfig.getInstance(account).getClientUserId(), candidate.message),
-                position);
+        TjWatchPlayerActivity.open(this, session, copy, found);
     }
 }

@@ -533,8 +533,7 @@ public class TjWatchActivity extends BaseFragment {
             refreshContinue();
             return;
         }
-        org.telegram.ui.Components.TjMediaPlayback.open(this,
-                new TjMediaLibrary.Entry(entry.account, entry.owner, message), entry.position);
+        TjWatchPlayerActivity.resume(this, entry, message);
     }
 
     private void askToForget(TjWatchHistory.Entry entry) {
