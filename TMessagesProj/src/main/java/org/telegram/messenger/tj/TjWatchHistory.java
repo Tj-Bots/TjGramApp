@@ -131,29 +131,42 @@ public final class TjWatchHistory {
 
     /** Everything still part-way through, most recent first. */
     public static ArrayList<Entry> unfinished() {
-        ArrayList<Entry> result = new ArrayList<>();
-        synchronized (TjWatchHistory.class) {
-            for (Entry entry : load()) {
-                if (entry.finished()) continue;
-                if (UserConfig.getInstance(entry.account).getClientUserId() != entry.owner) continue;
-                result.add(entry);
-            }
-        }
-        return result;
+        return newestPerTitle(true);
     }
 
     /** Everything that was watched, most recent first, finished or not. */
     public static ArrayList<Entry> all() {
-        ArrayList<Entry> result = new ArrayList<>();
+        return newestPerTitle(false);
+    }
+
+    /**
+     * One row per title, however many accounts it was watched through. Each account keeps its own
+     * rows, but the copy of the next episode is often found through a different account than the
+     * one before it - and the list showed episode 1 and episode 2 side by side.
+     */
+    private static ArrayList<Entry> newestPerTitle(boolean unfinishedOnly) {
+        ArrayList<Entry> candidates = new ArrayList<>();
         synchronized (TjWatchHistory.class) {
             for (Entry entry : load()) {
                 if (UserConfig.getInstance(entry.account).getClientUserId() != entry.owner) continue;
-                result.add(entry);
+                candidates.add(entry);
             }
+        }
+        java.util.Collections.sort(candidates, (a, b) -> Long.compare(b.updatedAt, a.updatedAt));
+        ArrayList<Entry> result = new ArrayList<>();
+        java.util.HashSet<String> seen = new java.util.HashSet<>();
+        for (Entry entry : candidates) {
+            if (!seen.add(entry.key)) continue;
+            if (unfinishedOnly && entry.finished()) continue;
+            result.add(entry);
         }
         return result;
     }
 
+    /**
+     * Forgets a title. The list shows one row for it whichever account watched which episode, so
+     * forgetting that row forgets it for every account signed in here, episodes' progress included.
+     */
     public static void forget(String key, long owner) {
         if (key == null || key.isEmpty()) return;
         synchronized (TjWatchHistory.class) {
@@ -161,16 +174,109 @@ public final class TjWatchHistory {
             boolean changed = false;
             for (int a = entries.size() - 1; a >= 0; a--) {
                 Entry entry = entries.get(a);
-                if (entry.key.equals(key) && entry.owner == owner) { entries.remove(a); changed = true; }
+                if (entry.key.equals(key) && (entry.owner == owner || belongsToSignedInAccount(entry.owner))) {
+                    entries.remove(a);
+                    changed = true;
+                }
             }
             if (changed) save(entries);
+            JSONObject episodes = loadEpisodes();
+            java.util.Iterator<String> names = episodes.keys();
+            ArrayList<String> drop = new ArrayList<>();
+            while (names.hasNext()) {
+                String name = names.next();
+                if (name.contains(":" + key + ":")) drop.add(name);
+            }
+            for (String name : drop) episodes.remove(name);
+            if (!drop.isEmpty()) saveEpisodes(episodes);
         }
+    }
+
+    // ------------------------------------------------------------ progress of each episode
+
+    private static final String EPISODES_KEY = "episodes";
+    private static final int EPISODES_LIMIT = 600;
+    private static JSONObject episodesCache;
+
+    private static String episodeKey(long owner, long id, boolean series, int season, int episode) {
+        return owner + ":" + key(id, series) + ":" + season + ":" + episode;
+    }
+
+    /**
+     * How far into one episode (or one film) playback got, so the title screen can draw it under
+     * each episode. Kept per account, like the rest of the history.
+     */
+    public static void episodeProgress(MessageObject message, long id, boolean series, int season, int episode,
+                                       long position, long duration) {
+        if (message == null || id == 0 || duration <= 0 || position < 0) return;
+        long owner = UserConfig.getInstance(message.currentAccount).getClientUserId();
+        if (owner == 0) return;
+        synchronized (TjWatchHistory.class) {
+            JSONObject episodes = loadEpisodes();
+            try {
+                JSONArray value = new JSONArray();
+                value.put(Math.min(position, duration));
+                value.put(duration);
+                value.put(System.currentTimeMillis());
+                episodes.put(episodeKey(owner, id, series, season, episode), value);
+                trimEpisodes(episodes);
+                saveEpisodes(episodes);
+            } catch (Exception e) {
+                FileLog.e("Tj episode progress write failed", e);
+            }
+        }
+    }
+
+    /** 0 when never started, 1 when finished; the furthest any signed-in account got. */
+    public static float episodeProgress(long id, boolean series, int season, int episode) {
+        float best = 0;
+        synchronized (TjWatchHistory.class) {
+            JSONObject episodes = loadEpisodes();
+            for (int account = 0; account < UserConfig.MAX_ACCOUNT_COUNT; account++) {
+                long owner = UserConfig.getInstance(account).getClientUserId();
+                if (owner == 0) continue;
+                JSONArray value = episodes.optJSONArray(episodeKey(owner, id, series, season, episode));
+                if (value == null) continue;
+                long position = value.optLong(0), duration = value.optLong(1);
+                if (duration <= 0) continue;
+                float progress = position >= duration * FINISHED ? 1f : position / (float) duration;
+                best = Math.max(best, progress);
+            }
+        }
+        return best;
+    }
+
+    private static void trimEpisodes(JSONObject episodes) {
+        if (episodes.length() <= EPISODES_LIMIT) return;
+        ArrayList<String> names = new ArrayList<>();
+        java.util.Iterator<String> iterator = episodes.keys();
+        while (iterator.hasNext()) names.add(iterator.next());
+        java.util.Collections.sort(names, (a, b) -> Long.compare(
+                episodes.optJSONArray(a) == null ? 0 : episodes.optJSONArray(a).optLong(2),
+                episodes.optJSONArray(b) == null ? 0 : episodes.optJSONArray(b).optLong(2)));
+        for (int i = 0; i < names.size() - EPISODES_LIMIT; i++) episodes.remove(names.get(i));
+    }
+
+    private static JSONObject loadEpisodes() {
+        if (episodesCache != null) return episodesCache;
+        try {
+            episodesCache = new JSONObject(prefs().getString(EPISODES_KEY, "{}"));
+        } catch (Exception e) {
+            episodesCache = new JSONObject();
+        }
+        return episodesCache;
+    }
+
+    private static void saveEpisodes(JSONObject episodes) {
+        episodesCache = episodes;
+        prefs().edit().putString(EPISODES_KEY, episodes.toString()).apply();
     }
 
     public static void clear() {
         synchronized (TjWatchHistory.class) {
             cache = new ArrayList<>();
-            prefs().edit().remove(KEY).apply();
+            episodesCache = new JSONObject();
+            prefs().edit().remove(KEY).remove(EPISODES_KEY).apply();
         }
     }
 

@@ -35,6 +35,7 @@ import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.FileLoader;
 import org.telegram.messenger.FileLog;
 import org.telegram.messenger.FileStreamLoadOperation;
+import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.MessageObject;
 import org.telegram.messenger.R;
 import org.telegram.messenger.TjLocale;
@@ -92,7 +93,7 @@ public class TjWatchPlayerActivity extends BaseFragment {
     private static final long SEEK_STEP = 10_000;
     private static final long NEXT_CARD_BEFORE_END = 25_000;
     private static final long NEXT_PREFETCH_BEFORE_END = 120_000;
-    private static final int NEXT_COUNTDOWN_SECONDS = 10;
+    private static final long NEXT_COUNTDOWN_MS = 10_000;
     private static final float[] SPEEDS = {0.5f, 0.75f, 1f, 1.25f, 1.5f, 2f};
 
     private final Session session;
@@ -116,12 +117,13 @@ public class TjWatchPlayerActivity extends BaseFragment {
     private BarButton speedButton, episodesButton, sourceButton, nextButton;
     private FrameLayout lockOverlay;
     private FrameLayout panelHost;
-    private LinearLayout nextCard;
-    private TextView nextCardTitle;
-    private TextView nextCardButton;
+    private LinearLayout nextBar;
+    private NextPill nextPill;
+    private android.animation.ValueAnimator nextCountdownAnimator;
     private LevelIndicator levelIndicator;
 
     private boolean controlsVisible = true;
+    private boolean showElapsed;
     private boolean locked;
     private long pendingSeek = -1;
     private boolean autoSubtitlesDone;
@@ -132,7 +134,6 @@ public class TjWatchPlayerActivity extends BaseFragment {
     private int nextSeason = -1, nextEpisode = -1;
     private ArrayList<TjWatchFinder.Copy> nextCopies;
     private boolean nextSearching, nextSearched, nextDismissed;
-    private int nextCountdown = -1;
 
     private int previousOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED;
     private int previousSystemUi;
@@ -145,19 +146,6 @@ public class TjWatchPlayerActivity extends BaseFragment {
         public void run() {
             tick();
             AndroidUtilities.runOnUIThread(this, 250);
-        }
-    };
-    private final Runnable countdownStep = new Runnable() {
-        @Override
-        public void run() {
-            if (nextCountdown < 0) return;
-            if (nextCountdown == 0) {
-                playNext();
-                return;
-            }
-            updateNextCard();
-            nextCountdown--;
-            AndroidUtilities.runOnUIThread(this, 1000);
         }
     };
 
@@ -299,7 +287,7 @@ public class TjWatchPlayerActivity extends BaseFragment {
         levelIndicator = new LevelIndicator(context);
         root.addView(levelIndicator, LayoutHelper.createFrame(-1, -1));
 
-        buildNextCard(context);
+        buildNextBar(context);
         buildLockOverlay(context);
 
         panelHost = new FrameLayout(context);
@@ -372,7 +360,14 @@ public class TjWatchPlayerActivity extends BaseFragment {
         timeView.setTextColor(Color.WHITE);
         timeView.setTextSize(13);
         timeView.setTypeface(AndroidUtilities.getTypeface(AndroidUtilities.TYPEFACE_ROBOTO_MEDIUM));
-        seekRow.addView(timeView, LayoutHelper.createLinear(-2, -2, 12, 0, 0, 0));
+        timeView.setPadding(dp(6), dp(8), dp(6), dp(8));
+        // As in most players: a tap switches between the time left and "watched / total".
+        timeView.setOnClickListener(v -> {
+            showElapsed = !showElapsed;
+            tick();
+            scheduleHide();
+        });
+        seekRow.addView(timeView, LayoutHelper.createLinear(-2, -2, 6, 0, 0, 0));
         bottom.addView(seekRow, LayoutHelper.createLinear(-1, -2, 24, 0, 24, 0));
 
         bottomButtons = new LinearLayout(context);
@@ -400,46 +395,42 @@ public class TjWatchPlayerActivity extends BaseFragment {
         return button;
     }
 
-    private void buildNextCard(Context context) {
-        nextCard = new LinearLayout(context);
-        nextCard.setOrientation(LinearLayout.VERTICAL);
-        nextCard.setPadding(dp(16), dp(12), dp(16), dp(14));
-        GradientDrawable background = new GradientDrawable();
-        background.setColor(PANEL_BACKGROUND);
-        background.setCornerRadius(dp(10));
-        nextCard.setBackground(background);
-        nextCard.setVisibility(View.GONE);
-        nextCard.setClickable(true);
+    /**
+     * The two small buttons the streaming apps put in the corner at the credits: stay for the
+     * credits, or go on - the second one filling up while it counts down to going on by itself.
+     */
+    private void buildNextBar(Context context) {
+        nextBar = new LinearLayout(context);
+        nextBar.setOrientation(LinearLayout.HORIZONTAL);
+        nextBar.setGravity(Gravity.CENTER_VERTICAL);
+        nextBar.setVisibility(View.GONE);
 
-        LinearLayout head = new LinearLayout(context);
-        head.setOrientation(LinearLayout.HORIZONTAL);
-        head.setGravity(Gravity.CENTER_VERTICAL);
-        nextCardTitle = new TextView(context);
-        nextCardTitle.setTextColor(Color.WHITE);
-        nextCardTitle.setTextSize(14);
-        nextCardTitle.setMaxLines(2);
-        nextCardTitle.setEllipsize(TextUtils.TruncateAt.END);
-        head.addView(nextCardTitle, LayoutHelper.createLinear(0, -2, 1f));
-        ImageView close = new ImageView(context);
-        close.setImageResource(R.drawable.ic_close_white);
-        close.setScaleType(ImageView.ScaleType.CENTER);
-        close.setOnClickListener(v -> dismissNextCard());
-        head.addView(close, LayoutHelper.createLinear(32, 32, 8, 0, 0, 0));
-        nextCard.addView(head, LayoutHelper.createLinear(-1, -2));
+        TextView credits = new TextView(context);
+        credits.setText(TjLocale.getString(R.string.TjPlayerWatchCredits));
+        credits.setTextColor(Color.WHITE);
+        credits.setTextSize(14);
+        credits.setTypeface(AndroidUtilities.getTypeface(AndroidUtilities.TYPEFACE_ROBOTO_MEDIUM));
+        credits.setGravity(Gravity.CENTER);
+        credits.setPadding(dp(16), 0, dp(16), 0);
+        GradientDrawable creditsBackground = new GradientDrawable();
+        creditsBackground.setColor(0xB3595959);
+        creditsBackground.setCornerRadius(dp(6));
+        credits.setBackground(creditsBackground);
+        credits.setOnClickListener(v -> dismissNextCard());
 
-        nextCardButton = new TextView(context);
-        nextCardButton.setTextColor(Color.BLACK);
-        nextCardButton.setTextSize(14);
-        nextCardButton.setTypeface(AndroidUtilities.getTypeface(AndroidUtilities.TYPEFACE_ROBOTO_MEDIUM));
-        nextCardButton.setGravity(Gravity.CENTER);
-        GradientDrawable buttonBackground = new GradientDrawable();
-        buttonBackground.setColor(Color.WHITE);
-        buttonBackground.setCornerRadius(dp(6));
-        nextCardButton.setBackground(buttonBackground);
-        nextCardButton.setOnClickListener(v -> playNext());
-        nextCard.addView(nextCardButton, LayoutHelper.createLinear(-1, 40, 0, 10, 0, 0));
+        nextPill = new NextPill(context, TjLocale.getString(R.string.TjPlayerNext));
+        nextPill.setOnClickListener(v -> playNext());
 
-        root.addView(nextCard, LayoutHelper.createFrame(280, -2, Gravity.BOTTOM | Gravity.RIGHT, 0, 0, 24, 110));
+        // Read in the language's own direction: credits first, then the way on.
+        if (LocaleController.isRTL) {
+            nextBar.addView(nextPill, LayoutHelper.createLinear(-2, 40));
+            nextBar.addView(credits, LayoutHelper.createLinear(-2, 40, 10, 0, 0, 0));
+        } else {
+            nextBar.addView(credits, LayoutHelper.createLinear(-2, 40, 0, 0, 10, 0));
+            nextBar.addView(nextPill, LayoutHelper.createLinear(-2, 40));
+        }
+        root.addView(nextBar, LayoutHelper.createFrame(-2, -2,
+                Gravity.BOTTOM | (LocaleController.isRTL ? Gravity.LEFT : Gravity.RIGHT), 28, 0, 28, 28));
     }
 
     private void buildLockOverlay(Context context) {
@@ -587,7 +578,14 @@ public class TjWatchPlayerActivity extends BaseFragment {
         if (duration > 0 && !seekBar.dragging) {
             seekBar.setProgress(position / (float) duration, player.getBufferedPosition() / (float) duration);
         }
-        timeView.setText(duration > 0 ? "-" + formatTime(Math.max(0, duration - (seekBar.dragging ? (long) (seekBar.progress * duration) : position))) : "");
+        long shown = seekBar.dragging && duration > 0 ? (long) (seekBar.progress * duration) : position;
+        if (duration <= 0) {
+            timeView.setText("");
+        } else if (showElapsed) {
+            timeView.setText(formatTime(shown) + " / " + formatTime(duration));
+        } else {
+            timeView.setText("-" + formatTime(Math.max(0, duration - shown)));
+        }
         playButton.setPlaying(player.isPlaying());
 
         long now = System.currentTimeMillis();
@@ -637,6 +635,8 @@ public class TjWatchPlayerActivity extends BaseFragment {
         long position = player.getCurrentPosition();
         if (duration <= 0 || position < 0) return;
         TjWatchHistory.progress(current.message, position, duration);
+        TjWatchHistory.episodeProgress(current.message, session.tmdbId, session.series,
+                session.season, session.episode, position, duration);
         TjMediaStore.getInstance().progress(current.message, position, duration);
     }
 
@@ -705,6 +705,9 @@ public class TjWatchPlayerActivity extends BaseFragment {
             }, 190);
         }
         subtitles.setBottomOffset(visible ? dp(110) : 0);
+        if (nextBar != null) {
+            nextBar.animate().translationY(visible ? -dp(92) : 0).setDuration(180).start();
+        }
         if (visible) scheduleHide();
     }
 
@@ -1054,30 +1057,43 @@ public class TjWatchPlayerActivity extends BaseFragment {
             }
             return false;
         }
-        if (nextCard.getVisibility() == View.VISIBLE) return true;
-        nextCard.setVisibility(View.VISIBLE);
-        nextCard.setAlpha(0f);
-        nextCard.animate().alpha(1f).setDuration(200).start();
+        if (nextBar.getVisibility() == View.VISIBLE) return true;
+        nextBar.setVisibility(View.VISIBLE);
+        nextBar.setAlpha(0f);
+        nextBar.animate().alpha(1f).setDuration(200).start();
+        cancelCountdown();
         if (sameChatCopy(nextCopies) != null) {
-            nextCountdown = NEXT_COUNTDOWN_SECONDS;
-            AndroidUtilities.cancelRunOnUIThread(countdownStep);
-            AndroidUtilities.runOnUIThread(countdownStep);
+            // Goes on by itself only when it knows which copy: the one from the same chat.
+            nextPill.setProgress(0f);
+            nextCountdownAnimator = android.animation.ValueAnimator.ofFloat(0f, 1f);
+            nextCountdownAnimator.setDuration(NEXT_COUNTDOWN_MS);
+            nextCountdownAnimator.setInterpolator(new android.view.animation.LinearInterpolator());
+            nextCountdownAnimator.addUpdateListener(a -> nextPill.setProgress((float) a.getAnimatedValue()));
+            nextCountdownAnimator.addListener(new android.animation.AnimatorListenerAdapter() {
+                private boolean cancelled;
+
+                @Override
+                public void onAnimationCancel(android.animation.Animator animation) {
+                    cancelled = true;
+                }
+
+                @Override
+                public void onAnimationEnd(android.animation.Animator animation) {
+                    if (!cancelled && nextCountdownAnimator == animation) playNext();
+                }
+            });
+            nextCountdownAnimator.start();
         } else {
-            nextCountdown = -1;
+            nextPill.setProgress(1f);
         }
-        updateNextCard();
         return true;
     }
 
-    private void updateNextCard() {
-        String label = nextLabel();
-        nextCardTitle.setText(TjLocale.getString(R.string.TjPlayerNext) + "\n" + label);
-        if (sameChatCopy(nextCopies) != null) {
-            nextCardButton.setText(nextCountdown >= 0
-                    ? TjLocale.formatString(R.string.TjPlayerNextIn, nextCountdown)
-                    : TjLocale.getString(R.string.TjPlayerPlayNow));
-        } else {
-            nextCardButton.setText(TjLocale.getString(R.string.TjPlayerChooseCopy));
+    private void cancelCountdown() {
+        if (nextCountdownAnimator != null) {
+            android.animation.ValueAnimator animator = nextCountdownAnimator;
+            nextCountdownAnimator = null;
+            animator.cancel();
         }
     }
 
@@ -1092,15 +1108,12 @@ public class TjWatchPlayerActivity extends BaseFragment {
 
     private void dismissNextCard() {
         nextDismissed = true;
-        nextCountdown = -1;
-        AndroidUtilities.cancelRunOnUIThread(countdownStep);
-        nextCard.setVisibility(View.GONE);
+        hideNextCard();
     }
 
     private void hideNextCard() {
-        nextCountdown = -1;
-        AndroidUtilities.cancelRunOnUIThread(countdownStep);
-        nextCard.setVisibility(View.GONE);
+        cancelCountdown();
+        nextBar.setVisibility(View.GONE);
     }
 
     /** From the button: straight on when the same chat has it, otherwise the copies to pick from. */
@@ -1250,7 +1263,7 @@ public class TjWatchPlayerActivity extends BaseFragment {
         seasonClient.cancel();
         AndroidUtilities.cancelRunOnUIThread(ticker);
         AndroidUtilities.cancelRunOnUIThread(hideControls);
-        AndroidUtilities.cancelRunOnUIThread(countdownStep);
+        cancelCountdown();
         AndroidUtilities.cancelRunOnUIThread(hideLockOverlay);
         saveProgress();
         if (player != null) {
@@ -1388,7 +1401,8 @@ public class TjWatchPlayerActivity extends BaseFragment {
             }
             float radius = Math.min(getWidth(), getHeight()) * 0.34f;
             rect.set(cx - radius, cy - radius, cx + radius, cy + radius);
-            boolean back = type == REWIND;
+            // Rewind turns back - its head at the top pointing left; forward the other way.
+            boolean back = type == FORWARD;
             // An open ring with an arrowhead where it starts, pointing the way the time goes.
             canvas.drawArc(rect, back ? -60 : -120, back ? -300 : 300, false, stroke);
             float angle = (float) Math.toRadians(back ? -60 : -120);
@@ -1406,6 +1420,77 @@ public class TjWatchPlayerActivity extends BaseFragment {
             }
             canvas.drawPath(path, stroke);
             canvas.drawText("10", cx, cy + text.getTextSize() * 0.36f, text);
+        }
+    }
+
+    /**
+     * "Next episode" with a play mark, filling with white from where the text starts while it
+     * counts down; the words turn dark as the white passes under them.
+     */
+    private static final class NextPill extends View {
+        private final String text;
+        private float progress = 1f;
+        private final Paint back = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Paint fill = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final android.text.TextPaint label = new android.text.TextPaint(Paint.ANTI_ALIAS_FLAG);
+        private final Paint mark = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Path triangle = new Path();
+        private final RectF rect = new RectF();
+        private final boolean rtl = LocaleController.isRTL;
+
+        NextPill(Context context, String text) {
+            super(context);
+            this.text = text;
+            back.setColor(0xB3595959);
+            fill.setColor(Color.WHITE);
+            label.setTextSize(dp(14));
+            label.setTypeface(AndroidUtilities.getTypeface(AndroidUtilities.TYPEFACE_ROBOTO_MEDIUM));
+        }
+
+        void setProgress(float value) {
+            progress = value;
+            invalidate();
+        }
+
+        @Override
+        protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
+            int width = (int) (dp(16) + dp(11) + dp(10) + label.measureText(text) + dp(18));
+            setMeasuredDimension(width, MeasureSpec.getSize(heightMeasureSpec));
+        }
+
+        @Override
+        protected void onDraw(Canvas canvas) {
+            float w = getWidth(), h = getHeight(), r = dp(6);
+            rect.set(0, 0, w, h);
+            canvas.drawRoundRect(rect, r, r, back);
+            float filled = w * progress;
+            float left = rtl ? w - filled : 0, right = rtl ? w : filled;
+            canvas.save();
+            canvas.clipRect(left, 0, right, h);
+            canvas.drawRoundRect(rect, r, r, fill);
+            canvas.restore();
+
+            drawContent(canvas, Color.WHITE);
+            canvas.save();
+            canvas.clipRect(left, 0, right, h);
+            drawContent(canvas, Color.BLACK);
+            canvas.restore();
+        }
+
+        private void drawContent(Canvas canvas, int color) {
+            float h = getHeight(), size = dp(11);
+            float markStart = rtl ? getWidth() - dp(16) - size : dp(16);
+            triangle.reset();
+            triangle.moveTo(markStart, h / 2f - size * 0.6f);
+            triangle.lineTo(markStart + size, h / 2f);
+            triangle.lineTo(markStart, h / 2f + size * 0.6f);
+            triangle.close();
+            mark.setColor(color);
+            canvas.drawPath(triangle, mark);
+            label.setColor(color);
+            float textWidth = label.measureText(text);
+            float textStart = rtl ? markStart - dp(10) - textWidth : markStart + size + dp(10);
+            canvas.drawText(text, textStart, h / 2f - (label.descent() + label.ascent()) / 2f, label);
         }
     }
 

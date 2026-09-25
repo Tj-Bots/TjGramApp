@@ -11464,6 +11464,9 @@
     <string name="TjPlayerSearching">Searching…</string>
     <string name="TjPlayerNoNext">The next episode wasn\'t found in your chats</string>
     <string name="TjPlayerNotFound">This episode wasn\'t found in your chats</string>
+    <string name="TjPlayerWatchCredits">Watch credits</string>
+    <string name="TjWatchOneSeason">1 season</string>
+    <string name="TjWatchSeasonCount">%1$d seasons</string>
     <string name="TjChatGhostResetText">The chat-specific mode, read receipt and typing choices will be removed.</string>
     <string name="TjChatGhostInherited">Following global Ghost settings</string>
     <string name="TjDeletedMarkerTrash">Trash</string>

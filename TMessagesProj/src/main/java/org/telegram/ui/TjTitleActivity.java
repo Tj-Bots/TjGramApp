@@ -223,7 +223,8 @@ public class TjTitleActivity extends BaseFragment {
             if (rating > 0) meta.add(String.format(Locale.US, "★ %.1f", rating));
             if (series) {
                 int count = body.optInt("number_of_seasons", 0);
-                if (count > 0) meta.add(LocaleController.formatPluralString("Seasons", count));
+                if (count > 0) meta.add(count == 1 ? TjLocale.getString(R.string.TjWatchOneSeason)
+                        : TjLocale.formatString(R.string.TjWatchSeasonCount, count));
             } else {
                 int runtime = body.optInt("runtime", 0);
                 if (runtime > 0) meta.add(runtime + " " + TjLocale.getString(R.string.TjWatchMinutes));
@@ -352,6 +353,42 @@ public class TjTitleActivity extends BaseFragment {
         return label.toString();
     }
 
+    /** A grey track with the watched part in red, the way streaming apps mark an episode. */
+    private static final class ProgressLine extends View {
+        private final float progress;
+        private final Paint track = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Paint watched = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final android.graphics.RectF rect = new android.graphics.RectF();
+
+        ProgressLine(Context context, float progress) {
+            super(context);
+            this.progress = Math.max(0f, Math.min(1f, progress));
+            track.setColor(0x99808080);
+            watched.setColor(0xFFE50914);
+        }
+
+        @Override
+        protected void onDraw(Canvas canvas) {
+            float w = getWidth(), h = getHeight(), r = h / 2f;
+            rect.set(0, 0, w, h);
+            canvas.drawRoundRect(rect, r, r, track);
+            // The line fills from where reading starts.
+            if (LocaleController.isRTL) rect.set(w - w * progress, 0, w, h);
+            else rect.set(0, 0, w * progress, h);
+            canvas.drawRoundRect(rect, r, r, watched);
+        }
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        // Back from the player: the lines under the episodes have moved on.
+        if (episodeList != null && !episodes.isEmpty()) {
+            episodeList.removeAllViews();
+            for (Episode episode : episodes) episodeList.addView(episodeRow(episode));
+        }
+    }
+
     private View episodeRow(Episode episode) {
         Context context = episodeList.getContext();
         LinearLayout row = new LinearLayout(context);
@@ -387,13 +424,21 @@ public class TjTitleActivity extends BaseFragment {
         play.setColorFilter(new android.graphics.PorterDuffColorFilter(
                 Theme.getColor(Theme.key_windowBackgroundWhiteBlueHeader), android.graphics.PorterDuff.Mode.SRC_IN));
 
+        // How far into it playback got, as a red line along the bottom of the picture.
+        FrameLayout picture = new FrameLayout(context);
+        picture.addView(still, LayoutHelper.createFrame(-1, -1));
+        float progress = org.telegram.messenger.tj.TjWatchHistory.episodeProgress(id, series, selectedSeason, episode.number);
+        if (progress > 0.005f) {
+            picture.addView(new ProgressLine(context, progress), LayoutHelper.createFrame(-1, 4, Gravity.BOTTOM, 4, 0, 4, 3));
+        }
+
         // The picture starts the line and the play mark ends it, whichever way the line runs.
         if (LocaleController.isRTL) {
             row.addView(play, LayoutHelper.createLinear(32, 32));
             row.addView(texts, LayoutHelper.createLinear(0, -2, 1f, 8, 0, 12, 0));
-            row.addView(still, LayoutHelper.createLinear(104, 59));
+            row.addView(picture, LayoutHelper.createLinear(104, 59));
         } else {
-            row.addView(still, LayoutHelper.createLinear(104, 59));
+            row.addView(picture, LayoutHelper.createLinear(104, 59));
             row.addView(texts, LayoutHelper.createLinear(0, -2, 1f, 12, 0, 8, 0));
             row.addView(play, LayoutHelper.createLinear(32, 32));
         }
