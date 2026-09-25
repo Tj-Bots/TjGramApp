@@ -189,6 +189,18 @@ public final class TjWatchHistory {
             }
             for (String name : drop) episodes.remove(name);
             if (!drop.isEmpty()) saveEpisodes(episodes);
+            JSONObject copies = loadCopies();
+            ArrayList<String> dropCopies = new ArrayList<>();
+            java.util.Iterator<String> copyNames = copies.keys();
+            while (copyNames.hasNext()) {
+                String name = copyNames.next();
+                if (name.contains(":" + key + ":")) dropCopies.add(name);
+            }
+            for (String name : dropCopies) copies.remove(name);
+            if (!dropCopies.isEmpty()) {
+                copiesCache = copies;
+                prefs().edit().putString(COPIES_KEY, copies.toString()).apply();
+            }
         }
     }
 
@@ -225,6 +237,99 @@ public final class TjWatchHistory {
                 FileLog.e("Tj episode progress write failed", e);
             }
         }
+    }
+
+    /** Where to carry on in one episode: 0 when it was never started or was watched to the end. */
+    public static long episodePosition(long id, boolean series, int season, int episode) {
+        long best = 0;
+        synchronized (TjWatchHistory.class) {
+            JSONObject episodes = loadEpisodes();
+            for (int account = 0; account < UserConfig.MAX_ACCOUNT_COUNT; account++) {
+                long owner = UserConfig.getInstance(account).getClientUserId();
+                if (owner == 0) continue;
+                JSONArray value = episodes.optJSONArray(episodeKey(owner, id, series, season, episode));
+                if (value == null) continue;
+                long position = value.optLong(0), duration = value.optLong(1);
+                if (duration <= 0 || position >= duration * FINISHED) continue;
+                best = Math.max(best, position);
+            }
+        }
+        return best;
+    }
+
+    // ------------------------------------------------------------ which copy each episode was
+
+    private static final String COPIES_KEY = "copies";
+    private static final int COPIES_LIMIT = 150;
+    private static JSONObject copiesCache;
+
+    /**
+     * Remembers the file an episode (or a film) was played from, so opening it again from the
+     * title screen plays that same file - the one with the progress line under it - instead of
+     * asking which copy all over again. Written once when playback starts, not while it runs.
+     */
+    public static void rememberCopy(MessageObject message, long id, boolean series, int season, int episode) {
+        if (message == null || message.messageOwner == null || id == 0) return;
+        long owner = UserConfig.getInstance(message.currentAccount).getClientUserId();
+        if (owner == 0) return;
+        byte[] data = serialize(message.messageOwner);
+        if (data == null) return;
+        synchronized (TjWatchHistory.class) {
+            JSONObject copies = loadCopies();
+            try {
+                JSONObject value = new JSONObject();
+                value.put("a", message.currentAccount);
+                value.put("d", Base64.encodeToString(data, Base64.NO_WRAP));
+                value.put("t", System.currentTimeMillis());
+                copies.put(episodeKey(owner, id, series, season, episode), value);
+                if (copies.length() > COPIES_LIMIT) {
+                    ArrayList<String> names = new ArrayList<>();
+                    java.util.Iterator<String> iterator = copies.keys();
+                    while (iterator.hasNext()) names.add(iterator.next());
+                    java.util.Collections.sort(names, (a, b) -> Long.compare(
+                            copies.optJSONObject(a) == null ? 0 : copies.optJSONObject(a).optLong("t"),
+                            copies.optJSONObject(b) == null ? 0 : copies.optJSONObject(b).optLong("t")));
+                    for (int i = 0; i < names.size() - COPIES_LIMIT; i++) copies.remove(names.get(i));
+                }
+                copiesCache = copies;
+                prefs().edit().putString(COPIES_KEY, copies.toString()).apply();
+            } catch (Exception e) {
+                FileLog.e("Tj watch copy write failed", e);
+            }
+        }
+    }
+
+    /** The file this episode was last played from by an account signed in here, or null. */
+    public static MessageObject copyFor(long id, boolean series, int season, int episode) {
+        JSONObject best = null;
+        synchronized (TjWatchHistory.class) {
+            JSONObject copies = loadCopies();
+            for (int account = 0; account < UserConfig.MAX_ACCOUNT_COUNT; account++) {
+                long owner = UserConfig.getInstance(account).getClientUserId();
+                if (owner == 0) continue;
+                JSONObject value = copies.optJSONObject(episodeKey(owner, id, series, season, episode));
+                if (value == null || value.optInt("a", -1) != account) continue;
+                if (best == null || value.optLong("t") > best.optLong("t")) best = value;
+            }
+        }
+        if (best == null) return null;
+        try {
+            TLRPC.Message raw = deserialize(Base64.decode(best.optString("d", ""), Base64.NO_WRAP));
+            return raw == null ? null : new MessageObject(best.optInt("a"), raw, false, false);
+        } catch (Exception e) {
+            FileLog.e("Tj watch copy read failed", e);
+            return null;
+        }
+    }
+
+    private static JSONObject loadCopies() {
+        if (copiesCache != null) return copiesCache;
+        try {
+            copiesCache = new JSONObject(prefs().getString(COPIES_KEY, "{}"));
+        } catch (Exception e) {
+            copiesCache = new JSONObject();
+        }
+        return copiesCache;
     }
 
     /** 0 when never started, 1 when finished; the furthest any signed-in account got. */
@@ -276,7 +381,8 @@ public final class TjWatchHistory {
         synchronized (TjWatchHistory.class) {
             cache = new ArrayList<>();
             episodesCache = new JSONObject();
-            prefs().edit().remove(KEY).remove(EPISODES_KEY).apply();
+            copiesCache = new JSONObject();
+            prefs().edit().remove(KEY).remove(EPISODES_KEY).remove(COPIES_KEY).apply();
         }
     }
 

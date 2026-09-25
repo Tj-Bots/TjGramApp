@@ -481,6 +481,15 @@ public class TjTitleActivity extends BaseFragment {
         if (getParentActivity() == null) return;
         pendingSeason = season;
         pendingEpisode = episode;
+        // Watched from here before: the same file again, from where it stopped. Another copy is
+        // one tap away under Source in the player.
+        org.telegram.messenger.MessageObject remembered =
+                org.telegram.messenger.tj.TjWatchHistory.copyFor(id, series, season, episode);
+        if (remembered != null && UserConfig.getInstance(remembered.currentAccount).isClientActivated()) {
+            long position = org.telegram.messenger.tj.TjWatchHistory.episodePosition(id, series, season, episode);
+            play(new org.telegram.messenger.tj.TjWatchFinder.Copy(remembered, position, 0), null);
+            return;
+        }
         final AlertDialog progress = new AlertDialog(getParentActivity(), AlertDialog.ALERT_TYPE_SPINNER);
         progress.show();
         finder().find(season, episode, found -> {

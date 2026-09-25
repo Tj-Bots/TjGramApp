@@ -413,9 +413,9 @@ public class TjLocale {
         m.put("TjPlayerSearching", "מחפש…");
         m.put("TjPlayerNoNext", "הפרק הבא לא נמצא בצ׳אטים");
         m.put("TjPlayerNotFound", "הפרק לא נמצא בצ׳אטים");
-        m.put("TjPlayerWatchCredits", "צפה בכותרות");
         m.put("TjWatchOneSeason", "עונה אחת");
         m.put("TjWatchSeasonCount", "%1$d עונות");
+        m.put("TjWatchBecauseYouWatched", "כי צפית ב־%1$s");
         m.put("TjChatGhostResetTitle", "לאפס את הגדרות מצב הרפאים בצ׳אט הזה?");
         m.put("TjChatGhostResetText", "המצב הנקודתי והבחירות עבור אישורי קריאה והקלדה יוסרו.");
         m.put("TjChatGhostInherited", "פועל לפי הגדרות מצב הרפאים הכלליות");

@@ -240,9 +240,9 @@
     <string name="TjPlayerSearching">מחפש…</string>
     <string name="TjPlayerNoNext">הפרק הבא לא נמצא בצ׳אטים</string>
     <string name="TjPlayerNotFound">הפרק לא נמצא בצ׳אטים</string>
-    <string name="TjPlayerWatchCredits">צפה בכותרות</string>
     <string name="TjWatchOneSeason">עונה אחת</string>
     <string name="TjWatchSeasonCount">%1$d עונות</string>
+    <string name="TjWatchBecauseYouWatched">כי צפית ב־%1$s</string>
     <string name="TjChatGhostResetText">המצב הנקודתי והבחירות עבור אישורי קריאה והקלדה יוסרו.</string>
     <string name="TjChatGhostInherited">פועל לפי הגדרות מצב הרפאים הכלליות</string>
     <string name="TjDeletedMarkerTrash">פח</string>

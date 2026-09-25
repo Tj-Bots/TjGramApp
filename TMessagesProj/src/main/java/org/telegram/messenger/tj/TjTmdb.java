@@ -107,6 +107,11 @@ public final class TjTmdb {
         request(account, "tv/" + seriesId + "/season/" + season, new LinkedHashMap<>(), callback);
     }
 
+    /** What TMDB suggests to people who liked this title. */
+    public void recommendations(int account, long id, boolean series, Callback callback) {
+        request(account, (series ? "tv/" : "movie/") + id + "/recommendations", new LinkedHashMap<>(), callback);
+    }
+
     public void trending(int account, boolean series, Callback callback) {
         request(account, "trending/" + (series ? "tv" : "movie") + "/week", new LinkedHashMap<>(), callback);
     }

@@ -90,9 +90,35 @@ public class TjWatchActivity extends BaseFragment {
         final TjTmdb seriesClient = new TjTmdb(), movieClient = new TjTmdb();
         boolean asked;
         int pending;
+        /** For a "because you watched" row: the title it is about. */
+        long becauseOf;
+        boolean becauseOfSeries;
 
         Shelf(String title, Genre genre) { this.title = title; this.genre = genre; }
     }
+
+    private ArrayList<String> shownBecause = new ArrayList<>();
+
+    /** The last few watched titles that get a "because you watched" row, most recent first. */
+    private ArrayList<String> becauseTitles() {
+        ArrayList<String> keys = new ArrayList<>();
+        for (TjWatchHistory.Entry entry : TjWatchHistory.all()) {
+            if (keys.size() >= MAX_BECAUSE_SHELVES) break;
+            if (entry.series ? !wantsSeries() : !wantsMovies()) continue;
+            if (entry.name.isEmpty()) continue;
+            try {
+                if (Long.parseLong(entry.key.substring(entry.key.indexOf(':') + 1)) <= 0) continue;
+            } catch (Exception e) {
+                continue;
+            }
+            keys.add(entry.key);
+        }
+        return keys;
+    }
+
+    /** How many of the most recently watched titles get a row of their own. */
+    private static final int MAX_BECAUSE_SHELVES = 2;
+    private final java.util.HashMap<String, Shelf> becauseShelves = new java.util.HashMap<>();
 
     private static final int MENU_HISTORY = 1, MENU_SETTINGS = 2, MENU_COPY_LINK = 3;
     /** How many genre rows the home screen offers before it becomes a list of lists. */
@@ -281,6 +307,8 @@ public class TjWatchActivity extends BaseFragment {
         // Coming back from a film is exactly when the shelf is wrong: it now has a new position,
         // or the film finished and should drop off it.
         refreshContinue();
+        // Something new may have been watched, and with it a new "because you watched" row.
+        if (!gridMode && !shelves.isEmpty() && !becauseTitles().equals(shownBecause)) buildShelves();
     }
 
     /**
@@ -624,6 +652,21 @@ public class TjWatchActivity extends BaseFragment {
      */
     private void buildShelves() {
         shelves.clear();
+        // What was watched here comes first: a row of what TMDB suggests to people who liked it,
+        // for each of the last few titles - the part of "for you" a device can know on its own.
+        shownBecause = becauseTitles();
+        for (TjWatchHistory.Entry entry : TjWatchHistory.all()) {
+            if (!shownBecause.contains(entry.key)) continue;
+            long id = Long.parseLong(entry.key.substring(entry.key.indexOf(':') + 1));
+            Shelf shelf = becauseShelves.get(entry.key);
+            if (shelf == null) {
+                shelf = new Shelf(TjLocale.formatString(R.string.TjWatchBecauseYouWatched, entry.name), null);
+                shelf.becauseOf = id;
+                shelf.becauseOfSeries = entry.series;
+                becauseShelves.put(entry.key, shelf);
+            }
+            shelves.add(shelf);
+        }
         if (trendingShelf == null) trendingShelf = new Shelf(TjLocale.getString(R.string.TjWatchTrending), null);
         shelves.add(trendingShelf);
         for (Genre genre : genres) {
@@ -639,6 +682,13 @@ public class TjWatchActivity extends BaseFragment {
     private void loadShelf(Shelf shelf) {
         if (shelf.asked) return;
         shelf.asked = true;
+        if (shelf.becauseOf != 0) {
+            shelf.pending = 1;
+            TjTmdb client = shelf.becauseOfSeries ? shelf.seriesClient : shelf.movieClient;
+            client.recommendations(currentAccount, shelf.becauseOf, shelf.becauseOfSeries,
+                    (body, error) -> shelfArrived(shelf, body, shelf.becauseOfSeries));
+            return;
+        }
         boolean askSeries = wantsSeries() && (shelf.genre == null || shelf.genre.seriesId > 0);
         boolean askMovies = wantsMovies() && (shelf.genre == null || shelf.genre.movieId > 0);
         shelf.pending = (askSeries ? 1 : 0) + (askMovies ? 1 : 0);
@@ -656,6 +706,17 @@ public class TjWatchActivity extends BaseFragment {
     private void shelfArrived(Shelf shelf, JSONObject body, boolean isSeries) {
         read(body, isSeries, shelf.items, null);
         if (--shelf.pending > 0) return;
+        if (shelf.becauseOf != 0) {
+            // Nothing already watched, in the order TMDB thinks fits best.
+            java.util.HashSet<String> watched = new java.util.HashSet<>();
+            for (TjWatchHistory.Entry entry : TjWatchHistory.all()) watched.add(entry.key);
+            for (int i = shelf.items.size() - 1; i >= 0; i--) {
+                Item item = shelf.items.get(i);
+                if (watched.contains(TjWatchHistory.key(item.id, item.series))) shelf.items.remove(i);
+            }
+            if (shelfAdapter != null) shelfAdapter.notifyDataSetChanged();
+            return;
+        }
         shelf.items.sort((a, b) -> Double.compare(b.popularity, a.popularity));
         if (shelfAdapter != null) shelfAdapter.notifyDataSetChanged();
     }

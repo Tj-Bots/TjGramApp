@@ -93,7 +93,7 @@ public class TjWatchPlayerActivity extends BaseFragment {
     private static final long SEEK_STEP = 10_000;
     private static final long NEXT_CARD_BEFORE_END = 25_000;
     private static final long NEXT_PREFETCH_BEFORE_END = 120_000;
-    private static final long NEXT_COUNTDOWN_MS = 10_000;
+    private static final long NEXT_COUNTDOWN_MS = 7_000;
     private static final float[] SPEEDS = {0.5f, 0.75f, 1f, 1.25f, 1.5f, 2f};
 
     private final Session session;
@@ -396,8 +396,8 @@ public class TjWatchPlayerActivity extends BaseFragment {
     }
 
     /**
-     * The two small buttons the streaming apps put in the corner at the credits: stay for the
-     * credits, or go on - the second one filling up while it counts down to going on by itself.
+     * The small "next episode" button the streaming apps put in the corner at the credits, filling
+     * up while it counts down to going on by itself.
      */
     private void buildNextBar(Context context) {
         nextBar = new LinearLayout(context);
@@ -405,30 +405,9 @@ public class TjWatchPlayerActivity extends BaseFragment {
         nextBar.setGravity(Gravity.CENTER_VERTICAL);
         nextBar.setVisibility(View.GONE);
 
-        TextView credits = new TextView(context);
-        credits.setText(TjLocale.getString(R.string.TjPlayerWatchCredits));
-        credits.setTextColor(Color.WHITE);
-        credits.setTextSize(14);
-        credits.setTypeface(AndroidUtilities.getTypeface(AndroidUtilities.TYPEFACE_ROBOTO_MEDIUM));
-        credits.setGravity(Gravity.CENTER);
-        credits.setPadding(dp(16), 0, dp(16), 0);
-        GradientDrawable creditsBackground = new GradientDrawable();
-        creditsBackground.setColor(0xB3595959);
-        creditsBackground.setCornerRadius(dp(6));
-        credits.setBackground(creditsBackground);
-        credits.setOnClickListener(v -> dismissNextCard());
-
         nextPill = new NextPill(context, TjLocale.getString(R.string.TjPlayerNext));
         nextPill.setOnClickListener(v -> playNext());
-
-        // Read in the language's own direction: credits first, then the way on.
-        if (LocaleController.isRTL) {
-            nextBar.addView(nextPill, LayoutHelper.createLinear(-2, 40));
-            nextBar.addView(credits, LayoutHelper.createLinear(-2, 40, 10, 0, 0, 0));
-        } else {
-            nextBar.addView(credits, LayoutHelper.createLinear(-2, 40, 0, 0, 10, 0));
-            nextBar.addView(nextPill, LayoutHelper.createLinear(-2, 40));
-        }
+        nextBar.addView(nextPill, LayoutHelper.createLinear(-2, 40));
         root.addView(nextBar, LayoutHelper.createFrame(-2, -2,
                 Gravity.BOTTOM | (LocaleController.isRTL ? Gravity.LEFT : Gravity.RIGHT), 28, 0, 28, 28));
     }
@@ -669,6 +648,7 @@ public class TjWatchPlayerActivity extends BaseFragment {
     }
 
     private void rememberInHistory(long position) {
+        TjWatchHistory.rememberCopy(current.message, session.tmdbId, session.series, session.season, session.episode);
         TjWatchHistory.Entry entry = TjWatchHistory.entryFor(session.tmdbId, session.series, session.name,
                 session.poster, session.year, session.season, session.episode, current.message);
         if (entry != null) {
@@ -1062,8 +1042,7 @@ public class TjWatchPlayerActivity extends BaseFragment {
         nextBar.setAlpha(0f);
         nextBar.animate().alpha(1f).setDuration(200).start();
         cancelCountdown();
-        if (sameChatCopy(nextCopies) != null) {
-            // Goes on by itself only when it knows which copy: the one from the same chat.
+        {
             nextPill.setProgress(0f);
             nextCountdownAnimator = android.animation.ValueAnimator.ofFloat(0f, 1f);
             nextCountdownAnimator.setDuration(NEXT_COUNTDOWN_MS);
@@ -1083,8 +1062,6 @@ public class TjWatchPlayerActivity extends BaseFragment {
                 }
             });
             nextCountdownAnimator.start();
-        } else {
-            nextPill.setProgress(1f);
         }
         return true;
     }
@@ -1139,16 +1116,10 @@ public class TjWatchPlayerActivity extends BaseFragment {
         }
         final int season = nextSeason, episode = nextEpisode;
         final ArrayList<TjWatchFinder.Copy> copies = nextCopies;
+        // The copy from the same chat when there is one - probably the same picture and the same
+        // subtitles - otherwise the best one found. Another can still be picked under Source.
         TjWatchFinder.Copy same = sameChatCopy(copies);
-        if (same != null) {
-            switchEpisode(season, episode, same, copies);
-        } else {
-            LinearLayout column = openPanel(TjLocale.getString(R.string.TjPlayerChooseCopy) + " · " + nextLabel(), 0.55f);
-            fillCopies(column, copies, copy -> {
-                closePanel();
-                switchEpisode(season, episode, copy, copies);
-            });
-        }
+        switchEpisode(season, episode, same != null ? same : copies.get(0), copies);
     }
 
     /** An episode picked from the list: found first, then played or offered like the next one. */
