@@ -19773,6 +19773,54 @@ public class ChatActivity extends BaseFragment implements
         }
     }
 
+    private void tjConfirmClearChatDeleted() {
+        if (getParentActivity() == null) {
+            return;
+        }
+        AlertDialog.Builder builder = new AlertDialog.Builder(getParentActivity(), getResourceProvider());
+        builder.setTitle(TjLocale.getString(R.string.TjClearChatDeletedTitle));
+        builder.setMessage(TjLocale.getString(R.string.TjClearChatDeletedText));
+        builder.setPositiveButton(LocaleController.getString(R.string.Delete), (dialog, which) -> tjClearChatDeleted());
+        builder.setNegativeButton(LocaleController.getString(R.string.Cancel), null);
+        AlertDialog alert = builder.create();
+        showDialog(alert);
+        TextView button = (TextView) alert.getButton(DialogInterface.BUTTON_POSITIVE);
+        if (button != null) {
+            button.setTextColor(getThemedColor(Theme.key_text_RedBold));
+        }
+    }
+
+    /**
+     * Removes this chat's kept deletions everywhere they live: the archive the history merge reads
+     * from, the copies in Telegram's own table, and the bubbles already on screen.
+     */
+    private void tjClearChatDeleted() {
+        final long did = dialog_id;
+        final ArrayList<Integer> onScreen = new ArrayList<>();
+        for (int i = 0; i < messagesDict[0].size(); i++) {
+            MessageObject message = messagesDict[0].valueAt(i);
+            if (message != null && message.messageOwner != null && message.messageOwner.tjDeleted) {
+                onScreen.add(message.getId());
+            }
+        }
+        TjMessageArchive.getInstance().clearDeletedInDialog(currentAccount, did, archived ->
+                getMessagesStorage().clearTjRetainedMessages(did, retained -> {
+                    if (!onScreen.isEmpty()) {
+                        org.telegram.messenger.tj.TjDeletionPolicy.markLocalRemoval(currentAccount, did, onScreen);
+                        final long channelId = ChatObject.isChannel(currentChat) ? currentChat.id : 0;
+                        getNotificationCenter().postNotificationName(NotificationCenter.messagesDeleted, onScreen, channelId, false);
+                    }
+                    final int count = Math.max(onScreen.size(), Math.max(archived, retained));
+                    if (count == 0) {
+                        BulletinFactory.of(ChatActivity.this).createSimpleBulletin(R.raw.chats_infotip,
+                                TjLocale.getString(R.string.TjClearChatDeletedNone)).show();
+                    } else {
+                        BulletinFactory.of(ChatActivity.this).createSimpleBulletin(R.raw.ic_delete,
+                                TjLocale.formatString(R.string.TjClearChatDeletedDone, count)).show();
+                    }
+                }));
+    }
+
     private void rebuildTjChatSubmenu() {
         if (tjChatSubmenu == null || dialog_id == 0) {
             return;
@@ -19814,6 +19862,14 @@ public class ChatActivity extends BaseFragment implements
                         headerItem.toggleSubMenu();
                     }
                     presentFragment(new TjChatGhostSettingsActivity(dialog_id));
+                });
+
+        tjChatSubmenu.addAction(R.drawable.msg_delete,
+                TjLocale.getString(R.string.TjClearChatDeleted), () -> {
+                    if (headerItem != null) {
+                        headerItem.toggleSubMenu();
+                    }
+                    tjConfirmClearChatDeleted();
                 });
 
         if (TjConfig.hasChatGhostOverrides(currentAccount, dialog_id)) {

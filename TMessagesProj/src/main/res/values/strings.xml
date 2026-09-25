@@ -11437,6 +11437,11 @@
     <string name="TjChatGhostReset">Reset overrides</string>
     <string name="TjChatGhostResetDone">This chat now follows the global Ghost settings</string>
     <string name="TjChatGhostResetTitle">Reset Ghost settings for this chat?</string>
+    <string name="TjClearChatDeleted">Clear deleted messages</string>
+    <string name="TjClearChatDeletedTitle">Clear deleted messages?</string>
+    <string name="TjClearChatDeletedText">Every deleted message TjGram kept from this chat will be removed from this device. Edit history stays.</string>
+    <string name="TjClearChatDeletedDone">Cleared %1$d deleted messages</string>
+    <string name="TjClearChatDeletedNone">No deleted messages saved in this chat</string>
     <string name="TjChatGhostResetText">The chat-specific mode, read receipt and typing choices will be removed.</string>
     <string name="TjChatGhostInherited">Following global Ghost settings</string>
     <string name="TjDeletedMarkerTrash">Trash</string>

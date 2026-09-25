@@ -139,10 +139,13 @@ public class MessageInfoActivity extends BaseFragment {
         if (!TextUtils.isEmpty(msg.post_author)) {
             addRow(container, "Author", msg.post_author, msg.post_author);
         }
-        addRow(container, "Date", LocaleController.getInstance().getFormatterStats().format((long) msg.date * 1000), null);
+        final String sentAt = formatExactTime((long) msg.date * 1000);
+        addRow(container, "Date", sentAt, sentAt);
         if (msg.edit_date != 0) {
-            addRow(container, "Edited", LocaleController.getInstance().getFormatterStats().format((long) msg.edit_date * 1000), null);
+            final String editedAt = formatExactTime((long) msg.edit_date * 1000);
+            addRow(container, "Edited", editedAt, editedAt);
         }
+        final int editedRowIndex = container.getChildCount();
         if (msg.views != 0) {
             addRow(container, "Views", String.valueOf(msg.views), String.valueOf(msg.views));
         }
@@ -183,8 +186,33 @@ public class MessageInfoActivity extends BaseFragment {
                 messageObject.getId(), revisions -> {
                     if (!revisions.isEmpty() && fragmentView != null && getContext() != null) {
                         addHistoryRow(container, revisions.size());
+                        // Some edits arrive without the server's edit date on the copy we hold; the
+                        // moment the last one was kept is then the closest there is to it.
+                        if (msg.edit_date == 0) {
+                            long lastEdit = 0;
+                            for (TjMessageArchive.Snapshot revision : revisions) {
+                                lastEdit = Math.max(lastEdit, revision.editDate != 0 ? revision.editDate * 1000L : revision.capturedAt);
+                            }
+                            if (lastEdit > 0) {
+                                final int before = container.getChildCount();
+                                final String editedAt = formatExactTime(lastEdit);
+                                addRow(container, "Edited", editedAt, editedAt);
+                                for (int i = before; i < container.getChildCount(); i++) {
+                                    View added = container.getChildAt(i);
+                                    container.removeViewAt(i);
+                                    container.addView(added, editedRowIndex + (i - before));
+                                }
+                            }
+                        }
                     }
                 });
+    }
+
+    /** A date down to the second - what the message info is for is knowing exactly when. */
+    private static String formatExactTime(long millis) {
+        final String pattern = LocaleController.is24HourFormat ? "dd.MM.yyyy, HH:mm:ss" : "dd.MM.yyyy, h:mm:ss a";
+        return org.telegram.messenger.time.FastDateFormat.getInstance(pattern,
+                LocaleController.getInstance().getCurrentLocale()).format(millis);
     }
 
     private void addHistoryRow(LinearLayout container, int count) {

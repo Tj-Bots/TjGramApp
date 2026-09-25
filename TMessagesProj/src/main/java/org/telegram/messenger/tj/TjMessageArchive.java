@@ -588,6 +588,74 @@ public final class TjMessageArchive extends SQLiteOpenHelper {
         });
     }
 
+    /**
+     * Forgets every deleted message this account kept from one chat - the rows, their attachments
+     * and what is cached of them - and answers with how many there were. Edit history stays: it is
+     * not what was asked to go.
+     */
+    public void clearDeletedInDialog(int accountId, long dialogId, Callback<Integer> callback) {
+        final long ownerUserId = UserConfig.getInstance(accountId).getClientUserId();
+        if (ownerUserId == 0 || dialogId == 0) {
+            if (callback != null) {
+                AndroidUtilities.runOnUIThread(() -> callback.onResult(0));
+            }
+            return;
+        }
+        queue.postRunnable(() -> {
+            int removed = 0;
+            final String[] arguments = new String[]{String.valueOf(ownerUserId), String.valueOf(accountId),
+                    String.valueOf(dialogId), String.valueOf(KIND_DELETED)};
+            final String where = "owner_user_id=? AND account_id=? AND dialog_id=? AND kind=?";
+            final ArrayList<String> mediaPaths = new ArrayList<>();
+            try (Cursor cursor = getReadableDatabase().query("snapshots", new String[]{"media_path"},
+                    where, arguments, null, null, null)) {
+                while (cursor.moveToNext()) {
+                    String mediaPath = cursor.getString(0);
+                    if (!TextUtils.isEmpty(mediaPath)) {
+                        mediaPaths.add(mediaPath);
+                    }
+                }
+            } catch (Throwable error) {
+                FileLog.e("Tj archived attachment lookup failed", error);
+            }
+            try {
+                removed = getWritableDatabase().delete("snapshots", where, arguments);
+            } catch (Throwable error) {
+                FileLog.e("Tj chat deleted-messages clear failed", error);
+            }
+            // An attachment may still belong to an edit that stays; only an orphan goes.
+            for (String mediaPath : mediaPaths) {
+                try (Cursor cursor = getReadableDatabase().query("snapshots", new String[]{"id"},
+                        "media_path=?", new String[]{mediaPath}, null, null, null, "1")) {
+                    if (cursor.moveToFirst()) {
+                        continue;
+                    }
+                } catch (Throwable error) {
+                    FileLog.e("Tj archived attachment check failed", error);
+                    continue;
+                }
+                File file = new File(mediaPath);
+                if (file.isFile() && !file.delete()) {
+                    FileLog.e("Could not delete Tj archived attachment " + file.getName());
+                }
+            }
+            final String prefix = ownerUserId + ":" + accountId + ":" + dialogId + ":";
+            for (String key : new ArrayList<>(deletedCache.keySet())) {
+                if (key.startsWith(prefix)) {
+                    deletedCache.remove(key);
+                }
+            }
+            Set<Long> known = deletedDialogs.get(ownerUserId);
+            if (known != null) {
+                known.remove(dialogId);
+            }
+            final int result = removed;
+            if (callback != null) {
+                AndroidUtilities.runOnUIThread(() -> callback.onResult(result));
+            }
+        });
+    }
+
     public void clear(int accountId, Callback<Boolean> callback) {
         clearOwner(UserConfig.getInstance(accountId).getClientUserId(), callback);
     }

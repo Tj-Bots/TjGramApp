@@ -213,6 +213,11 @@
     <string name="TjChatGhostReset">אפס חריגות</string>
     <string name="TjChatGhostResetDone">הצ׳אט פועל כעת לפי הגדרות מצב הרפאים הכלליות</string>
     <string name="TjChatGhostResetTitle">לאפס את הגדרות מצב הרפאים בצ׳אט הזה?</string>
+    <string name="TjClearChatDeleted">נקה הודעות שנמחקו</string>
+    <string name="TjClearChatDeletedTitle">לנקות הודעות שנמחקו?</string>
+    <string name="TjClearChatDeletedText">כל ההודעות שנמחקו ש‑TjGram שמר מהצ׳אט הזה יימחקו מהמכשיר. היסטוריית העריכות נשארת.</string>
+    <string name="TjClearChatDeletedDone">נוקו %1$d הודעות שנמחקו</string>
+    <string name="TjClearChatDeletedNone">אין הודעות שנמחקו שמורות בצ׳אט הזה</string>
     <string name="TjChatGhostResetText">המצב הנקודתי והבחירות עבור אישורי קריאה והקלדה יוסרו.</string>
     <string name="TjChatGhostInherited">פועל לפי הגדרות מצב הרפאים הכלליות</string>
     <string name="TjDeletedMarkerTrash">פח</string>

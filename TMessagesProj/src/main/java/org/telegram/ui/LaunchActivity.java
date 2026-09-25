@@ -8455,7 +8455,8 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
 
         FrameLayout.LayoutParams layoutParams = (FrameLayout.LayoutParams) sideMenuContainer.getLayoutParams();
         Point screenSize = AndroidUtilities.getRealScreenSize();
-        layoutParams.width = AndroidUtilities.isTablet() ? AndroidUtilities.dp(320) : Math.min(AndroidUtilities.dp(320), Math.min(screenSize.x, screenSize.y) - AndroidUtilities.dp(56));
+        // TjGram: a little narrower than upstream's 320dp - the rows never needed the room.
+        layoutParams.width = AndroidUtilities.isTablet() ? AndroidUtilities.dp(320) : Math.min(AndroidUtilities.dp(284), Math.min(screenSize.x, screenSize.y) - AndroidUtilities.dp(80));
         layoutParams.height = LayoutHelper.MATCH_PARENT;
         sideMenuContainer.setLayoutParams(layoutParams);
 
@@ -8835,6 +8836,14 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
     }
 
     public boolean onBackPressed(boolean invoked) {
+        // The system back gesture (Android 13+) comes in here, not through onBackPressed(), so an
+        // open side menu has to be closed here too - otherwise back leaves the app past it.
+        if (drawerLayoutContainer != null && drawerLayoutContainer.isDrawerOpened()) {
+            if (invoked) {
+                drawerLayoutContainer.closeDrawer(false);
+            }
+            return false;
+        }
         if (FloatingDebugController.onBackPressed(invoked)) {
             return false;
         }

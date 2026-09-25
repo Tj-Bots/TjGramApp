@@ -14548,12 +14548,23 @@ public class MessagesStorage extends BaseController {
      * they keep showing up in chats as deleted long after the archive itself is empty.
      */
     public void clearTjRetainedMessages(Runnable onFinished) {
+        clearTjRetainedMessages(0, onFinished == null ? null : count -> onFinished.run());
+    }
+
+    /**
+     * Really deletes the copies of deleted messages kept in Telegram's own table - in one chat, or
+     * in every chat when {@code onlyDialogId} is 0 - and answers with how many went.
+     */
+    public void clearTjRetainedMessages(long onlyDialogId, Utilities.Callback<Integer> onFinished) {
         storageQueue.postRunnable(() -> {
             LongSparseArray<ArrayList<Integer>> retained = new LongSparseArray<>();
             LongSparseArray<Long> channelIds = new LongSparseArray<>();
+            int[] total = new int[1];
             SQLiteCursor cursor = null;
             try {
-                cursor = database.queryFinalized("SELECT uid, mid, is_channel, custom_params FROM messages_v2 WHERE custom_params IS NOT NULL");
+                cursor = database.queryFinalized(onlyDialogId != 0
+                        ? String.format(Locale.US, "SELECT uid, mid, is_channel, custom_params FROM messages_v2 WHERE uid = %d AND custom_params IS NOT NULL", onlyDialogId)
+                        : "SELECT uid, mid, is_channel, custom_params FROM messages_v2 WHERE custom_params IS NOT NULL");
                 while (cursor.next()) {
                     NativeByteBuffer customParams = cursor.byteBufferValue(3);
                     if (customParams == null) {
@@ -14587,6 +14598,9 @@ public class MessagesStorage extends BaseController {
                     if (ids.isEmpty()) {
                         continue;
                     }
+                    total[0] += ids.size();
+                    // An open chat would otherwise take this for a fresh deletion and keep it again.
+                    TjDeletionPolicy.markLocalRemoval(currentAccount, dialogId, ids);
                     // The six-argument overload skips the TJ retention filter, so these really go.
                     markMessagesAsDeletedInternal(dialogId, ids, true, ChatActivity.MODE_DEFAULT, 0, false);
                     updateDialogsWithDeletedMessagesInternal(dialogId, 0, ids, null);
@@ -14601,7 +14615,7 @@ public class MessagesStorage extends BaseController {
                     cursor.dispose();
                 }
                 if (onFinished != null) {
-                    AndroidUtilities.runOnUIThread(onFinished);
+                    AndroidUtilities.runOnUIThread(() -> onFinished.run(total[0]));
                 }
             }
         });

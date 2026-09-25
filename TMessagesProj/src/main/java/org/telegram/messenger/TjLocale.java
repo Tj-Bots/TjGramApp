@@ -386,6 +386,11 @@ public class TjLocale {
         m.put("TjChatGhostOnlineInfo", "מצב מקוון חל על החשבון כולו ואי אפשר לשנות אותו עבור צ׳אט אחד בלבד.");
         m.put("TjChatGhostReset", "אפס חריגות");
         m.put("TjChatGhostResetDone", "הצ׳אט פועל כעת לפי הגדרות מצב הרפאים הכלליות");
+        m.put("TjClearChatDeleted", "נקה הודעות שנמחקו");
+        m.put("TjClearChatDeletedTitle", "לנקות הודעות שנמחקו?");
+        m.put("TjClearChatDeletedText", "כל ההודעות שנמחקו ש‑TjGram שמר מהצ׳אט הזה יימחקו מהמכשיר. היסטוריית העריכות נשארת.");
+        m.put("TjClearChatDeletedDone", "נוקו %1$d הודעות שנמחקו");
+        m.put("TjClearChatDeletedNone", "אין הודעות שנמחקו שמורות בצ׳אט הזה");
         m.put("TjChatGhostResetTitle", "לאפס את הגדרות מצב הרפאים בצ׳אט הזה?");
         m.put("TjChatGhostResetText", "המצב הנקודתי והבחירות עבור אישורי קריאה והקלדה יוסרו.");
         m.put("TjChatGhostInherited", "פועל לפי הגדרות מצב הרפאים הכלליות");
