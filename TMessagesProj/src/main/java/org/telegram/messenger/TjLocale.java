@@ -415,7 +415,9 @@ public class TjLocale {
         m.put("TjPlayerNotFound", "הפרק לא נמצא בצ׳אטים");
         m.put("TjWatchOneSeason", "עונה אחת");
         m.put("TjWatchSeasonCount", "%1$d עונות");
-        m.put("TjWatchBecauseYouWatched", "כי צפית ב־%1$s");
+        m.put("TjWatchForYou", "מומלץ בשבילך");
+        m.put("TjDeleteKeptTitle", "למחוק מהמכשיר?");
+        m.put("TjDeleteKeptText", "זה כבר נמחק בטלגרם ונשמר רק במכשיר הזה. עכשיו זה יימחק גם ממנו.");
         m.put("TjChatGhostResetTitle", "לאפס את הגדרות מצב הרפאים בצ׳אט הזה?");
         m.put("TjChatGhostResetText", "המצב הנקודתי והבחירות עבור אישורי קריאה והקלדה יוסרו.");
         m.put("TjChatGhostInherited", "פועל לפי הגדרות מצב הרפאים הכלליות");

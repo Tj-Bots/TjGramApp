@@ -31002,10 +31002,66 @@ public class ChatActivity extends BaseFragment implements
         if (finalSelectedObject == null && (selectedMessagesIds[0].size() + selectedMessagesIds[1].size()) == 0) {
             return;
         }
+        if (tjDeleteKeptMessages(finalSelectedObject, finalSelectedGroup, hideDimAfter)) {
+            return;
+        }
         AlertsCreator.createDeleteMessagesAlert(this, currentUser, currentChat, currentEncryptedChat, chatInfo, mergeDialogId, finalSelectedObject, selectedMessagesIds, finalSelectedGroup, (int) getTopicId(), chatMode, null, () -> {
             hideActionMode();
             updatePinnedMessageView(true);
         }, hideDimAfter ? () -> dimBehindView(false) : null, themeDelegate);
+    }
+
+    /**
+     * A message that is already gone from Telegram and only kept here has nothing left to delete
+     * there - no one to delete it for, nothing to report. Deleting it again only asks whether to
+     * remove it from this device. Returns false when anything chosen is still a live message.
+     */
+    private boolean tjDeleteKeptMessages(MessageObject selected, MessageObject.GroupedMessages group, boolean hideDimAfter) {
+        final ArrayList<MessageObject> chosen = new ArrayList<>();
+        if (selected != null) {
+            if (group != null) chosen.addAll(group.messages); else chosen.add(selected);
+        } else {
+            for (int a = 0; a < 2; a++) {
+                for (int b = 0; b < selectedMessagesIds[a].size(); b++) chosen.add(selectedMessagesIds[a].valueAt(b));
+            }
+        }
+        if (chosen.isEmpty() || getParentActivity() == null) return false;
+        for (MessageObject message : chosen) {
+            if (message == null || message.messageOwner == null || !message.messageOwner.tjDeleted) return false;
+        }
+        AlertDialog.Builder builder = new AlertDialog.Builder(getParentActivity(), getResourceProvider());
+        builder.setTitle(TjLocale.getString(R.string.TjDeleteKeptTitle));
+        builder.setMessage(TjLocale.getString(R.string.TjDeleteKeptText));
+        builder.setPositiveButton(LocaleController.getString(R.string.Delete), (dialog, which) -> {
+            LongSparseArray<ArrayList<Integer>> byDialog = new LongSparseArray<>();
+            for (MessageObject message : chosen) {
+                long did = message.getDialogId();
+                ArrayList<Integer> ids = byDialog.get(did);
+                if (ids == null) byDialog.put(did, ids = new ArrayList<>());
+                ids.add(message.getId());
+            }
+            for (int i = 0; i < byDialog.size(); i++) {
+                long did = byDialog.keyAt(i);
+                ArrayList<Integer> ids = byDialog.valueAt(i);
+                TLRPC.Chat chat = did < 0 ? getMessagesController().getChat(-did) : null;
+                long channelId = ChatObject.isChannel(chat) ? -did : 0;
+                org.telegram.messenger.tj.TjDeletionPolicy.markLocalRemoval(currentAccount, did, ids);
+                TjMessageArchive.getInstance().deleteSnapshots(currentAccount, did, ids);
+                getMessagesStorage().markMessagesAsDeleted(did, ids, true, true, MODE_DEFAULT, 0);
+                getMessagesStorage().updateDialogsWithDeletedMessages(did, channelId, ids, null);
+                getNotificationCenter().postNotificationName(NotificationCenter.messagesDeleted, ids, channelId, false);
+            }
+            hideActionMode();
+            updatePinnedMessageView(true);
+        });
+        builder.setNegativeButton(LocaleController.getString(R.string.Cancel), null);
+        AlertDialog alert = builder.create();
+        showDialog(alert, dialog -> {
+            if (hideDimAfter) dimBehindView(false);
+        });
+        TextView button = (TextView) alert.getButton(DialogInterface.BUTTON_POSITIVE);
+        if (button != null) button.setTextColor(getThemedColor(Theme.key_text_RedBold));
+        return true;
     }
 
     private void hideActionMode() {
@@ -33786,7 +33842,10 @@ public class ChatActivity extends BaseFragment implements
         editText.setSingleLine(true);
         editText.setImeOptions(EditorInfo.IME_ACTION_DONE);
         editText.setText(name);
-        editText.setSelection(editText.getText().length());
+        // The name comes selected, the way "select all" leaves it: typing replaces it, backspace
+        // clears it, and a tap puts the cursor in it to change just a part.
+        editText.setSelectAllOnFocus(true);
+        editText.selectAll();
 
         final LinearLayout container = new LinearLayout(context);
         container.setOrientation(LinearLayout.VERTICAL);
@@ -33821,7 +33880,11 @@ public class ChatActivity extends BaseFragment implements
         });
         showDialog(dialog);
         editText.requestFocus();
-        AndroidUtilities.runOnUIThread(() -> AndroidUtilities.showKeyboard(editText), 80);
+        editText.selectAll();
+        AndroidUtilities.runOnUIThread(() -> {
+            AndroidUtilities.showKeyboard(editText);
+            editText.selectAll();
+        }, 80);
     }
 
     public static CharSequence getMessageContent(MessageObject messageObject, long previousUid, boolean name) {

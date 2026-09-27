@@ -90,35 +90,41 @@ public class TjWatchActivity extends BaseFragment {
         final TjTmdb seriesClient = new TjTmdb(), movieClient = new TjTmdb();
         boolean asked;
         int pending;
-        /** For a "because you watched" row: the title it is about. */
-        long becauseOf;
-        boolean becauseOfSeries;
+        /** The "continue watching" row: what was left part-way, instead of catalogue items. */
+        ArrayList<TjWatchHistory.Entry> resume;
+        /** The "for you" row: the recently watched titles its suggestions come from. */
+        ArrayList<TjWatchHistory.Entry> forYou;
 
         Shelf(String title, Genre genre) { this.title = title; this.genre = genre; }
     }
 
-    private ArrayList<String> shownBecause = new ArrayList<>();
+    /** How many of the most recently watched titles feed the "for you" row. */
+    private static final int FOR_YOU_SOURCES = 5;
+    private Shelf continueShelf;
+    private Shelf forYouShelf;
+    private String forYouKey = "";
+    /** Genre rows keep what they fetched; coming back to the screen must not ask for them again. */
+    private final java.util.HashMap<String, Shelf> genreShelves = new java.util.HashMap<>();
 
-    /** The last few watched titles that get a "because you watched" row, most recent first. */
-    private ArrayList<String> becauseTitles() {
-        ArrayList<String> keys = new ArrayList<>();
+    /** The last few watched titles, most recent first, of the kind being shown. */
+    private ArrayList<TjWatchHistory.Entry> forYouSources() {
+        ArrayList<TjWatchHistory.Entry> sources = new ArrayList<>();
         for (TjWatchHistory.Entry entry : TjWatchHistory.all()) {
-            if (keys.size() >= MAX_BECAUSE_SHELVES) break;
+            if (sources.size() >= FOR_YOU_SOURCES) break;
             if (entry.series ? !wantsSeries() : !wantsMovies()) continue;
-            if (entry.name.isEmpty()) continue;
-            try {
-                if (Long.parseLong(entry.key.substring(entry.key.indexOf(':') + 1)) <= 0) continue;
-            } catch (Exception e) {
-                continue;
-            }
-            keys.add(entry.key);
+            if (entry.name.isEmpty() || titleId(entry) <= 0) continue;
+            sources.add(entry);
         }
-        return keys;
+        return sources;
     }
 
-    /** How many of the most recently watched titles get a row of their own. */
-    private static final int MAX_BECAUSE_SHELVES = 2;
-    private final java.util.HashMap<String, Shelf> becauseShelves = new java.util.HashMap<>();
+    private static long titleId(TjWatchHistory.Entry entry) {
+        try {
+            return Long.parseLong(entry.key.substring(entry.key.indexOf(':') + 1));
+        } catch (Exception e) {
+            return 0;
+        }
+    }
 
     private static final int MENU_HISTORY = 1, MENU_SETTINGS = 2, MENU_COPY_LINK = 3;
     /** How many genre rows the home screen offers before it becomes a list of lists. */
@@ -148,8 +154,6 @@ public class TjWatchActivity extends BaseFragment {
     private ActionBarMenuItem searchItem;
     private TextView status;
     private View gate;
-    private LinearLayout continueSection;
-    private LinearLayout continueRow;
     private LinearLayout genreRow;
     private LinearLayout kindRow;
     private Genre selectedGenre;
@@ -211,7 +215,6 @@ public class TjWatchActivity extends BaseFragment {
 
         content.addView(genreSection(context), LayoutHelper.createLinear(-1, -2, 0, 8, 0, 0));
 
-        content.addView(continueSection(context), LayoutHelper.createLinear(-1, -2));
 
         status = new TextView(context);
         status.setTextSize(14);
@@ -307,8 +310,6 @@ public class TjWatchActivity extends BaseFragment {
         // Coming back from a film is exactly when the shelf is wrong: it now has a new position,
         // or the film finished and should drop off it.
         refreshContinue();
-        // Something new may have been watched, and with it a new "because you watched" row.
-        if (!gridMode && !shelves.isEmpty() && !becauseTitles().equals(shownBecause)) buildShelves();
     }
 
     /**
@@ -349,6 +350,7 @@ public class TjWatchActivity extends BaseFragment {
             buildGenreChips();
             // Every row is about one half of the catalogue, so they are all asked again.
             if (trendingShelf != null) { trendingShelf.asked = false; trendingShelf.items.clear(); }
+            genreShelves.clear();
             reload();
         });
         return view;
@@ -486,72 +488,20 @@ public class TjWatchActivity extends BaseFragment {
     }
 
     /**
-     * What was left part-way through, kept deliberately small: two to a row, lying down, artwork at
-     * the side. It is a reminder, not the point of the screen - as tall cards it pushed everything
-     * worth browsing off the bottom. The rest of the list is one tap away, under the header.
+     * What was left part-way through becomes the first row of the list, drawn like the others -
+     * posters read across, with a red line for how far in - so it scrolls away with the rest
+     * instead of sitting over it.
      */
-    private View continueSection(Context context) {
-        continueSection = new LinearLayout(context);
-        continueSection.setOrientation(LinearLayout.VERTICAL);
-        continueSection.setVisibility(View.GONE);
-
-        LinearLayout head = new LinearLayout(context);
-        head.setOrientation(LinearLayout.HORIZONTAL);
-        head.setGravity(Gravity.CENTER_VERTICAL);
-
-        TextView header = new TextView(context);
-        header.setTextSize(13);
-        header.setTypeface(AndroidUtilities.getTypeface("fonts/rmedium.ttf"));
-        header.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText2));
-        header.setText(TjLocale.getString(R.string.TjWatchContinue));
-        header.setGravity(LocaleController.isRTL ? Gravity.RIGHT : Gravity.LEFT);
-        head.addView(header, LayoutHelper.createLinear(0, -2, 1f));
-
-        TextView all = new TextView(context);
-        all.setTextSize(13);
-        all.setText(TjLocale.getString(R.string.TjWatchAll));
-        all.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlueText));
-        all.setPadding(dp(8), dp(4), dp(8), dp(4));
-        all.setOnClickListener(v -> presentFragment(new TjWatchHistoryActivity()));
-        head.addView(all, LayoutHelper.createLinear(-2, -2));
-
-        continueSection.addView(head, LayoutHelper.createLinear(-1, -2, 14, 14, 14, 0));
-
-        continueRow = new LinearLayout(context);
-        continueRow.setOrientation(LinearLayout.VERTICAL);
-        continueSection.addView(continueRow, LayoutHelper.createLinear(-1, -2, 0, 6, 0, 2));
-        return continueSection;
-    }
-
     private void refreshContinue() {
-        if (continueRow == null) return;
-        ArrayList<TjWatchHistory.Entry> entries = query.trim().isEmpty() && gate == null && selectedGenre == null
-                ? TjWatchHistory.unfinished() : new ArrayList<>();
-        continueRow.removeAllViews();
-        continueSection.setVisibility(entries.isEmpty() ? View.GONE : View.VISIBLE);
-        Context context = continueRow.getContext();
-        // Two rows of two. More than that stops being a reminder and starts being the screen.
-        int shown = Math.min(entries.size(), 4);
-        for (int a = 0; a < shown; a += 2) {
-            LinearLayout row = new LinearLayout(context);
-            row.setOrientation(LinearLayout.HORIZONTAL);
-            ArrayList<View> cells = new ArrayList<>();
-            for (int b = a; b < Math.min(a + 2, shown); b++) {
-                TjWatchHistory.Entry entry = entries.get(b);
-                ResumeCell cell = new ResumeCell(context);
-                cell.bind(entry);
-                cell.setOnClickListener(v -> resume(entry));
-                cell.setOnLongClickListener(v -> { askToForget(entry); return true; });
-                cells.add(cell);
+        if (continueShelf == null) continueShelf = new Shelf(TjLocale.getString(R.string.TjWatchContinue), null);
+        ArrayList<TjWatchHistory.Entry> entries = new ArrayList<>();
+        if (query.trim().isEmpty() && gate == null && selectedGenre == null) {
+            for (TjWatchHistory.Entry entry : TjWatchHistory.unfinished()) {
+                if (entry.series ? wantsSeries() : wantsMovies()) entries.add(entry);
             }
-            if (LocaleController.isRTL) java.util.Collections.reverse(cells);
-            for (View cell : cells) row.addView(cell, LayoutHelper.createLinear(0, 56, 1f, 4, 0, 4, 0));
-            // An odd last card keeps its half of the row rather than stretching across it.
-            if (Math.min(a + 2, shown) - a == 1) {
-                row.addView(new View(context), LayoutHelper.createLinear(0, 56, 1f));
-            }
-            continueRow.addView(row, LayoutHelper.createLinear(-1, -2, 8, 0, 8, 8));
         }
+        continueShelf.resume = entries;
+        if (!gridMode && gate == null && shelfAdapter != null && TjTmdb.available(currentAccount)) buildShelves();
     }
 
     private void resume(TjWatchHistory.Entry entry) {
@@ -652,27 +602,36 @@ public class TjWatchActivity extends BaseFragment {
      */
     private void buildShelves() {
         shelves.clear();
-        // What was watched here comes first: a row of what TMDB suggests to people who liked it,
-        // for each of the last few titles - the part of "for you" a device can know on its own.
-        shownBecause = becauseTitles();
-        for (TjWatchHistory.Entry entry : TjWatchHistory.all()) {
-            if (!shownBecause.contains(entry.key)) continue;
-            long id = Long.parseLong(entry.key.substring(entry.key.indexOf(':') + 1));
-            Shelf shelf = becauseShelves.get(entry.key);
-            if (shelf == null) {
-                shelf = new Shelf(TjLocale.formatString(R.string.TjWatchBecauseYouWatched, entry.name), null);
-                shelf.becauseOf = id;
-                shelf.becauseOfSeries = entry.series;
-                becauseShelves.put(entry.key, shelf);
-            }
-            shelves.add(shelf);
+        // What was left part-way through, as a row like any other, scrolling away with the rest.
+        if (continueShelf != null && continueShelf.resume != null && !continueShelf.resume.isEmpty()) {
+            shelves.add(continueShelf);
         }
+        // Then one row for you: what TMDB suggests to people who liked the last few titles watched
+        // here, taken in turn from each - the part of "for you" a device can know on its own.
+        ArrayList<TjWatchHistory.Entry> sources = forYouSources();
+        StringBuilder key = new StringBuilder();
+        for (TjWatchHistory.Entry entry : sources) key.append(entry.key).append(',');
+        if (sources.isEmpty()) {
+            forYouShelf = null;
+            forYouKey = "";
+        } else if (forYouShelf == null || !forYouKey.equals(key.toString())) {
+            forYouShelf = new Shelf(TjLocale.getString(R.string.TjWatchForYou), null);
+            forYouShelf.forYou = sources;
+            forYouKey = key.toString();
+        }
+        if (forYouShelf != null) shelves.add(forYouShelf);
         if (trendingShelf == null) trendingShelf = new Shelf(TjLocale.getString(R.string.TjWatchTrending), null);
         shelves.add(trendingShelf);
+        int genreRows = 0;
         for (Genre genre : genres) {
             if (!fits(genre)) continue;
-            shelves.add(new Shelf(genre.name, genre));
-            if (shelves.size() > MAX_SHELVES) break;
+            Shelf shelf = genreShelves.get(genre.name);
+            if (shelf == null) {
+                shelf = new Shelf(genre.name, genre);
+                genreShelves.put(genre.name, shelf);
+            }
+            shelves.add(shelf);
+            if (++genreRows >= MAX_SHELVES) break;
         }
         if (shelfAdapter != null) shelfAdapter.notifyDataSetChanged();
         status.setVisibility(View.GONE);
@@ -682,11 +641,9 @@ public class TjWatchActivity extends BaseFragment {
     private void loadShelf(Shelf shelf) {
         if (shelf.asked) return;
         shelf.asked = true;
-        if (shelf.becauseOf != 0) {
-            shelf.pending = 1;
-            TjTmdb client = shelf.becauseOfSeries ? shelf.seriesClient : shelf.movieClient;
-            client.recommendations(currentAccount, shelf.becauseOf, shelf.becauseOfSeries,
-                    (body, error) -> shelfArrived(shelf, body, shelf.becauseOfSeries));
+        if (shelf.resume != null) return;
+        if (shelf.forYou != null) {
+            loadForYou(shelf);
             return;
         }
         boolean askSeries = wantsSeries() && (shelf.genre == null || shelf.genre.seriesId > 0);
@@ -706,19 +663,42 @@ public class TjWatchActivity extends BaseFragment {
     private void shelfArrived(Shelf shelf, JSONObject body, boolean isSeries) {
         read(body, isSeries, shelf.items, null);
         if (--shelf.pending > 0) return;
-        if (shelf.becauseOf != 0) {
-            // Nothing already watched, in the order TMDB thinks fits best.
-            java.util.HashSet<String> watched = new java.util.HashSet<>();
-            for (TjWatchHistory.Entry entry : TjWatchHistory.all()) watched.add(entry.key);
-            for (int i = shelf.items.size() - 1; i >= 0; i--) {
-                Item item = shelf.items.get(i);
-                if (watched.contains(TjWatchHistory.key(item.id, item.series))) shelf.items.remove(i);
-            }
-            if (shelfAdapter != null) shelfAdapter.notifyDataSetChanged();
-            return;
-        }
         shelf.items.sort((a, b) -> Double.compare(b.popularity, a.popularity));
         if (shelfAdapter != null) shelfAdapter.notifyDataSetChanged();
+    }
+
+    /**
+     * Asks for suggestions for each source title at once, then deals them out in turn - one from
+     * the most recent title, one from the next, and round again - so the row is about all of them,
+     * leaving out what was already watched and anything suggested twice.
+     */
+    private void loadForYou(Shelf shelf) {
+        final ArrayList<TjWatchHistory.Entry> sources = shelf.forYou;
+        final ArrayList<ArrayList<Item>> answers = new ArrayList<>();
+        for (int i = 0; i < sources.size(); i++) answers.add(new ArrayList<>());
+        final int[] pending = {sources.size()};
+        for (int i = 0; i < sources.size(); i++) {
+            final int index = i;
+            final TjWatchHistory.Entry source = sources.get(i);
+            new TjTmdb().recommendations(currentAccount, titleId(source), source.series, (body, error) -> {
+                read(body, source.series, answers.get(index), null);
+                if (--pending[0] > 0) return;
+                java.util.HashSet<String> skip = new java.util.HashSet<>();
+                for (TjWatchHistory.Entry entry : TjWatchHistory.all()) skip.add(entry.key);
+                shelf.items.clear();
+                boolean added = true;
+                for (int round = 0; added; round++) {
+                    added = false;
+                    for (ArrayList<Item> answer : answers) {
+                        if (round >= answer.size()) continue;
+                        added = true;
+                        Item item = answer.get(round);
+                        if (skip.add(TjWatchHistory.key(item.id, item.series))) shelf.items.add(item);
+                    }
+                }
+                if (shelfAdapter != null) shelfAdapter.notifyDataSetChanged();
+            });
+        }
     }
 
     /** Pulls the titles out of one answer, skipping anything already in the list it fills. */
@@ -866,6 +846,7 @@ public class TjWatchActivity extends BaseFragment {
         private final ImageView chevron;
         private final RecyclerListView row;
         private final ArrayList<Item> shown = new ArrayList<>();
+        private final ArrayList<TjWatchHistory.Entry> resumeShown = new ArrayList<>();
         private Shelf bound;
 
         ShelfCell(Context context) {
@@ -878,7 +859,9 @@ public class TjWatchActivity extends BaseFragment {
             head.setPadding(dp(14), dp(12), dp(14), dp(8));
             head.setBackground(Theme.getSelectorDrawable(false));
             head.setOnClickListener(v -> {
-                if (bound != null && bound.genre != null) selectGenre(bound.genre);
+                if (bound == null) return;
+                if (bound.genre != null) selectGenre(bound.genre);
+                else if (bound.resume != null) presentFragment(new TjWatchHistoryActivity());
             });
 
             title = new TextView(context);
@@ -907,7 +890,7 @@ public class TjWatchActivity extends BaseFragment {
             row.setHorizontalScrollBarEnabled(false);
             row.setNestedScrollingEnabled(false);
             row.setAdapter(new RecyclerListView.SelectionAdapter() {
-                @Override public int getItemCount() { return shown.size(); }
+                @Override public int getItemCount() { return resumeShown.isEmpty() ? shown.size() : resumeShown.size(); }
                 @Override public boolean isEnabled(RecyclerView.ViewHolder holder) { return true; }
                 @Override public RecyclerView.ViewHolder onCreateViewHolder(ViewGroup parent, int viewType) {
                     ArtCell cell = new ArtCell(parent.getContext());
@@ -915,11 +898,21 @@ public class TjWatchActivity extends BaseFragment {
                     return new RecyclerListView.Holder(cell);
                 }
                 @Override public void onBindViewHolder(RecyclerView.ViewHolder holder, int position) {
-                    ((ArtCell) holder.itemView).bind(shown.get(position));
+                    if (!resumeShown.isEmpty()) ((ArtCell) holder.itemView).bind(resumeShown.get(position));
+                    else ((ArtCell) holder.itemView).bind(shown.get(position));
                 }
             });
             row.setOnItemClickListener((view, position) -> {
-                if (position >= 0 && position < shown.size()) open(shown.get(position));
+                if (!resumeShown.isEmpty()) {
+                    if (position >= 0 && position < resumeShown.size()) resume(resumeShown.get(position));
+                } else if (position >= 0 && position < shown.size()) {
+                    open(shown.get(position));
+                }
+            });
+            row.setOnItemLongClickListener((view, position) -> {
+                if (resumeShown.isEmpty() || position < 0 || position >= resumeShown.size()) return false;
+                askToForget(resumeShown.get(position));
+                return true;
             });
             addView(row, LayoutHelper.createLinear(-1, -2, 0, 0, 0, 6));
         }
@@ -927,13 +920,15 @@ public class TjWatchActivity extends BaseFragment {
         void bind(Shelf shelf) {
             bound = shelf;
             title.setText(shelf.title);
-            chevron.setVisibility(shelf.genre == null ? GONE : VISIBLE);
+            chevron.setVisibility(shelf.genre == null && shelf.resume == null ? GONE : VISIBLE);
             shown.clear();
             shown.addAll(shelf.items);
+            resumeShown.clear();
+            if (shelf.resume != null) resumeShown.addAll(shelf.resume);
             row.getAdapter().notifyDataSetChanged();
             row.scrollToPosition(0);
             // An empty row is still on its way; leaving the header alone keeps the screen still.
-            row.setVisibility(shown.isEmpty() ? GONE : VISIBLE);
+            row.setVisibility(shown.isEmpty() && resumeShown.isEmpty() ? GONE : VISIBLE);
         }
     }
 
@@ -941,6 +936,7 @@ public class TjWatchActivity extends BaseFragment {
     static class ArtCell extends FrameLayout {
         private final BackupImageView image;
         private final TextView rating;
+        private final WatchedLine watched;
 
         ArtCell(Context context) {
             super(context);
@@ -957,6 +953,9 @@ public class TjWatchActivity extends BaseFragment {
             rating.setPadding(dp(5), dp(1), dp(5), dp(2));
             rating.setBackground(Theme.createRoundRectDrawable(dp(5), 0xcc000000));
             art.addView(rating, LayoutHelper.createFrame(-2, -2, Gravity.BOTTOM | Gravity.RIGHT, 5, 5, 5, 5));
+            watched = new WatchedLine(context);
+            watched.setVisibility(GONE);
+            art.addView(watched, LayoutHelper.createFrame(-1, 4, Gravity.BOTTOM));
             addView(art, LayoutHelper.createFrame(96, 144));
             ScaleStateListAnimator.apply(this, 0.04f, 1.2f);
         }
@@ -970,7 +969,55 @@ public class TjWatchActivity extends BaseFragment {
             } else {
                 rating.setVisibility(GONE);
             }
+            watched.setVisibility(GONE);
             setContentDescription(item.name);
+        }
+
+        /** Something left part-way: the poster, which episode, and the red line for how far in. */
+        void bind(TjWatchHistory.Entry entry) {
+            String poster = TjTmdb.posterUrl(entry.poster);
+            image.setImage(poster.isEmpty() ? null : poster, "320_480", (android.graphics.drawable.Drawable) null);
+            if (entry.season >= 0 || entry.episode >= 0) {
+                StringBuilder text = new StringBuilder();
+                if (entry.season > 0) text.append(TjLocale.getString(R.string.TjMediaSeason)).append(' ').append(entry.season);
+                if (entry.episode >= 0) {
+                    if (text.length() > 0) text.append(" · ");
+                    text.append(TjLocale.getString(R.string.TjMediaEpisode)).append(' ').append(entry.episode);
+                }
+                rating.setVisibility(VISIBLE);
+                rating.setText(text);
+            } else {
+                rating.setVisibility(GONE);
+            }
+            watched.setProgress(entry.progress());
+            watched.setVisibility(VISIBLE);
+            setContentDescription(entry.name);
+        }
+    }
+
+    /** A grey track along the bottom of a poster with the watched part in red. */
+    static class WatchedLine extends View {
+        private float progress;
+        private final android.graphics.Paint track = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+        private final android.graphics.Paint red = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+
+        WatchedLine(Context context) {
+            super(context);
+            track.setColor(0x99808080);
+            red.setColor(0xFFE50914);
+        }
+
+        void setProgress(float value) {
+            progress = Math.max(0f, Math.min(1f, value));
+            invalidate();
+        }
+
+        @Override
+        protected void onDraw(android.graphics.Canvas canvas) {
+            float w = getWidth(), h = getHeight();
+            canvas.drawRect(0, 0, w, h, track);
+            if (LocaleController.isRTL) canvas.drawRect(w - w * progress, 0, w, h, red);
+            else canvas.drawRect(0, 0, w * progress, h, red);
         }
     }
 
@@ -986,93 +1033,6 @@ public class TjWatchActivity extends BaseFragment {
 
         @Override public void onBindViewHolder(RecyclerView.ViewHolder holder, int position) {
             ((PosterCell) holder.itemView).bind(items.get(position));
-        }
-    }
-
-    /**
-     * One thing left part-way through, on its side: a small piece of the artwork, the name, which
-     * episode, and a hairline across the bottom for how far in it got.
-     */
-    static class ResumeCell extends FrameLayout {
-        private final BackupImageView image;
-        private final TextView name, where;
-        private final View track, bar;
-
-        ResumeCell(Context context) {
-            super(context);
-            setBackground(Theme.createSimpleSelectorRoundRectDrawable(dp(10),
-                    Theme.getColor(Theme.key_windowBackgroundWhite),
-                    Theme.getColor(Theme.key_listSelector)));
-            setClipToOutline(true);
-
-            image = new BackupImageView(context);
-            addView(image, LayoutHelper.createFrame(38, 56,
-                    LocaleController.isRTL ? Gravity.RIGHT : Gravity.LEFT));
-
-            // No play glyph here: over a thumbnail this small it covers the picture it is on.
-            LinearLayout texts = new LinearLayout(context);
-            texts.setOrientation(LinearLayout.VERTICAL);
-            texts.setGravity(Gravity.CENTER_VERTICAL);
-            name = new TextView(context);
-            name.setTextSize(12);
-            name.setSingleLine(true);
-            name.setEllipsize(android.text.TextUtils.TruncateAt.END);
-            name.setTypeface(AndroidUtilities.getTypeface("fonts/rmedium.ttf"));
-            name.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText));
-            name.setGravity(LocaleController.isRTL ? Gravity.RIGHT : Gravity.LEFT);
-            texts.addView(name, LayoutHelper.createLinear(-1, -2));
-            where = new TextView(context);
-            where.setTextSize(10);
-            where.setSingleLine(true);
-            where.setEllipsize(android.text.TextUtils.TruncateAt.END);
-            where.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText2));
-            where.setGravity(LocaleController.isRTL ? Gravity.RIGHT : Gravity.LEFT);
-            texts.addView(where, LayoutHelper.createLinear(-1, -2, 0, 2, 0, 0));
-            addView(texts, LayoutHelper.createFrame(-1, -2, Gravity.CENTER_VERTICAL,
-                    LocaleController.isRTL ? 8 : 48, 0, LocaleController.isRTL ? 48 : 8, 0));
-
-            track = new View(context);
-            track.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundGray));
-            addView(track, LayoutHelper.createFrame(-1, 2, Gravity.BOTTOM,
-                    LocaleController.isRTL ? 0 : 38, 0, LocaleController.isRTL ? 38 : 0, 0));
-            bar = new View(context);
-            bar.setBackgroundColor(Theme.getColor(Theme.key_featuredStickers_addButton));
-            addView(bar, LayoutHelper.createFrame(0, 2, Gravity.BOTTOM
-                    | (LocaleController.isRTL ? Gravity.RIGHT : Gravity.LEFT),
-                    LocaleController.isRTL ? 0 : 38, 0, LocaleController.isRTL ? 38 : 0, 0));
-
-            ScaleStateListAnimator.apply(this, 0.02f, 1.2f);
-        }
-
-        void bind(TjWatchHistory.Entry entry) {
-            String poster = TjTmdb.posterUrl(entry.poster);
-            image.setImage(poster.isEmpty() ? null : poster, "90_135", (android.graphics.drawable.Drawable) null);
-            name.setText(entry.name);
-            if (entry.season >= 0 || entry.episode >= 0) {
-                StringBuilder text = new StringBuilder();
-                if (entry.season >= 0) text.append(TjLocale.getString(R.string.TjMediaSeason)).append(' ').append(entry.season);
-                if (entry.episode >= 0) {
-                    if (text.length() > 0) text.append(" · ");
-                    text.append(TjLocale.getString(R.string.TjMediaEpisode)).append(' ').append(entry.episode);
-                }
-                where.setVisibility(VISIBLE);
-                where.setText(text);
-            } else if (entry.year > 0) {
-                where.setVisibility(VISIBLE);
-                where.setText(String.valueOf(entry.year));
-            } else {
-                where.setVisibility(GONE);
-            }
-            final float progress = entry.progress();
-            track.setVisibility(progress > 0 ? VISIBLE : GONE);
-            bar.setVisibility(progress > 0 ? VISIBLE : GONE);
-            // The card has no width until it is measured, so the bar is sized against it then.
-            post(() -> {
-                ViewGroup.LayoutParams params = bar.getLayoutParams();
-                params.width = (int) Math.max(0, (getMeasuredWidth() - dp(38)) * progress);
-                bar.setLayoutParams(params);
-            });
-            setContentDescription(entry.name);
         }
     }
 

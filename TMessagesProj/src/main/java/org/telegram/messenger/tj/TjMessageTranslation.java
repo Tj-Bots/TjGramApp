@@ -137,9 +137,42 @@ public final class TjMessageTranslation {
             detected(key, UNDETECTABLE, onDetected);
             return;
         }
-        LanguageDetector.detectLanguage(text,
-                language -> detected(key, language, onDetected),
-                error -> detected(key, UNDETECTABLE, onDetected));
+        com.google.mlkit.nl.languageid.LanguageIdentifier client = identifier();
+        if (client == null) {
+            detected(key, UNDETECTABLE, onDetected);
+            return;
+        }
+        try {
+            client.identifyLanguage(text)
+                    .addOnSuccessListener(language -> detected(key, language, onDetected))
+                    .addOnFailureListener(error -> detected(key, UNDETECTABLE, onDetected));
+        } catch (Throwable error) {
+            detected(key, UNDETECTABLE, onDetected);
+        }
+    }
+
+    private static com.google.mlkit.nl.languageid.LanguageIdentifier identifier;
+
+    /**
+     * One detector for every message. Asking for a new client per message - what the general
+     * helper does - leaves one open per bubble scrolled past, and a chat full of foreign text is
+     * a lot of them.
+     */
+    private static synchronized com.google.mlkit.nl.languageid.LanguageIdentifier identifier() {
+        if (identifier != null) return identifier;
+        try {
+            identifier = com.google.mlkit.nl.languageid.LanguageIdentification.getClient();
+        } catch (IllegalStateException notStarted) {
+            try {
+                com.google.mlkit.common.sdkinternal.MlKitContext.zza(org.telegram.messenger.ApplicationLoader.applicationContext);
+                identifier = com.google.mlkit.nl.languageid.LanguageIdentification.getClient();
+            } catch (Throwable error) {
+                org.telegram.messenger.FileLog.e(error, false);
+            }
+        } catch (Throwable error) {
+            org.telegram.messenger.FileLog.e(error, false);
+        }
+        return identifier;
     }
 
     private static void detected(String key, String language, Runnable onDetected) {

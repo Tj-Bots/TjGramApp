@@ -1117,10 +1117,17 @@ public class DeleteMessagesBottomSheet extends BottomSheetWithRecyclerListView {
                 });
             }
         } else {
+            // TJ: an admin deleting here is deleting by hand, like anywhere else - not a deletion
+            // someone else made, which is the only kind TjGram keeps. Without this the message came
+            // back as "deleted" and stayed in the group.
             if (!supergroupMessageIds.isEmpty()) {
+                org.telegram.messenger.tj.TjDeletionPolicy.markLocalRemoval(currentAccount, -inChat.id, supergroupMessageIds);
+                org.telegram.messenger.tj.TjMessageArchive.getInstance().deleteSnapshots(currentAccount, -inChat.id, supergroupMessageIds);
                 MessagesController.getInstance(currentAccount).deleteMessages(supergroupMessageIds, null, null, -inChat.id, topicId, false, mode);
             }
             if (!groupMessageIds.isEmpty()) {
+                org.telegram.messenger.tj.TjDeletionPolicy.markLocalRemoval(currentAccount, mergeDialogId, groupMessageIds);
+                org.telegram.messenger.tj.TjMessageArchive.getInstance().deleteSnapshots(currentAccount, mergeDialogId, groupMessageIds);
                 MessagesController.getInstance(currentAccount).deleteMessages(groupMessageIds, null, null, mergeDialogId, topicId, true, mode);
             }
         }

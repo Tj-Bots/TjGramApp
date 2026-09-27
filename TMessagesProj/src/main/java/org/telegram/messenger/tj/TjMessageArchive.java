@@ -104,6 +104,12 @@ public final class TjMessageArchive extends SQLiteOpenHelper {
 
     private TjMessageArchive(Context context) {
         super(context, DATABASE_NAME, null, DATABASE_VERSION);
+        // Opening a chat reads the deleted messages on the main thread. Without write-ahead logging
+        // the database has a single connection, so that read waited for whatever the archive thread
+        // was doing - saving a batch, or measuring the quota over every snapshot - and a chat could
+        // hang long enough for the system to offer to close the app. With it, readers never wait
+        // for a writer.
+        setWriteAheadLoggingEnabled(true);
         queue.postRunnable(this::loadRevisionIndex);
     }
 

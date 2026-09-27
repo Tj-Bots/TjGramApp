@@ -5776,9 +5776,14 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                 if (MediaController.getInstance().isPlayingMessage(currentMessageObject)) {
                     currentProgress = currentMessageObject.audioProgressSec;
                 }
-                if (lastTime != currentProgress) {
+                String sizeText = tjMusicSizeText();
+                if (lastTime != currentProgress || !TextUtils.equals(sizeText, tjLastMusicSize)) {
                     lastTime = currentProgress;
+                    tjLastMusicSize = sizeText;
                     String timeString = AndroidUtilities.formatShortDuration(currentProgress, (int) duration);
+                    if (!sizeText.isEmpty()) {
+                        timeString += "  " + sizeText;
+                    }
                     int timeWidth = (int) Math.ceil(Theme.chat_audioTimePaint.measureText(timeString));
                     durationLayout = new StaticLayout(timeString, Theme.chat_audioTimePaint, timeWidth, Layout.Alignment.ALIGN_NORMAL, 1.0f, 0.0f, false);
                 }
@@ -5787,6 +5792,25 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                 invalidate();
             }
         }
+    }
+
+    private String tjLastMusicSize;
+
+    /**
+     * TJ: how big a music file is, next to its time - and while it downloads, how much of it has
+     * arrived so far.
+     */
+    private String tjMusicSizeText() {
+        if (documentAttach == null || documentAttach.size <= 0 || currentMessageObject == null) {
+            return "";
+        }
+        long total = documentAttach.size;
+        long loaded = currentMessageObject.loadedFileSize;
+        boolean present = currentMessageObject.mediaExists || currentMessageObject.attachPathExists;
+        if (!present && loaded > 0 && loaded < total) {
+            return AndroidUtilities.formatFileSize(loaded) + " / " + AndroidUtilities.formatFileSize(total);
+        }
+        return AndroidUtilities.formatFileSize(total);
     }
 
     private long overridenDuration = -1;
@@ -18292,6 +18316,9 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                 if (buttonState != 4) {
                     updateButtonState(false, false, false);
                 }
+            }
+            if (documentAttachType == DOCUMENT_ATTACH_TYPE_MUSIC) {
+                updatePlayingMessageProgress();
             }
         } else {
             if (hasMiniProgress != 0) {
