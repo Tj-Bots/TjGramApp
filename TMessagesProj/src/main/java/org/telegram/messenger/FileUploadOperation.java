@@ -328,6 +328,11 @@ public class FileUploadOperation {
                 if (!slowNetwork && org.telegram.messenger.tj.TjConfig.fastDownload()) {
                     // Four times as much of the file in the air at once, over twice the sockets.
                     uploadingKBytes *= 4;
+                    // In pieces of the largest size Telegram takes. The connection layer lets no
+                    // more than thirty upload requests run at once, so at the 128 KB a file of a
+                    // few hundred megabytes gets, that was under 4 MB in flight whatever the line
+                    // could carry; at 512 KB it is four times that, and a quarter of the requests.
+                    uploadChunkSize = 512;
                 }
                 maxRequestsCount = Math.max(1, uploadingKBytes / uploadChunkSize);
 

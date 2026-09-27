@@ -26690,6 +26690,7 @@ public class ChatActivity extends BaseFragment implements
                 closeMenu();
             }
             if (obj != null && chatMode == MODE_DEFAULT && TjConfig.saveDeletedMessages()
+                    && obj.getId() > 0 && !obj.isSending() && !obj.isSendError()
                     && !TjDeletionPolicy.isLocalRemoval(currentAccount, obj.getDialogId(), mid)) {
                 TjMessageArchive.getInstance().saveDeleted(currentAccount, obj.messageOwner);
                 obj.messageOwner.tjDeleted = true;

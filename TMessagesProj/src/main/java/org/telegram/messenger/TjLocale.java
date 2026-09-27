@@ -418,6 +418,8 @@ public class TjLocale {
         m.put("TjWatchForYou", "מומלץ בשבילך");
         m.put("TjDeleteKeptTitle", "למחוק מהמכשיר?");
         m.put("TjDeleteKeptText", "זה כבר נמחק בטלגרם ונשמר רק במכשיר הזה. עכשיו זה יימחק גם ממנו.");
+        m.put("TjDeletedAt", "נמחקה");
+        m.put("TjDeletedAtUnknown", "נמחקה (הזמן לא נשמר)");
         m.put("TjChatGhostResetTitle", "לאפס את הגדרות מצב הרפאים בצ׳אט הזה?");
         m.put("TjChatGhostResetText", "המצב הנקודתי והבחירות עבור אישורי קריאה והקלדה יוסרו.");
         m.put("TjChatGhostInherited", "פועל לפי הגדרות מצב הרפאים הכלליות");

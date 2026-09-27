@@ -476,6 +476,25 @@ public final class TjMessageArchive extends SQLiteOpenHelper {
         });
     }
 
+    /** When this message was seen being deleted, in milliseconds, or 0 when it is not kept here. */
+    public void getDeletedAt(int accountId, long dialogId, int messageId, Callback<Long> callback) {
+        final long ownerUserId = UserConfig.getInstance(accountId).getClientUserId();
+        queue.postRunnable(() -> {
+            long at = 0;
+            try (Cursor cursor = getReadableDatabase().query("snapshots", new String[]{"captured_at"},
+                    "owner_user_id=? AND account_id=? AND dialog_id=? AND message_id=? AND kind=?",
+                    new String[]{String.valueOf(ownerUserId), String.valueOf(accountId), String.valueOf(dialogId),
+                            String.valueOf(messageId), String.valueOf(KIND_DELETED)},
+                    null, null, "captured_at DESC", "1")) {
+                if (cursor.moveToFirst()) at = cursor.getLong(0);
+            } catch (Throwable error) {
+                FileLog.e("Tj deleted time lookup failed", error);
+            }
+            final long result = at;
+            AndroidUtilities.runOnUIThread(() -> callback.onResult(result));
+        });
+    }
+
     public boolean hasRevisionsSync(int accountId, long dialogId, int messageId) {
         long ownerUserId = UserConfig.getInstance(accountId).getClientUserId();
         return ownerUserId != 0 && revisionIndex.contains(revisionKey(ownerUserId, accountId, dialogId, messageId));
@@ -989,6 +1008,11 @@ public final class TjMessageArchive extends SQLiteOpenHelper {
 
     private static boolean shouldArchive(int accountId, TLRPC.Message message) {
         if (message == null) {
+            return false;
+        }
+        // A message that never reached Telegram - still sending, failed, or cancelled - was never
+        // anyone's to delete; there is nothing to keep.
+        if (message.id <= 0 || message.send_state != 0) {
             return false;
         }
         if (TjConfig.saveBotMessages()) {

@@ -1702,6 +1702,9 @@ public class SendMessagesHelper extends BaseController implements NotificationCe
             } else if (scheduled) {
                 mode = ChatActivity.MODE_SCHEDULED;
             }
+            // TJ: cancelling a send is the user taking back their own message, not a deletion
+            // to keep - otherwise it stayed in the chat, marked deleted, still spinning.
+            org.telegram.messenger.tj.TjDeletionPolicy.markLocalRemoval(currentAccount, dialogId, messageIds);
             getMessagesController().deleteMessages(messageIds, null, null, dialogId, topicId, false, mode);
         }
     }

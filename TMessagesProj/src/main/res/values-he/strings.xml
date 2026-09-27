@@ -245,6 +245,8 @@
     <string name="TjWatchForYou">מומלץ בשבילך</string>
     <string name="TjDeleteKeptTitle">למחוק מהמכשיר?</string>
     <string name="TjDeleteKeptText">זה כבר נמחק בטלגרם ונשמר רק במכשיר הזה. עכשיו זה יימחק גם ממנו.</string>
+    <string name="TjDeletedAt">נמחקה</string>
+    <string name="TjDeletedAtUnknown">נמחקה (הזמן לא נשמר)</string>
     <string name="TjChatGhostResetText">המצב הנקודתי והבחירות עבור אישורי קריאה והקלדה יוסרו.</string>
     <string name="TjChatGhostInherited">פועל לפי הגדרות מצב הרפאים הכלליות</string>
     <string name="TjDeletedMarkerTrash">פח</string>

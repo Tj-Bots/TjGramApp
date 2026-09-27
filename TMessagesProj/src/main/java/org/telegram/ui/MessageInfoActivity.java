@@ -146,6 +146,21 @@ public class MessageInfoActivity extends BaseFragment {
             addRow(container, "Edited", editedAt, editedAt);
         }
         final int editedRowIndex = container.getChildCount();
+        if (msg.tjDeleted) {
+            // When it went: the moment this device saw it deleted, from the archive it is kept in.
+            TjMessageArchive.getInstance().getDeletedAt(getCurrentAccount(), messageObject.getDialogId(),
+                    messageObject.getId(), deletedAt -> {
+                        if (fragmentView == null || getContext() == null) return;
+                        final String text = deletedAt > 0 ? formatExactTime(deletedAt) : TjLocale.getString(R.string.TjDeletedAtUnknown);
+                        final int before = container.getChildCount();
+                        addRow(container, TjLocale.getString(R.string.TjDeletedAt), text, deletedAt > 0 ? text : null);
+                        for (int i = before; i < container.getChildCount(); i++) {
+                            View added = container.getChildAt(i);
+                            container.removeViewAt(i);
+                            container.addView(added, Math.min(editedRowIndex + (i - before), container.getChildCount()));
+                        }
+                    });
+        }
         if (msg.views != 0) {
             addRow(container, "Views", String.valueOf(msg.views), String.valueOf(msg.views));
         }
