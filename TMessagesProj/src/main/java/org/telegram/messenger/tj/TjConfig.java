@@ -263,6 +263,16 @@ public final class TjConfig {
     public static boolean syncEnabled() { return get("tj_sync_enabled", false); }
     public static boolean syncSecure() { return get("tj_sync_secure", true); }
     public static boolean localPremium() { return get("local_premium", false); }
+
+    /**
+     * Premium as Telegram's servers see it - not Local Premium, which only lives on this device.
+     * Transfer speed is decided on the server, so only a real subscription earns the larger
+     * transfer settings; asking for them without one only collects "wait" answers.
+     */
+    public static boolean serverPremium(int account) {
+        org.telegram.tgnet.TLRPC.User user = org.telegram.messenger.UserConfig.getInstance(account).getCurrentUser();
+        return user != null && user.premium;
+    }
     public static boolean hideSponsoredMessages() { return get("hide_sponsored_messages", true); }
     public static boolean crashReportsEnabled() { return get("crash_reports_enabled", false); }
     /** Plays video files straight from the network instead of waiting for the whole download. */

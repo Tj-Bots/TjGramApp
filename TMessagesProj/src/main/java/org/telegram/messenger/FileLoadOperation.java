@@ -310,6 +310,14 @@ public class FileLoadOperation {
             maxDownloadRequestsBig = 4;
         }
         downloadConnections = fast ? 4 : 2;
+        if (fast && org.telegram.messenger.tj.TjConfig.serverPremium(currentAccount)) {
+            // A real Premium account is not slowed down by the server, so it can take what the
+            // parallel downloaders take: pieces of 1 MB, the largest Telegram serves, with 24 of
+            // them on their way at once - 24 MB in the air instead of 8.
+            downloadChunkSizeBig = 1024 * 1024;
+            maxDownloadRequests = 24;
+            maxDownloadRequestsBig = 24;
+        }
         maxCdnParts = (int) (FileLoader.DEFAULT_MAX_FILE_SIZE / downloadChunkSizeBig);
     }
 

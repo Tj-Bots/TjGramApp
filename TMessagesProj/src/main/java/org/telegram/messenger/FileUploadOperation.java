@@ -333,6 +333,11 @@ public class FileUploadOperation {
                     // few hundred megabytes gets, that was under 4 MB in flight whatever the line
                     // could carry; at 512 KB it is four times that, and a quarter of the requests.
                     uploadChunkSize = 512;
+                    if (org.telegram.messenger.tj.TjConfig.serverPremium(currentAccount)) {
+                        // Real Premium is not slowed down by the server: as many pieces in the
+                        // air as the connection layer runs at once (thirty).
+                        uploadingKBytes = 512 * 30;
+                    }
                 }
                 maxRequestsCount = Math.max(1, uploadingKBytes / uploadChunkSize);
 
