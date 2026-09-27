@@ -423,8 +423,15 @@ public class TjLocale {
         m.put("TjWatchStream", "זרם רשת");
         m.put("TjWatchStreamHint", "הדבק קישור לסרטון");
         m.put("TjWatchStreamPlay", "הפעל");
-        m.put("TjWatchStreamRecent", "אחרונים");
         m.put("TjWatchStreamInvalid", "זה לא נראה כמו קישור לסרטון");
+        m.put("TjWatchStreamHistory", "היסטוריה");
+        m.put("TjWatchStreamEmpty", "קישורים שתפתח כאן יופיעו כאן, לפתיחה חוזרת בלחיצה.");
+        m.put("TjWatchStreamClear", "נקה היסטוריה");
+        m.put("TjWatchStreamClearText", "כל הקישורים שנפתחו כאן, והמקום שבו כל אחד נעצר, יימחקו מהמכשיר.");
+        m.put("TjWatchStreamPaste", "הדבק קישור מהלוח");
+        m.put("TjWatchStreamRemove", "הסר מההיסטוריה");
+        m.put("TjWatchStreamEdit", "ערוך קישור");
+        m.put("TjWatchStreamWatched", "נצפה עד הסוף");
         m.put("TjChatGhostResetTitle", "לאפס את הגדרות מצב הרפאים בצ׳אט הזה?");
         m.put("TjChatGhostResetText", "המצב הנקודתי והבחירות עבור אישורי קריאה והקלדה יוסרו.");
         m.put("TjChatGhostInherited", "פועל לפי הגדרות מצב הרפאים הכלליות");

@@ -173,7 +173,7 @@ public class TjWatchActivity extends BaseFragment {
             @Override public void onItemClick(int id) {
                 if (id == -1) finishFragment();
                 else if (id == MENU_HISTORY) presentFragment(new TjWatchHistoryActivity());
-                else if (id == MENU_STREAM) showStreamDialog();
+                else if (id == MENU_STREAM) presentFragment(new TjWatchStreamActivity());
                 else if (id == MENU_SETTINGS) presentFragment(new TjWatchSettingsActivity());
                 else if (id == MENU_COPY_LINK) {
                     org.telegram.messenger.AndroidUtilities.addToClipboard(
@@ -251,113 +251,6 @@ public class TjWatchActivity extends BaseFragment {
         }
         refreshContinue();
         return fragmentView;
-    }
-
-    /**
-     * A network stream, as players like VLC have it: paste a link and it plays in the Watch
-     * player, audio and subtitle tracks inside the file included. What is on the clipboard is
-     * offered already, and the last few links are one tap away.
-     */
-    private void showStreamDialog() {
-        final Context context = getParentActivity();
-        if (context == null) return;
-        final EditTextBoldCursor field = new EditTextBoldCursor(context);
-        field.setTextSize(android.util.TypedValue.COMPLEX_UNIT_DIP, 16);
-        field.setTextColor(Theme.getColor(Theme.key_dialogTextBlack));
-        field.setHintTextColor(Theme.getColor(Theme.key_dialogTextHint));
-        field.setHint(TjLocale.getString(R.string.TjWatchStreamHint));
-        field.setBackgroundDrawable(Theme.createEditTextDrawable(context, true));
-        field.setCursorColor(Theme.getColor(Theme.key_dialogTextBlack));
-        field.setCursorSize(dp(20));
-        field.setCursorWidth(1.5f);
-        field.setSingleLine(true);
-        field.setInputType(android.text.InputType.TYPE_CLASS_TEXT | android.text.InputType.TYPE_TEXT_VARIATION_URI);
-        field.setImeOptions(android.view.inputmethod.EditorInfo.IME_ACTION_GO);
-        field.setGravity(Gravity.LEFT | Gravity.CENTER_VERTICAL);
-        try {
-            android.content.ClipboardManager clipboard = (android.content.ClipboardManager) context.getSystemService(Context.CLIPBOARD_SERVICE);
-            if (clipboard != null && clipboard.hasPrimaryClip() && clipboard.getPrimaryClip().getItemCount() > 0) {
-                CharSequence clip = clipboard.getPrimaryClip().getItemAt(0).coerceToText(context);
-                if (clip != null && org.telegram.messenger.tj.TjWatchStreams.parse(clip.toString()) != null) {
-                    field.setText(clip.toString().trim());
-                    field.setSelection(field.length());
-                }
-            }
-        } catch (Exception ignore) {
-        }
-
-        LinearLayout column = new LinearLayout(context);
-        column.setOrientation(LinearLayout.VERTICAL);
-        column.addView(field, LayoutHelper.createLinear(-1, -2, 24, 6, 24, 0));
-
-        final AlertDialog[] dialog = new AlertDialog[1];
-        ArrayList<org.telegram.messenger.tj.TjWatchStreams.Stream> recent = org.telegram.messenger.tj.TjWatchStreams.recent();
-        if (!recent.isEmpty()) {
-            TextView header = new TextView(context);
-            header.setText(TjLocale.getString(R.string.TjWatchStreamRecent));
-            header.setTextSize(13);
-            header.setTypeface(AndroidUtilities.getTypeface("fonts/rmedium.ttf"));
-            header.setTextColor(Theme.getColor(Theme.key_dialogTextBlue2));
-            header.setGravity(LocaleController.isRTL ? Gravity.RIGHT : Gravity.LEFT);
-            column.addView(header, LayoutHelper.createLinear(-1, -2, 24, 16, 24, 4));
-            for (org.telegram.messenger.tj.TjWatchStreams.Stream stream : recent) {
-                LinearLayout row = new LinearLayout(context);
-                row.setOrientation(LinearLayout.VERTICAL);
-                row.setPadding(dp(24), dp(8), dp(24), dp(8));
-                row.setBackground(Theme.getSelectorDrawable(false));
-                TextView name = new TextView(context);
-                name.setText(stream.title.isEmpty() ? stream.url : stream.title);
-                name.setTextSize(15);
-                name.setSingleLine(true);
-                name.setEllipsize(android.text.TextUtils.TruncateAt.END);
-                name.setTextColor(Theme.getColor(Theme.key_dialogTextBlack));
-                name.setGravity(LocaleController.isRTL ? Gravity.RIGHT : Gravity.LEFT);
-                row.addView(name);
-                TextView address = new TextView(context);
-                address.setText(stream.url);
-                address.setTextSize(12);
-                address.setSingleLine(true);
-                address.setEllipsize(android.text.TextUtils.TruncateAt.MIDDLE);
-                address.setTextColor(Theme.getColor(Theme.key_dialogTextGray3));
-                address.setGravity(Gravity.LEFT);
-                row.addView(address);
-                row.setOnClickListener(v -> {
-                    if (dialog[0] != null) dialog[0].dismiss();
-                    playStream(stream.url);
-                });
-                column.addView(row, LayoutHelper.createLinear(-1, -2));
-            }
-        }
-        android.widget.ScrollView scroll = new android.widget.ScrollView(context);
-        scroll.addView(column);
-
-        AlertDialog.Builder builder = new AlertDialog.Builder(context);
-        builder.setTitle(TjLocale.getString(R.string.TjWatchStream));
-        builder.setView(scroll);
-        builder.setPositiveButton(TjLocale.getString(R.string.TjWatchStreamPlay), (d, which) -> playStream(field.getText().toString()));
-        builder.setNegativeButton(LocaleController.getString(R.string.Cancel), null);
-        dialog[0] = builder.create();
-        field.setOnEditorActionListener((v, actionId, event) -> {
-            if (actionId == android.view.inputmethod.EditorInfo.IME_ACTION_GO) {
-                dialog[0].dismiss();
-                playStream(field.getText().toString());
-                return true;
-            }
-            return false;
-        });
-        showDialog(dialog[0]);
-        field.requestFocus();
-        AndroidUtilities.runOnUIThread(() -> AndroidUtilities.showKeyboard(field), 80);
-    }
-
-    private void playStream(String text) {
-        android.net.Uri uri = org.telegram.messenger.tj.TjWatchStreams.parse(text);
-        if (uri == null) {
-            org.telegram.ui.Components.BulletinFactory.of(this)
-                    .createErrorBulletin(TjLocale.getString(R.string.TjWatchStreamInvalid)).show();
-            return;
-        }
-        TjWatchPlayerActivity.openStream(this, uri);
     }
 
     private void open(Item item) {

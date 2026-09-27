@@ -11474,8 +11474,15 @@
     <string name="TjWatchStream">Network stream</string>
     <string name="TjWatchStreamHint">Paste a video link</string>
     <string name="TjWatchStreamPlay">Play</string>
-    <string name="TjWatchStreamRecent">Recent</string>
     <string name="TjWatchStreamInvalid">That doesn\'t look like a video link</string>
+    <string name="TjWatchStreamHistory">History</string>
+    <string name="TjWatchStreamEmpty">Links you open here will show up here, to open again with one tap.</string>
+    <string name="TjWatchStreamClear">Clear history</string>
+    <string name="TjWatchStreamClearText">Every link opened here, and where each one stopped, will be removed from this device.</string>
+    <string name="TjWatchStreamPaste">Paste link from clipboard</string>
+    <string name="TjWatchStreamRemove">Remove from history</string>
+    <string name="TjWatchStreamEdit">Edit link</string>
+    <string name="TjWatchStreamWatched">Watched to the end</string>
     <string name="TjChatGhostResetText">The chat-specific mode, read receipt and typing choices will be removed.</string>
     <string name="TjChatGhostInherited">Following global Ghost settings</string>
     <string name="TjDeletedMarkerTrash">Trash</string>

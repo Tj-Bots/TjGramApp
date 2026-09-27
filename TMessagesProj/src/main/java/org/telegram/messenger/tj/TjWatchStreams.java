@@ -25,7 +25,7 @@ public final class TjWatchStreams {
 
     private static final String PREFS = "tjwatchstreams";
     private static final String KEY = "recent";
-    private static final int LIMIT = 10;
+    private static final int LIMIT = 50;
     private static final float FINISHED = 0.97f;
 
     private TjWatchStreams() { }
@@ -123,6 +123,14 @@ public final class TjWatchStreams {
             return stream.position;
         }
         return 0;
+    }
+
+    public static synchronized void remove(String url) {
+        ArrayList<Stream> streams = recent();
+        for (int i = streams.size() - 1; i >= 0; i--) {
+            if (streams.get(i).url.equals(url)) streams.remove(i);
+        }
+        save(streams);
     }
 
     public static synchronized void clear() {

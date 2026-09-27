@@ -250,8 +250,15 @@
     <string name="TjWatchStream">זרם רשת</string>
     <string name="TjWatchStreamHint">הדבק קישור לסרטון</string>
     <string name="TjWatchStreamPlay">הפעל</string>
-    <string name="TjWatchStreamRecent">אחרונים</string>
     <string name="TjWatchStreamInvalid">זה לא נראה כמו קישור לסרטון</string>
+    <string name="TjWatchStreamHistory">היסטוריה</string>
+    <string name="TjWatchStreamEmpty">קישורים שתפתח כאן יופיעו כאן, לפתיחה חוזרת בלחיצה.</string>
+    <string name="TjWatchStreamClear">נקה היסטוריה</string>
+    <string name="TjWatchStreamClearText">כל הקישורים שנפתחו כאן, והמקום שבו כל אחד נעצר, יימחקו מהמכשיר.</string>
+    <string name="TjWatchStreamPaste">הדבק קישור מהלוח</string>
+    <string name="TjWatchStreamRemove">הסר מההיסטוריה</string>
+    <string name="TjWatchStreamEdit">ערוך קישור</string>
+    <string name="TjWatchStreamWatched">נצפה עד הסוף</string>
     <string name="TjChatGhostResetText">המצב הנקודתי והבחירות עבור אישורי קריאה והקלדה יוסרו.</string>
     <string name="TjChatGhostInherited">פועל לפי הגדרות מצב הרפאים הכלליות</string>
     <string name="TjDeletedMarkerTrash">פח</string>
