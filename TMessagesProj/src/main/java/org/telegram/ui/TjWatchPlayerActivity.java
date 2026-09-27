@@ -178,6 +178,19 @@ public class TjWatchPlayerActivity extends BaseFragment {
         open(host, session, new TjWatchFinder.Copy(message, entry.position, 0), null);
     }
 
+    /** A link pasted in as a network stream: no chat, no catalogue - only the address. */
+    private Uri streamUri;
+
+    public static void openStream(BaseFragment host, Uri uri) {
+        if (host == null || host.getParentActivity() == null || uri == null) return;
+        Session session = new Session();
+        session.name = org.telegram.messenger.tj.TjWatchStreams.title(uri);
+        TjWatchPlayerActivity player = new TjWatchPlayerActivity(session, null, null,
+                org.telegram.messenger.tj.TjWatchStreams.positionFor(uri.toString()));
+        player.streamUri = uri;
+        host.presentFragment(player);
+    }
+
     public TjWatchPlayerActivity(Session session, TjWatchFinder.Copy copy, ArrayList<TjWatchFinder.Copy> sources, long position) {
         this.session = session;
         this.current = copy;
@@ -451,7 +464,7 @@ public class TjWatchPlayerActivity extends BaseFragment {
         ensureSeasonLoaded();
         rememberInHistory(position);
 
-        final Uri uri = uriFor(copy.message);
+        final Uri uri = copy != null ? uriFor(copy.message) : streamUri;
         if (uri == null) {
             showError();
             return;
@@ -492,7 +505,7 @@ public class TjWatchPlayerActivity extends BaseFragment {
         pendingSeek = position > 0 ? position : -1;
         buffering.setVisibility(View.VISIBLE);
         playButton.setVisibility(View.INVISIBLE);
-        player.preparePlayer(uri, "other");
+        player.preparePlayer(uri, copy == null ? org.telegram.messenger.tj.TjWatchStreams.type(uri) : "other");
         player.setPlaybackSpeed(currentSpeed);
         player.play();
         AndroidUtilities.cancelRunOnUIThread(ticker);
@@ -609,7 +622,13 @@ public class TjWatchPlayerActivity extends BaseFragment {
     }
 
     private void saveProgress() {
-        if (player == null || current == null) return;
+        if (player == null) return;
+        if (current == null) {
+            if (streamUri != null && player.getDuration() > 0) {
+                org.telegram.messenger.tj.TjWatchStreams.progress(streamUri.toString(), player.getCurrentPosition(), player.getDuration());
+            }
+            return;
+        }
         long duration = player.getDuration();
         long position = player.getCurrentPosition();
         if (duration <= 0 || position < 0) return;
@@ -648,6 +667,10 @@ public class TjWatchPlayerActivity extends BaseFragment {
     }
 
     private void rememberInHistory(long position) {
+        if (current == null) {
+            if (streamUri != null) org.telegram.messenger.tj.TjWatchStreams.remember(streamUri.toString(), session.name);
+            return;
+        }
         TjWatchHistory.rememberCopy(current.message, session.tmdbId, session.series, session.season, session.episode);
         TjWatchHistory.Entry entry = TjWatchHistory.entryFor(session.tmdbId, session.series, session.name,
                 session.poster, session.year, session.season, session.episode, current.message);

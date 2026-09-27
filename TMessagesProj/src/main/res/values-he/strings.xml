@@ -247,6 +247,11 @@
     <string name="TjDeleteKeptText">זה כבר נמחק בטלגרם ונשמר רק במכשיר הזה. עכשיו זה יימחק גם ממנו.</string>
     <string name="TjDeletedAt">נמחקה</string>
     <string name="TjDeletedAtUnknown">נמחקה (הזמן לא נשמר)</string>
+    <string name="TjWatchStream">זרם רשת</string>
+    <string name="TjWatchStreamHint">הדבק קישור לסרטון</string>
+    <string name="TjWatchStreamPlay">הפעל</string>
+    <string name="TjWatchStreamRecent">אחרונים</string>
+    <string name="TjWatchStreamInvalid">זה לא נראה כמו קישור לסרטון</string>
     <string name="TjChatGhostResetText">המצב הנקודתי והבחירות עבור אישורי קריאה והקלדה יוסרו.</string>
     <string name="TjChatGhostInherited">פועל לפי הגדרות מצב הרפאים הכלליות</string>
     <string name="TjDeletedMarkerTrash">פח</string>

@@ -420,6 +420,11 @@ public class TjLocale {
         m.put("TjDeleteKeptText", "זה כבר נמחק בטלגרם ונשמר רק במכשיר הזה. עכשיו זה יימחק גם ממנו.");
         m.put("TjDeletedAt", "נמחקה");
         m.put("TjDeletedAtUnknown", "נמחקה (הזמן לא נשמר)");
+        m.put("TjWatchStream", "זרם רשת");
+        m.put("TjWatchStreamHint", "הדבק קישור לסרטון");
+        m.put("TjWatchStreamPlay", "הפעל");
+        m.put("TjWatchStreamRecent", "אחרונים");
+        m.put("TjWatchStreamInvalid", "זה לא נראה כמו קישור לסרטון");
         m.put("TjChatGhostResetTitle", "לאפס את הגדרות מצב הרפאים בצ׳אט הזה?");
         m.put("TjChatGhostResetText", "המצב הנקודתי והבחירות עבור אישורי קריאה והקלדה יוסרו.");
         m.put("TjChatGhostInherited", "פועל לפי הגדרות מצב הרפאים הכלליות");

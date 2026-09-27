@@ -11471,6 +11471,11 @@
     <string name="TjDeleteKeptText">This was already deleted on Telegram and is kept only on this device. It will be removed from here too.</string>
     <string name="TjDeletedAt">Deleted</string>
     <string name="TjDeletedAtUnknown">Deleted (time not recorded)</string>
+    <string name="TjWatchStream">Network stream</string>
+    <string name="TjWatchStreamHint">Paste a video link</string>
+    <string name="TjWatchStreamPlay">Play</string>
+    <string name="TjWatchStreamRecent">Recent</string>
+    <string name="TjWatchStreamInvalid">That doesn\'t look like a video link</string>
     <string name="TjChatGhostResetText">The chat-specific mode, read receipt and typing choices will be removed.</string>
     <string name="TjChatGhostInherited">Following global Ghost settings</string>
     <string name="TjDeletedMarkerTrash">Trash</string>
