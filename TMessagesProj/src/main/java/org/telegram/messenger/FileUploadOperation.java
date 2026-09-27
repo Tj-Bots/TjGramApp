@@ -11,6 +11,7 @@ package org.telegram.messenger;
 import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.content.SharedPreferences;
+import android.os.SystemClock;
 import android.util.Log;
 import android.util.SparseArray;
 import android.util.SparseIntArray;
@@ -52,6 +53,8 @@ public class FileUploadOperation {
     }
 
     private int maxRequestsCount;
+    private long lastResumeSavedOffset;
+    private long lastResumeSavedAt;
     private int uploadChunkSize = 64 * 1024;
     private boolean slowNetwork;
     private ArrayList<byte[]> freeRequestIvs;
@@ -668,13 +671,24 @@ public class FileUploadOperation {
                                 cachedResults.remove(lastSavedPartNum);
                                 lastSavedPartNum++;
                             }
-                            if (isBigFile && offsetToSave % (1024 * 1024) == 0 || !isBigFile && saveInfoTimes == 0) {
+                            // TJ: this is the point an interrupted upload resumes from. Written
+                            // after every megabyte with commit(), it was a disk write the upload
+                            // thread waited for, forty times a second at a good speed - on the
+                            // same thread that sends the next pieces. Now at most every 8 MB or
+                            // two seconds, and without waiting for the disk.
+                            final long now = SystemClock.elapsedRealtime();
+                            final boolean due = isBigFile
+                                    ? offsetToSave % (1024 * 1024) == 0 && (offsetToSave - lastResumeSavedOffset >= 8L * 1024 * 1024 || now - lastResumeSavedAt >= 2000)
+                                    : saveInfoTimes == 0;
+                            if (due) {
+                                lastResumeSavedOffset = offsetToSave;
+                                lastResumeSavedAt = now;
                                 SharedPreferences.Editor editor = preferences.edit();
                                 editor.putLong(fileKey + "_uploaded", offsetToSave);
                                 if (isEncrypted) {
                                     editor.putString(fileKey + "_ivc", Utilities.bytesToHex(ivToSave));
                                 }
-                                editor.commit();
+                                editor.apply();
                             }
                         } else {
                             UploadCachedResult result = new UploadCachedResult();
