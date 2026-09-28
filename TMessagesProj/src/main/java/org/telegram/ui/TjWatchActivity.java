@@ -213,9 +213,13 @@ public class TjWatchActivity extends BaseFragment {
         content.setOrientation(LinearLayout.VERTICAL);
         root.addView(content, LayoutHelper.createFrame(-1, -1));
 
-        content.addView(kindSection(context), LayoutHelper.createLinear(-1, 34, 12, 10, 12, 0));
-
-        content.addView(genreSection(context), LayoutHelper.createLinear(-1, -2, 0, 8, 0, 0));
+        // The films/series switch and the genre row fold away while scrolling down and come back
+        // on the way up, like the header of a streaming app - the list gets the whole screen.
+        filtersHeader = new LinearLayout(context);
+        filtersHeader.setOrientation(LinearLayout.VERTICAL);
+        filtersHeader.addView(kindSection(context), LayoutHelper.createLinear(-1, 34, 12, 10, 12, 0));
+        filtersHeader.addView(genreSection(context), LayoutHelper.createLinear(-1, -2, 0, 8, 0, 0));
+        content.addView(filtersHeader, LayoutHelper.createLinear(-1, -2));
 
 
         status = new TextView(context);
@@ -236,8 +240,15 @@ public class TjWatchActivity extends BaseFragment {
         });
         listView.setOnScrollListener(new RecyclerView.OnScrollListener() {
             @Override public void onScrolled(RecyclerView view, int dx, int dy) {
-                if (dy <= 0) return;
-                checkLoadMore();
+                if (dy > 0) checkLoadMore();
+                scrolledSinceTurn = (dy > 0) == (scrolledSinceTurn > 0) ? scrolledSinceTurn + dy : dy;
+                if (!view.canScrollVertically(-1)) {
+                    setFiltersShown(true);
+                } else if (scrolledSinceTurn > dp(24)) {
+                    setFiltersShown(false);
+                } else if (scrolledSinceTurn < -dp(24)) {
+                    setFiltersShown(true);
+                }
             }
         });
         content.addView(listView, LayoutHelper.createLinear(-1, -1));
@@ -253,6 +264,45 @@ public class TjWatchActivity extends BaseFragment {
         return fragmentView;
     }
 
+    private LinearLayout filtersHeader;
+    private boolean filtersShown = true;
+    private int scrolledSinceTurn;
+    private android.animation.ValueAnimator filtersAnimator;
+
+    private void setFiltersShown(boolean shown) {
+        if (filtersHeader == null || filtersShown == shown) return;
+        filtersShown = shown;
+        if (filtersAnimator != null) filtersAnimator.cancel();
+        final ViewGroup.LayoutParams params = filtersHeader.getLayoutParams();
+        final int from = filtersHeader.getHeight();
+        int target = 0;
+        if (shown) {
+            filtersHeader.measure(View.MeasureSpec.makeMeasureSpec(Math.max(1, ((View) filtersHeader.getParent()).getWidth()), View.MeasureSpec.EXACTLY),
+                    View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED));
+            target = filtersHeader.getMeasuredHeight();
+        }
+        final int to = target;
+        filtersAnimator = android.animation.ValueAnimator.ofInt(from, to);
+        filtersAnimator.setDuration(200);
+        filtersAnimator.setInterpolator(org.telegram.ui.Components.CubicBezierInterpolator.EASE_OUT_QUINT);
+        filtersAnimator.addUpdateListener(a -> {
+            params.height = (int) a.getAnimatedValue();
+            filtersHeader.setLayoutParams(params);
+            filtersHeader.setAlpha(to == 0 ? (float) params.height / Math.max(1, from) : (float) params.height / Math.max(1, to));
+        });
+        filtersAnimator.addListener(new android.animation.AnimatorListenerAdapter() {
+            @Override
+            public void onAnimationEnd(android.animation.Animator animation) {
+                if (filtersShown) {
+                    params.height = ViewGroup.LayoutParams.WRAP_CONTENT;
+                    filtersHeader.setLayoutParams(params);
+                    filtersHeader.setAlpha(1f);
+                }
+            }
+        });
+        filtersAnimator.start();
+    }
+
     private void open(Item item) {
         presentFragment(new TjTitleActivity(item.id, item.series, item.name));
     }
@@ -263,6 +313,8 @@ public class TjWatchActivity extends BaseFragment {
      */
     private void applyMode() {
         if (listView == null) return;
+        scrolledSinceTurn = 0;
+        setFiltersShown(true);
         if (gridMode) {
             listView.setLayoutManager(new GridLayoutManager(getParentActivity(), 3) {
                 // The app declares no RTL support and mirrors by hand, so the manager has to be
