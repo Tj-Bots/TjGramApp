@@ -407,6 +407,9 @@ public class TjLocale {
         m.put("TjPlayerAudioDefault", "ברירת מחדל");
         m.put("TjPlayerSource", "מקור");
         m.put("TjPlayerNext", "הפרק הבא");
+        m.put("TjPlayerCasting", "מוצג בטלוויזיה");
+        m.put("TjPlayerCast", "שידור לטלוויזיה");
+        m.put("TjPlayerMinimize", "חלון קטן");
         m.put("TjPlayerNextIn", "הפרק הבא בעוד %1$d");
         m.put("TjPlayerPlayNow", "הפעל עכשיו");
         m.put("TjPlayerChooseCopy", "בחר מקור");

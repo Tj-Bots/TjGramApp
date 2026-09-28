@@ -234,6 +234,9 @@
     <string name="TjPlayerAudioDefault">ברירת מחדל</string>
     <string name="TjPlayerSource">מקור</string>
     <string name="TjPlayerNext">הפרק הבא</string>
+    <string name="TjPlayerCasting">מוצג בטלוויזיה</string>
+    <string name="TjPlayerCast">שידור לטלוויזיה</string>
+    <string name="TjPlayerMinimize">חלון קטן</string>
     <string name="TjPlayerNextIn">הפרק הבא בעוד %1$d</string>
     <string name="TjPlayerPlayNow">הפעל עכשיו</string>
     <string name="TjPlayerChooseCopy">בחר מקור</string>

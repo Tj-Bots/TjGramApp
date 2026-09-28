@@ -6,6 +6,8 @@ import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.content.Context;
 import android.content.pm.ActivityInfo;
+import android.content.Intent;
+import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
@@ -14,6 +16,7 @@ import android.graphics.RectF;
 import android.graphics.drawable.GradientDrawable;
 import android.media.AudioManager;
 import android.net.Uri;
+import android.os.Build;
 import android.text.TextUtils;
 import android.view.GestureDetector;
 import android.view.Gravity;
@@ -39,11 +42,19 @@ import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.MessageObject;
 import org.telegram.messenger.R;
 import org.telegram.messenger.TjLocale;
+import org.telegram.messenger.chromecast.ChromecastController;
+import org.telegram.messenger.chromecast.ChromecastMediaVariations;
+import org.telegram.messenger.pip.PipSource;
+import org.telegram.messenger.pip.activity.IPipActivity;
+import org.telegram.messenger.pip.activity.IPipActivityListener;
+import org.telegram.messenger.pip.source.IPipSourceDelegate;
+import org.telegram.messenger.pip.utils.PipUtils;
 import org.telegram.messenger.tj.TjMediaStore;
 import org.telegram.messenger.tj.TjWatchFinder;
 import org.telegram.messenger.tj.TjWatchHistory;
 import org.telegram.tgnet.TLRPC;
 import org.telegram.ui.ActionBar.BaseFragment;
+import org.telegram.ui.Components.CastMediaRouteButton;
 import org.telegram.ui.Components.LayoutHelper;
 import org.telegram.ui.Components.RadialProgressView;
 import org.telegram.ui.Components.TjSubtitleView;
@@ -140,6 +151,22 @@ public class TjWatchPlayerActivity extends BaseFragment {
     private boolean immersiveApplied;
     private float brightness = -1;
 
+    // Picture in picture: the system's small window, as Telegram's own videos use it.
+    private PipSource pipSource;
+    private TextureView pipTextureView;
+    private Runnable pipFirstFrameCallback;
+    private boolean pipRequested;
+    private IPipActivityListener pipListener;
+
+    // Casting to a TV through the same Chromecast plumbing the media viewer uses.
+    private CastMediaRouteButton castRouteButton;
+    private ImageView castButton;
+    private LinearLayout castOverlay;
+    private boolean casting;
+    private boolean castSeekPending;
+    private long castStartAt;
+    private long lastCastPosition = -1;
+
     private final Runnable hideControls = () -> setControlsVisible(false);
     private final Runnable ticker = new Runnable() {
         @Override
@@ -219,6 +246,23 @@ public class TjWatchPlayerActivity extends BaseFragment {
         subtitles = new TjSubtitleView(context);
         subtitles.setVideoView(textureView);
         root.addView(subtitles, LayoutHelper.createFrame(-1, -1));
+
+        castOverlay = new LinearLayout(context);
+        castOverlay.setOrientation(LinearLayout.VERTICAL);
+        castOverlay.setGravity(Gravity.CENTER);
+        castOverlay.setBackgroundColor(0xE6000000);
+        castOverlay.setVisibility(View.GONE);
+        ImageView castIcon = new ImageView(context);
+        castIcon.setImageResource(R.drawable.menu_video_chromecast);
+        castIcon.setColorFilter(Color.WHITE);
+        castOverlay.addView(castIcon, LayoutHelper.createLinear(48, 48, Gravity.CENTER_HORIZONTAL));
+        TextView castText = new TextView(context);
+        castText.setText(TjLocale.getString(R.string.TjPlayerCasting));
+        castText.setTextColor(Color.WHITE);
+        castText.setTextSize(15);
+        castText.setGravity(Gravity.CENTER);
+        castOverlay.addView(castText, LayoutHelper.createLinear(-2, -2, Gravity.CENTER_HORIZONTAL, 0, 10, 0, 0));
+        root.addView(castOverlay, LayoutHelper.createFrame(-1, -1));
 
         // Touch: a tap shows or hides the controls, a double tap on either side skips ten seconds,
         // and a slide up or down changes brightness on the left and volume on the right.
@@ -332,8 +376,48 @@ public class TjWatchPlayerActivity extends BaseFragment {
         titleView.setSingleLine(true);
         titleView.setEllipsize(TextUtils.TruncateAt.END);
         titleView.setGravity(Gravity.CENTER);
-        controls.addView(titleView, LayoutHelper.createFrame(-1, 48, Gravity.TOP, 72, 10, 72, 0));
+        controls.addView(titleView, LayoutHelper.createFrame(-1, 48, Gravity.TOP, 120, 10, 120, 0));
         updateTitle();
+
+        LinearLayout actions = new LinearLayout(context);
+        actions.setOrientation(LinearLayout.HORIZONTAL);
+        actions.setLayoutDirection(View.LAYOUT_DIRECTION_LTR);
+        if (castAvailable(context)) {
+            castRouteButton = new CastMediaRouteButton(context) {
+                @Override
+                public void stateUpdated(boolean connected) {
+                    onCastState(connected);
+                }
+            };
+            try {
+                castRouteButton.setRouteSelector(com.google.android.gms.cast.framework.CastContext.getSharedInstance(context).getMergedSelector());
+                castRouteButton.setVisibility(View.INVISIBLE);
+                controls.addView(castRouteButton, LayoutHelper.createFrame(1, 1, Gravity.TOP | Gravity.RIGHT));
+                castButton = topIcon(context, R.drawable.menu_video_chromecast, TjLocale.getString(R.string.TjPlayerCast), v -> startCast());
+                actions.addView(castButton, LayoutHelper.createLinear(48, 48));
+            } catch (Exception e) {
+                FileLog.e(e);
+                castRouteButton = null;
+            }
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            actions.addView(topIcon(context, R.drawable.menu_video_pip, TjLocale.getString(R.string.TjPlayerMinimize), v -> enterPip()), LayoutHelper.createLinear(48, 48));
+        }
+        controls.addView(actions, LayoutHelper.createFrame(-2, 48, Gravity.TOP | Gravity.RIGHT, 0, 10, 12, 0));
+    }
+
+    private ImageView topIcon(Context context, int icon, String description, View.OnClickListener listener) {
+        ImageView view = new ImageView(context);
+        view.setImageResource(icon);
+        view.setColorFilter(Color.WHITE);
+        view.setScaleType(ImageView.ScaleType.CENTER);
+        view.setContentDescription(description);
+        view.setBackground(org.telegram.ui.ActionBar.Theme.createSelectorDrawable(0x33ffffff, 1));
+        view.setOnClickListener(v -> {
+            listener.onClick(v);
+            scheduleHide();
+        });
+        return view;
     }
 
     private void buildCenter(Context context) {
@@ -492,22 +576,42 @@ public class TjWatchPlayerActivity extends BaseFragment {
                         height = swap;
                     }
                     aspect.setAspectRatio(height == 0 ? 1 : (width * pixelWidthHeightRatio) / height, unappliedRotationDegrees);
+                    if (pipSource != null && width > 0 && height > 0) {
+                        pipSource.setContentRatio((int) (width * pixelWidthHeightRatio), height);
+                    }
                 }
 
                 @Override
                 public void onRenderedFirstFrame() {
+                    if (pipFirstFrameCallback != null) {
+                        pipFirstFrameCallback.run();
+                        pipFirstFrameCallback = null;
+                    }
                 }
             });
             player.setSubtitleListener(cues -> subtitles.setCues(cues));
             player.setTracksChangedListener(this::onTracksChanged);
+            createPipSource();
         }
-        player.setTextureView(textureView);
+        // In the small window the picture goes to its own surface, the next episode included.
+        player.setTextureView(pipTextureView != null ? pipTextureView : textureView);
         pendingSeek = position > 0 ? position : -1;
         buffering.setVisibility(View.VISIBLE);
         playButton.setVisibility(View.INVISIBLE);
         player.preparePlayer(uri, copy == null ? org.telegram.messenger.tj.TjWatchStreams.type(uri) : "other");
         player.setPlaybackSpeed(currentSpeed);
-        player.play();
+        if (pipSource != null) {
+            pipSource.setPlayer(player.player);
+        }
+        if (casting) {
+            // The TV follows along to the other copy or the next episode; the phone stays quiet.
+            player.setMute(true);
+            castStartAt = Math.max(0, position);
+            castSeekPending = castStartAt > 0;
+            ChromecastController.getInstance().setCurrentMediaAndCastIfNeeded(castMedia());
+        } else {
+            player.play();
+        }
         AndroidUtilities.cancelRunOnUIThread(ticker);
         AndroidUtilities.runOnUIThread(ticker);
         setControlsVisible(true);
@@ -565,8 +669,10 @@ public class TjWatchPlayerActivity extends BaseFragment {
 
     private void tick() {
         if (player == null) return;
+        if (pipSource != null) pipSource.invalidateAvailability();
+        if (castRouteButton != null) tickCast();
         long duration = player.getDuration();
-        long position = player.getCurrentPosition();
+        long position = playPosition();
         if (duration > 0 && !seekBar.dragging) {
             seekBar.setProgress(position / (float) duration, player.getBufferedPosition() / (float) duration);
         }
@@ -578,7 +684,7 @@ public class TjWatchPlayerActivity extends BaseFragment {
         } else {
             timeView.setText("-" + formatTime(Math.max(0, duration - shown)));
         }
-        playButton.setPlaying(player.isPlaying());
+        playButton.setPlaying(isPlayingNow());
 
         long now = System.currentTimeMillis();
         if (now - lastSavedAt > 5000) {
@@ -595,6 +701,11 @@ public class TjWatchPlayerActivity extends BaseFragment {
 
     private void togglePlay() {
         if (player == null) return;
+        if (casting) {
+            CastSync.setPlaying(!isPlayingNow());
+            AndroidUtilities.runOnUIThread(this::tick, 300);
+            return;
+        }
         if (player.isPlaying()) {
             player.pause();
             saveProgress();
@@ -608,9 +719,9 @@ public class TjWatchPlayerActivity extends BaseFragment {
     private void seekBy(long delta) {
         if (player == null) return;
         long duration = player.getDuration();
-        long target = Math.max(0, player.getCurrentPosition() + delta);
+        long target = Math.max(0, playPosition() + delta);
         if (duration > 0) target = Math.min(target, duration - 500);
-        player.seekTo(target);
+        seekToPosition(target);
         tick();
     }
 
@@ -625,12 +736,12 @@ public class TjWatchPlayerActivity extends BaseFragment {
         if (player == null) return;
         if (current == null) {
             if (streamUri != null && player.getDuration() > 0) {
-                org.telegram.messenger.tj.TjWatchStreams.progress(streamUri.toString(), player.getCurrentPosition(), player.getDuration());
+                org.telegram.messenger.tj.TjWatchStreams.progress(streamUri.toString(), playPosition(), player.getDuration());
             }
             return;
         }
         long duration = player.getDuration();
-        long position = player.getCurrentPosition();
+        long position = playPosition();
         if (duration <= 0 || position < 0) return;
         TjWatchHistory.progress(current.message, position, duration);
         TjWatchHistory.episodeProgress(current.message, session.tmdbId, session.series,
@@ -716,7 +827,7 @@ public class TjWatchPlayerActivity extends BaseFragment {
 
     private void scheduleHide() {
         AndroidUtilities.cancelRunOnUIThread(hideControls);
-        if (player != null && player.isPlaying() && panelHost.getVisibility() != View.VISIBLE) {
+        if (player != null && isPlayingNow() && !casting && panelHost.getVisibility() != View.VISIBLE) {
             AndroidUtilities.runOnUIThread(hideControls, HIDE_CONTROLS_AFTER);
         }
     }
@@ -949,7 +1060,7 @@ public class TjWatchPlayerActivity extends BaseFragment {
                 closePanel();
                 return;
             }
-            long position = player == null ? 0 : player.getCurrentPosition();
+            long position = player == null ? 0 : playPosition();
             closePanel();
             startPlayer(copy, position);
         });
@@ -1234,6 +1345,251 @@ public class TjWatchPlayerActivity extends BaseFragment {
         return activity == null ? null : (AudioManager) activity.getSystemService(Context.AUDIO_SERVICE);
     }
 
+    // ---------------------------------------------------------------- position, local or on the TV
+
+    private long playPosition() {
+        if (casting) {
+            long position = CastSync.getPosition();
+            if (position >= 0) return position;
+            if (lastCastPosition >= 0) return lastCastPosition;
+        }
+        return player == null ? 0 : player.getCurrentPosition();
+    }
+
+    private boolean isPlayingNow() {
+        if (casting) {
+            com.google.android.gms.cast.framework.media.RemoteMediaClient client = CastSync.getClient();
+            return client != null && (client.isPlaying() || client.isBuffering());
+        }
+        return player != null && player.isPlaying();
+    }
+
+    private void seekToPosition(long position) {
+        if (casting) {
+            lastCastPosition = position;
+            CastSync.seekTo(position);
+        } else if (player != null) {
+            player.seekTo(position);
+        }
+    }
+
+    // ---------------------------------------------------------------- picture in picture
+
+    private boolean isInPip() {
+        Activity activity = getParentActivity();
+        return activity != null && AndroidUtilities.isInPictureInPictureMode(activity);
+    }
+
+    private static boolean pipAllowed(Activity activity) {
+        return Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && AndroidUtilities.checkPipPermissions(activity);
+    }
+
+    private void createPipSource() {
+        Activity activity = getParentActivity();
+        if (pipSource != null || activity == null || !pipAllowed(activity) || !(activity instanceof IPipActivity)) return;
+        pipSource = new PipSource.Builder(activity, pipDelegate)
+                .setTagPrefix("tj-watch-player")
+                .setContentView(aspect)
+                .setNeedMediaSession(true)
+                .build();
+        if (pipSource == null) return;
+        pipListener = new IPipActivityListener() {
+            @Override
+            public void onStartEnterToPip() {
+                AndroidUtilities.cancelRunOnUIThread(hideControls);
+                closePanel();
+                controls.setVisibility(View.GONE);
+                controlsVisible = false;
+            }
+
+            @Override
+            public void onCompleteExitFromPip(boolean byActivityStop) {
+                pipRequested = false;
+                if (byActivityStop) {
+                    // The small window was closed: stop there, as Telegram's own videos do.
+                    if (player != null && player.isPlaying()) player.pause();
+                    saveProgress();
+                } else {
+                    applyFullscreen(true);
+                    setControlsVisible(true);
+                }
+            }
+        };
+        ((IPipActivity) activity).getPipController().addPipListener(pipListener);
+    }
+
+    private void destroyPip() {
+        Activity activity = getParentActivity();
+        if (pipListener != null && activity instanceof IPipActivity) {
+            ((IPipActivity) activity).getPipController().removePipListener(pipListener);
+        }
+        pipListener = null;
+        if (pipSource != null) {
+            pipSource.destroy();
+            pipSource = null;
+        }
+    }
+
+    private void enterPip() {
+        Activity activity = getParentActivity();
+        if (activity == null || Build.VERSION.SDK_INT < Build.VERSION_CODES.O || player == null || casting) return;
+        if (!pipAllowed(activity)) {
+            // Turned off for the app in the system settings; that is the one place to turn it on.
+            try {
+                activity.startActivity(new Intent("android.settings.PICTURE_IN_PICTURE_SETTINGS", Uri.parse("package:" + activity.getPackageName())));
+            } catch (Exception e) {
+                FileLog.e(e);
+            }
+            return;
+        }
+        createPipSource();
+        if (pipSource == null) return;
+        pipRequested = true;
+        if (!player.isPlaying()) {
+            if (player.getPlaybackState() == ExoPlayer.STATE_ENDED) player.seekTo(0);
+            player.play();
+        }
+        pipSource.invalidateAvailability();
+        try {
+            if (PipUtils.useAutoEnterInPictureInPictureMode()) {
+                activity.enterPictureInPictureMode(pipSource.buildPictureInPictureParams());
+            } else {
+                ((IPipActivity) activity).getPipController().getHandler().onPictureInPictureRequested();
+            }
+        } catch (Exception e) {
+            FileLog.e(e);
+            pipRequested = false;
+        }
+    }
+
+    private final IPipSourceDelegate pipDelegate = new IPipSourceDelegate() {
+        @Override
+        public boolean pipIsAvailable() {
+            return player != null && !casting && fragmentView != null && (pipRequested || player.isPlaying());
+        }
+
+        @Override
+        public void pipRenderBackground(Canvas canvas) {
+            canvas.drawColor(0xFF000000);
+        }
+
+        @Override
+        public Bitmap pipCreatePrimaryWindowViewBitmap() {
+            return textureView != null && textureView.isAvailable() ? textureView.getBitmap() : null;
+        }
+
+        @Override
+        public View pipCreatePictureInPictureView() {
+            pipTextureView = new TextureView(textureView.getContext());
+            pipTextureView.setOpaque(false);
+            return pipTextureView;
+        }
+
+        @Override
+        public void pipHidePrimaryWindowView(Runnable firstFrameCallback) {
+            pipFirstFrameCallback = firstFrameCallback;
+            if (player != null) {
+                player.setTextureView(null);
+                player.play();
+                player.setTextureView(pipTextureView);
+            }
+        }
+
+        @Override
+        public Bitmap pipCreatePictureInPictureViewBitmap() {
+            return pipTextureView != null && pipTextureView.isAvailable() ? pipTextureView.getBitmap() : null;
+        }
+
+        @Override
+        public void pipShowPrimaryWindowView(Runnable firstFrameCallback) {
+            pipFirstFrameCallback = firstFrameCallback;
+            if (player != null) {
+                boolean playing = player.isPlaying();
+                player.setTextureView(null);
+                player.setTextureView(textureView);
+                if (!playing) player.pause();
+            }
+            pipTextureView = null;
+        }
+    };
+
+    // ---------------------------------------------------------------- casting
+
+    private static boolean castAvailable(Context context) {
+        try {
+            return com.google.android.gms.cast.framework.CastContext.getSharedInstance(context) != null;
+        } catch (Throwable e) {
+            return false;
+        }
+    }
+
+    private ChromecastMediaVariations castMedia() {
+        if (player == null) return null;
+        String id = current != null && current.message != null && current.message.getDocument() != null
+                ? String.valueOf(current.message.getDocument().id)
+                : String.valueOf(streamUri == null ? 0 : streamUri.toString().hashCode() & 0x7fffffff);
+        String subtitle = null;
+        if (session.series && session.episode >= 0) {
+            subtitle = (session.season > 0 ? TjLocale.getString(R.string.TjMediaSeason) + " " + session.season + " " : "")
+                    + TjLocale.getString(R.string.TjMediaEpisode) + " " + session.episode;
+        }
+        return player.getCurrentChromecastMedia(id, session.name, subtitle);
+    }
+
+    private void startCast() {
+        if (castRouteButton == null || player == null) return;
+        try {
+            ChromecastController.getInstance().setCurrentMediaAndCastIfNeeded(castMedia());
+            castRouteButton.performClick();
+        } catch (Exception e) {
+            FileLog.e(e);
+        }
+    }
+
+    private void tickCast() {
+        boolean connected = CastSync.getClient() != null;
+        if (connected != casting) {
+            onCastState(connected);
+        }
+        if (!casting) return;
+        com.google.android.gms.cast.framework.media.RemoteMediaClient client = CastSync.getClient();
+        if (client == null) return;
+        long position = client.getApproximateStreamPosition();
+        if (castSeekPending && client.getStreamDuration() > 0 && (client.isPlaying() || client.isPaused())) {
+            // The TV starts the file from the top; carry on from where the phone was.
+            castSeekPending = false;
+            CastSync.seekTo(castStartAt);
+            lastCastPosition = castStartAt;
+        } else if (!castSeekPending && position > 0) {
+            lastCastPosition = position;
+        }
+    }
+
+    private void onCastState(boolean connected) {
+        if (connected == casting || player == null) return;
+        casting = connected;
+        if (connected) {
+            castStartAt = player.getCurrentPosition();
+            castSeekPending = castStartAt > 0;
+            lastCastPosition = castStartAt;
+            player.pause();
+            player.setMute(true);
+            castOverlay.setVisibility(View.VISIBLE);
+            if (castButton != null) castButton.setColorFilter(NETFLIX_RED);
+            setControlsVisible(true);
+        } else {
+            castSeekPending = false;
+            player.setMute(false);
+            if (lastCastPosition > 0) player.seekTo(lastCastPosition);
+            lastCastPosition = -1;
+            castOverlay.setVisibility(View.GONE);
+            if (castButton != null) castButton.setColorFilter(Color.WHITE);
+            saveProgress();
+        }
+        if (pipSource != null) pipSource.invalidateAvailability();
+        tick();
+    }
+
     // ---------------------------------------------------------------- lifecycle
 
     @Override
@@ -1245,10 +1601,12 @@ public class TjWatchPlayerActivity extends BaseFragment {
     @Override
     public void onPause() {
         super.onPause();
+        saveProgress();
+        // Going into the small window pauses the activity too; the film goes on playing there.
+        if (pipRequested || isInPip()) return;
         if (player != null && player.isPlaying()) {
             player.pause();
         }
-        saveProgress();
         applyFullscreen(false);
     }
 
@@ -1260,6 +1618,10 @@ public class TjWatchPlayerActivity extends BaseFragment {
         cancelCountdown();
         AndroidUtilities.cancelRunOnUIThread(hideLockOverlay);
         saveProgress();
+        destroyPip();
+        if (casting) {
+            CastSync.stop();
+        }
         if (player != null) {
             player.setDelegate(null);
             player.setSubtitleListener(null);
@@ -1571,7 +1933,7 @@ public class TjWatchPlayerActivity extends BaseFragment {
                     dragging = false;
                     progress = fraction;
                     if (player != null && player.getDuration() > 0) {
-                        player.seekTo((long) (fraction * player.getDuration()));
+                        seekToPosition((long) (fraction * player.getDuration()));
                     }
                     invalidate();
                     scheduleHide();

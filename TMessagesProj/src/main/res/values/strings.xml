@@ -11458,6 +11458,9 @@
     <string name="TjPlayerAudioDefault">Default</string>
     <string name="TjPlayerSource">Source</string>
     <string name="TjPlayerNext">Next Ep.</string>
+    <string name="TjPlayerCasting">Playing on the TV</string>
+    <string name="TjPlayerCast">Cast to TV</string>
+    <string name="TjPlayerMinimize">Mini player</string>
     <string name="TjPlayerNextIn">Next episode in %1$d</string>
     <string name="TjPlayerPlayNow">Play now</string>
     <string name="TjPlayerChooseCopy">Choose a source</string>
