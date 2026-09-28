@@ -42,6 +42,10 @@ public class TjChatInfoActivity extends BaseFragment implements NotificationCent
     private static final int TYPE_ROW = 1;
     private static final int TYPE_INFO = 2;
     private static final int TYPE_PERMISSION = 3;
+    private static final int TYPE_SUB_PERMISSION = 4;
+    private static final int TYPE_VALUE = 5;
+    /** "Send media": its own type, so a recycled plain row never inherits its arrow. */
+    private static final int TYPE_MEDIA_PERMISSION = 6;
 
     private static final int ID_PERMISSIONS = 1;
     private static final int ID_ADMINS = 2;
@@ -49,6 +53,7 @@ public class TjChatInfoActivity extends BaseFragment implements NotificationCent
     private static final int ID_REMOVED = 4;
     private static final int ID_RECENT_ACTIONS = 5;
     private static final int ID_STATISTICS = 6;
+    private static final int ID_SEND_MEDIA = 7;
 
     public static final int PAGE_INFO = 0;
     public static final int PAGE_PERMISSIONS = 1;
@@ -63,6 +68,7 @@ public class TjChatInfoActivity extends BaseFragment implements NotificationCent
     private Integer fetchedAdminCount;
     private boolean requestedAdminCount;
     private boolean destroyed;
+    private boolean mediaExpanded;
 
     private static class Item {
         final int type;
@@ -210,6 +216,11 @@ public class TjChatInfoActivity extends BaseFragment implements NotificationCent
     }
 
     private void onItemClick(int position) {
+        if (position >= 0 && position < items.size() && items.get(position).id == ID_SEND_MEDIA) {
+            mediaExpanded = !mediaExpanded;
+            refreshRows();
+            return;
+        }
         if (position < 0 || position >= items.size() || items.get(position).type != TYPE_ROW) {
             return;
         }
@@ -304,22 +315,48 @@ public class TjChatInfoActivity extends BaseFragment implements NotificationCent
         items.add(new Item(TYPE_INFO, 0, TjLocale.getString(R.string.TjChatInfoDescription), null, 0, true));
     }
 
-    /** Read-only view of what an ordinary member of this group is allowed to do. */
+    /**
+     * What an ordinary member of this group is allowed to do, laid out the way the group's own
+     * permissions screen lays it out for admins - media broken down by kind, slow mode included -
+     * but only to read: nothing here can be switched.
+     */
     private void buildPermissionItems() {
         items.add(new Item(TYPE_HEADER, 0, LocaleController.getString(R.string.ChannelPermissionsHeader), null, 0, true));
         TLRPC.TL_chatBannedRights rights = currentChat.default_banned_rights;
-        addPermission(R.string.UserRestrictionsSend, rights == null || !rights.send_plain);
-        addPermission(R.string.UserRestrictionsSendMedia, rights == null || !rights.send_media);
-        addPermission(R.string.UserRestrictionsSendStickers, rights == null || !rights.send_stickers);
-        addPermission(R.string.UserRestrictionsEmbedLinks, rights == null || !rights.embed_links);
-        addPermission(R.string.UserRestrictionsSendPolls, rights == null || !rights.send_polls);
-        addPermission(R.string.UserRestrictionsInviteUsers, rights == null || !rights.invite_users);
-        addPermission(R.string.UserRestrictionsPinMessages, rights == null || !rights.pin_messages);
-        addPermission(R.string.UserRestrictionsChangeInfo, rights == null || !rights.change_info);
+        if (rights == null) rights = new TLRPC.TL_chatBannedRights();
+        addPermission(R.string.UserRestrictionsSendText, !rights.send_plain);
+        int media = ChatUsersActivity.getSendMediaSelectedCount(rights);
+        items.add(new Item(TYPE_MEDIA_PERMISSION, ID_SEND_MEDIA, LocaleController.getString(R.string.UserRestrictionsSendMedia),
+                String.format(java.util.Locale.US, "%d/10", media), 0, media > 0));
+        if (mediaExpanded) {
+            addSub(R.string.SendMediaPermissionPhotos, !rights.send_photos);
+            addSub(R.string.SendMediaPermissionVideos, !rights.send_videos);
+            addSub(R.string.SendMediaPermissionStickersGifs, !rights.send_stickers);
+            addSub(R.string.SendMediaPermissionMusic, !rights.send_audios);
+            addSub(R.string.SendMediaPermissionFiles, !rights.send_docs);
+            addSub(R.string.SendMediaPermissionVoice, !rights.send_voices);
+            addSub(R.string.SendMediaPermissionRound, !rights.send_roundvideos);
+            addSub(R.string.SendMediaEmbededLinks, !rights.embed_links && !rights.send_plain);
+            addSub(R.string.SendMediaPolls, !rights.send_polls);
+            addSub(R.string.UserRestrictionsSendReactions, !rights.send_reactions);
+        }
+        addPermission(R.string.UserRestrictionsInviteUsers, !rights.invite_users);
+        addPermission(R.string.UserRestrictionsPinMessages, !rights.pin_messages && !ChatObject.isPublic(currentChat));
+        addPermission(R.string.UserRestrictionsChangeInfo, !rights.change_info && !ChatObject.isPublic(currentChat));
         if (ChatObject.isForum(currentChat)) {
-            addPermission(R.string.CreateTopicsPermission, rights == null || !rights.manage_topics);
+            addPermission(R.string.CreateTopicsPermission, !rights.manage_topics);
+        }
+        if (ChatObject.isChannel(currentChat) && !currentChat.gigagroup) {
+            int slowmode = chatInfo == null ? 0 : chatInfo.slowmode_seconds;
+            items.add(new Item(TYPE_HEADER, 0, LocaleController.getString(R.string.Slowmode), null, 0, true));
+            items.add(new Item(TYPE_VALUE, 0, LocaleController.getString(R.string.Slowmode),
+                    slowmode > 0 ? LocaleController.formatTTLString(slowmode) : LocaleController.getString(R.string.SlowmodeOff), 0, true));
         }
         items.add(new Item(TYPE_INFO, 0, TjLocale.getString(R.string.TjChatPermissionsReadOnly), null, 0, true));
+    }
+
+    private void addSub(int titleRes, boolean allowed) {
+        items.add(new Item(TYPE_SUB_PERMISSION, 0, LocaleController.getString(titleRes), null, 0, allowed));
     }
 
     private void addPermission(int titleRes, boolean allowed) {
@@ -352,7 +389,9 @@ public class TjChatInfoActivity extends BaseFragment implements NotificationCent
     private class Adapter extends RecyclerListView.SelectionAdapter {
         @Override
         public boolean isEnabled(RecyclerView.ViewHolder holder) {
-            return holder.getItemViewType() == TYPE_ROW;
+            if (holder.getItemViewType() == TYPE_ROW) return true;
+            int position = holder.getAdapterPosition();
+            return position >= 0 && position < items.size() && items.get(position).id == ID_SEND_MEDIA;
         }
 
         @Override
@@ -362,8 +401,14 @@ public class TjChatInfoActivity extends BaseFragment implements NotificationCent
                 view = new HeaderCell(parent.getContext());
             } else if (viewType == TYPE_INFO) {
                 view = new TextInfoPrivacyCell(parent.getContext());
-            } else if (viewType == TYPE_PERMISSION) {
-                view = new TextCheckCell(parent.getContext());
+            } else if (viewType == TYPE_PERMISSION || viewType == TYPE_MEDIA_PERMISSION) {
+                view = new org.telegram.ui.Cells.TextCheckCell2(parent.getContext());
+            } else if (viewType == TYPE_SUB_PERMISSION) {
+                org.telegram.ui.Cells.CheckBoxCell box = new org.telegram.ui.Cells.CheckBoxCell(parent.getContext(), 4, 21, null);
+                box.getCheckBoxRound().setDrawBackgroundAsArc(14);
+                box.getCheckBoxRound().setColor(Theme.key_switch2TrackChecked, Theme.key_radioBackground, Theme.key_checkboxCheck);
+                box.setEnabled(true);
+                view = box;
             } else {
                 view = new TextSettingsCell(parent.getContext());
             }
@@ -380,12 +425,31 @@ public class TjChatInfoActivity extends BaseFragment implements NotificationCent
                 cell.setText(item.text);
                 cell.setBackground(Theme.getThemedDrawable(cell.getContext(),
                         R.drawable.greydivider_bottom, Theme.key_windowBackgroundGrayShadow));
-            } else if (item.type == TYPE_PERMISSION) {
-                TextCheckCell cell = (TextCheckCell) holder.itemView;
-                boolean divider = position + 1 < items.size() && items.get(position + 1).type == TYPE_PERMISSION;
-                cell.setTextAndCheck(item.text, item.allowed, divider);
-                // Dimmed and inert: this is what the group allows, not something to change here.
-                cell.setEnabled(false, null);
+            } else if (item.type == TYPE_PERMISSION || item.type == TYPE_MEDIA_PERMISSION) {
+                org.telegram.ui.Cells.TextCheckCell2 cell = (org.telegram.ui.Cells.TextCheckCell2) holder.itemView;
+                int next = position + 1 < items.size() ? items.get(position + 1).type : -1;
+                boolean divider = next == TYPE_PERMISSION || next == TYPE_SUB_PERMISSION || next == TYPE_MEDIA_PERMISSION;
+                cell.setTextAndCheck(item.text.toString(), item.allowed, divider, false);
+                if (item.type == TYPE_MEDIA_PERMISSION) {
+                    // The count and the arrow open the kinds of media, as on the admins' screen.
+                    cell.setCollapseArrow(item.value == null ? "" : item.value.toString(), !mediaExpanded, () -> {
+                        mediaExpanded = !mediaExpanded;
+                        refreshRows();
+                    });
+                }
+                cell.setIcon(0);
+                applyCard(cell, position);
+            } else if (item.type == TYPE_SUB_PERMISSION) {
+                org.telegram.ui.Cells.CheckBoxCell cell = (org.telegram.ui.Cells.CheckBoxCell) holder.itemView;
+                int next = position + 1 < items.size() ? items.get(position + 1).type : -1;
+                boolean divider = next == TYPE_PERMISSION || next == TYPE_SUB_PERMISSION || next == TYPE_MEDIA_PERMISSION;
+                cell.setText(item.text, "", item.allowed, divider, false);
+                cell.setPad(1);
+                applyCard(cell, position);
+            } else if (item.type == TYPE_VALUE) {
+                TextSettingsCell cell = (TextSettingsCell) holder.itemView;
+                cell.setTextAndValue(item.text, item.value, false);
+                cell.setTextValueColor(Theme.getColor(Theme.key_windowBackgroundWhiteValueText));
                 applyCard(cell, position);
             } else {
                 TextSettingsCell cell = (TextSettingsCell) holder.itemView;
@@ -408,6 +472,11 @@ public class TjChatInfoActivity extends BaseFragment implements NotificationCent
         }
     }
 
+    /** Rows that sit together on one card: every kind of permission row is one list. */
+    private static int cardGroup(int type) {
+        return type == TYPE_MEDIA_PERMISSION || type == TYPE_SUB_PERMISSION ? TYPE_PERMISSION : type;
+    }
+
     private void applyCard(View view, int position) {
         ViewGroup.LayoutParams current = view.getLayoutParams();
         RecyclerView.LayoutParams params = current instanceof RecyclerView.LayoutParams
@@ -415,9 +484,9 @@ public class TjChatInfoActivity extends BaseFragment implements NotificationCent
                 : new RecyclerView.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         view.setLayoutParams(params);
         params.leftMargin = params.rightMargin = AndroidUtilities.dp(16);
-        int type = items.get(position).type;
-        boolean top = position == 0 || items.get(position - 1).type != type;
-        boolean bottom = position + 1 == items.size() || items.get(position + 1).type != type;
+        int type = cardGroup(items.get(position).type);
+        boolean top = position == 0 || cardGroup(items.get(position - 1).type) != type;
+        boolean bottom = position + 1 == items.size() || cardGroup(items.get(position + 1).type) != type;
         view.setBackground(Theme.createRoundRectDrawable(
                 top ? AndroidUtilities.dp(14) : 0,
                 bottom ? AndroidUtilities.dp(14) : 0,

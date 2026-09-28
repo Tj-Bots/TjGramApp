@@ -4082,7 +4082,10 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             editItem.setContentDescription(LocaleController.getString(R.string.Edit));
         }
         // TJ: everything the chat exposes, in one place, reachable without admin rights.
-        if (chatId != 0 && currentChat != null && !isTopic) {
+        // A channel shows its members nothing of this - not who the admins are, not who
+        // subscribes - so the screen is only offered there to the people who run it.
+        if (chatId != 0 && currentChat != null && !isTopic
+                && (!ChatObject.isChannelAndNotMegaGroup(currentChat) || currentChat.creator || ChatObject.hasAdminRights(currentChat))) {
             tjInfoItem = menu.addItem(tj_chat_info, R.drawable.msg_info);
             tjInfoItem.setContentDescription(TjLocale.getString(R.string.TjChatInfo));
         }
