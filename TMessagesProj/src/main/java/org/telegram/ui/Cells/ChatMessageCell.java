@@ -7068,6 +7068,8 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
             captionAbove = currentMessageObject.messageOwner != null && currentMessageObject.messageOwner.invert_media || groupedMessages != null && groupedMessages.captionAbove;
             isSmallImage = false;
             lastLoadingSizeTotal = 0;
+            tjSpeedSampleBytes = -1;
+            tjSpeed = 0;
             if (scheduledInvalidate) {
                 AndroidUtilities.cancelRunOnUIThread(invalidateRunnable);
                 scheduledInvalidate = false;
@@ -11300,6 +11302,8 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
             loadingProgressLayout = null;
             animatingLoadingProgressProgress = 0;
             lastLoadingSizeTotal = 0;
+            tjSpeedSampleBytes = -1;
+            tjSpeed = 0;
             selectedBackgroundProgress = 0f;
             if (statusDrawableAnimator != null) {
                 statusDrawableAnimator.removeAllListeners();
@@ -18365,6 +18369,26 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         }
     }
 
+    private long tjSpeedSampleBytes = -1;
+    private long tjSpeedSampleTime;
+    private double tjSpeed;
+
+    /** " · 12.3 MB/s", or nothing until there is a speed worth showing. */
+    private String tjTransferSpeed(long loadedSize) {
+        final long now = android.os.SystemClock.elapsedRealtime();
+        if (tjSpeedSampleBytes < 0 || loadedSize < tjSpeedSampleBytes) {
+            tjSpeedSampleBytes = loadedSize;
+            tjSpeedSampleTime = now;
+            tjSpeed = 0;
+        } else if (now - tjSpeedSampleTime >= 500) {
+            double instant = (loadedSize - tjSpeedSampleBytes) * 1000.0 / (now - tjSpeedSampleTime);
+            tjSpeed = tjSpeed <= 0 ? instant : tjSpeed * 0.6 + instant * 0.4;
+            tjSpeedSampleBytes = loadedSize;
+            tjSpeedSampleTime = now;
+        }
+        return tjSpeed >= 1024 ? " · " + AndroidUtilities.formatFileSize((long) tjSpeed) + "/s" : "";
+    }
+
     private void createLoadingProgressLayout(long loadedSize, long totalSize) {
         if (totalSize <= 0 || documentAttach == null) {
             loadingProgressLayout = null;
@@ -18385,8 +18409,11 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
             }
         }
 
+        // TJ: how fast it is coming (or going), next to how much - smoothed over half-second
+        // samples so the number reads rather than flickers.
+        final String speedStr = tjTransferSpeed(loadedSize);
         String totalStr = AndroidUtilities.formatFileSize(totalSize);
-        String maxAvailableString = String.format("000.0 mm / %s", totalStr);
+        String maxAvailableString = String.format("000.0 mm / %s", totalStr) + speedStr;
         String str;
         int w;
         w = (int) Math.ceil(Theme.chat_infoPaint.measureText(maxAvailableString));
@@ -18394,9 +18421,11 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         if (documentAttachType == DOCUMENT_ATTACH_TYPE_DOCUMENT) {
             int max = Math.max(this.infoWidth, docTitleWidth);
             if (w <= max) {
+                str = String.format("%s / %s", AndroidUtilities.formatFileSize(loadedSize), totalStr) + speedStr;
+            } else if ((int) Math.ceil(Theme.chat_infoPaint.measureText(String.format("000.0 mm / %s", totalStr))) <= max) {
                 str = String.format("%s / %s", AndroidUtilities.formatFileSize(loadedSize), totalStr);
             } else {
-                str = AndroidUtilities.formatFileSize(loadedSize);
+                str = AndroidUtilities.formatFileSize(loadedSize) + speedStr;
             }
         } else {
             if (currentPosition != null) {
@@ -18411,7 +18440,10 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                     str = String.format(Locale.US, "%2d%%", percent);
                 }
             } else {
-                str = String.format("%s / %s", AndroidUtilities.formatFileSize(loadedSize), totalStr);
+                str = String.format("%s / %s", AndroidUtilities.formatFileSize(loadedSize), totalStr) + speedStr;
+                if ((int) Math.ceil(Theme.chat_infoPaint.measureText(str)) > backgroundWidth - dp(48)) {
+                    str = String.format("%s / %s", AndroidUtilities.formatFileSize(loadedSize), totalStr);
+                }
             }
         }
         w = (int) Math.ceil(Theme.chat_infoPaint.measureText(str));

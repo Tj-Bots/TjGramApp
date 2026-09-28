@@ -21589,8 +21589,16 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
                 maxSize = 1280.0f;
                 break;
             case 3:
-            default:
                 maxSize = 1920.0f;
+                break;
+            // TJ: 1440p and 4K, so a video shot in them is not held to 1080p. The top step of any
+            // video is its own size and bitrate - the original quality.
+            case 4:
+                maxSize = 2560.0f;
+                break;
+            case 5:
+            default:
+                maxSize = 3840.0f;
                 break;
         }
         float scale = originalWidth > originalHeight ? maxSize / originalWidth : maxSize / originalHeight;
@@ -21865,7 +21873,7 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
         SharedPreferences preferences = MessagesController.getGlobalMainSettings();
         int compressionsCount = this.compressionsCount;
         int maxCompression = 2;
-        while (compressionsCount < 5) {
+        while (compressionsCount < 7) {
             int selectedCompression = preferences.getInt(String.format(Locale.US, "compress_video_%d", compressionsCount), -1);
             if (selectedCompression >= 0) {
                 return Math.min(selectedCompression, maxCompression);
@@ -21877,7 +21885,11 @@ public class PhotoViewer implements NotificationCenter.NotificationCenterDelegat
 
     private void updateCompressionsCount(int h, int w) {
         int maxSize = Math.max(h, w);
-        if (maxSize > 1280) {
+        if (maxSize > 2560) {
+            compressionsCount = 6;
+        } else if (maxSize > 1920) {
+            compressionsCount = 5;
+        } else if (maxSize > 1280) {
             compressionsCount = 4;
         } else if (maxSize > 854) {
             compressionsCount = 3;
