@@ -11461,6 +11461,16 @@
     <string name="TjPlayerCasting">Playing on the TV</string>
     <string name="TjPlayerCast">Cast to TV</string>
     <string name="TjPlayerMinimize">Mini player</string>
+    <string name="TjAppIconBlack">Black</string>
+    <string name="TjAppIconWhite">White</string>
+    <string name="TjAppIconMidnight">Midnight</string>
+    <string name="TjAppIconLight">Light</string>
+    <string name="TjAppIconRed">Red</string>
+    <string name="TjAppIconGreen">Green</string>
+    <string name="TjAppIconPurple">Purple</string>
+    <string name="TjAppIconGold">Gold</string>
+    <string name="TjAppIconPink">Pink</string>
+    <string name="TjAppIconOrange">Orange</string>
     <string name="TjPlayerNextIn">Next episode in %1$d</string>
     <string name="TjPlayerPlayNow">Play now</string>
     <string name="TjPlayerChooseCopy">Choose a source</string>

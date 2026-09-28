@@ -237,6 +237,16 @@
     <string name="TjPlayerCasting">מוצג בטלוויזיה</string>
     <string name="TjPlayerCast">שידור לטלוויזיה</string>
     <string name="TjPlayerMinimize">חלון קטן</string>
+    <string name="TjAppIconBlack">שחור</string>
+    <string name="TjAppIconWhite">לבן</string>
+    <string name="TjAppIconMidnight">חצות</string>
+    <string name="TjAppIconLight">בהיר</string>
+    <string name="TjAppIconRed">אדום</string>
+    <string name="TjAppIconGreen">ירוק</string>
+    <string name="TjAppIconPurple">סגול</string>
+    <string name="TjAppIconGold">זהב</string>
+    <string name="TjAppIconPink">ורוד</string>
+    <string name="TjAppIconOrange">כתום</string>
     <string name="TjPlayerNextIn">הפרק הבא בעוד %1$d</string>
     <string name="TjPlayerPlayNow">הפעל עכשיו</string>
     <string name="TjPlayerChooseCopy">בחר מקור</string>

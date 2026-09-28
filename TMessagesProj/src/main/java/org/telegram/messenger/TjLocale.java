@@ -410,6 +410,16 @@ public class TjLocale {
         m.put("TjPlayerCasting", "מוצג בטלוויזיה");
         m.put("TjPlayerCast", "שידור לטלוויזיה");
         m.put("TjPlayerMinimize", "חלון קטן");
+        m.put("TjAppIconBlack", "שחור");
+        m.put("TjAppIconWhite", "לבן");
+        m.put("TjAppIconMidnight", "חצות");
+        m.put("TjAppIconLight", "בהיר");
+        m.put("TjAppIconRed", "אדום");
+        m.put("TjAppIconGreen", "ירוק");
+        m.put("TjAppIconPurple", "סגול");
+        m.put("TjAppIconGold", "זהב");
+        m.put("TjAppIconPink", "ורוד");
+        m.put("TjAppIconOrange", "כתום");
         m.put("TjPlayerNextIn", "הפרק הבא בעוד %1$d");
         m.put("TjPlayerPlayNow", "הפעל עכשיו");
         m.put("TjPlayerChooseCopy", "בחר מקור");
