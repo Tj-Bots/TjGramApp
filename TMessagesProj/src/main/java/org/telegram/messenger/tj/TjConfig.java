@@ -327,6 +327,11 @@ public final class TjConfig {
     public static void setAccountLog(boolean value) {
         prefs().edit().putBoolean("account_log", value).apply();
     }
+    /** Watch: also look for the title in the first two lines of a video's caption, not only its file name. */
+    public static boolean watchSearchCaption() { return get("watch_search_caption", true); }
+    public static void setWatchSearchCaption(boolean value) {
+        prefs().edit().putBoolean("watch_search_caption", value).apply();
+    }
     public static boolean showKillInDrawer() { return get("show_kill_in_drawer", false); }
 
     public static String deletedMark() { return prefs().getString("deleted_mark", "🗑️"); }

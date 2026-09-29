@@ -11566,6 +11566,9 @@
     <string name="TjWatchSearchHint">Search a film or a series</string>
     <string name="TjWatchAll">All</string>
     <string name="TjWatchCategories">Categories</string>
+    <string name="TjWatchSearchHeader">Finding files</string>
+    <string name="TjWatchSearchCaption">Search the caption too</string>
+    <string name="TjWatchSearchCaptionInfo">Many videos are sent with a meaningless file name, like index.mp4, and the real name written in the caption. When this is on, the first two lines of a video\'s caption count as its name too.</string>
     <string name="TjWatchInDrawer">Watch in the side menu</string>
     <string name="TjWatchInTabs">Watch in the bottom bar</string>
     <string name="TjFastDownload">Faster downloads and uploads</string>

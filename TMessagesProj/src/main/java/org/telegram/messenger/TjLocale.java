@@ -507,6 +507,9 @@ public class TjLocale {
         m.put("TjWatchSearchHint", "חפש סרט או סדרה");
         m.put("TjWatchAll", "הכל");
         m.put("TjWatchCategories", "קטגוריות");
+        m.put("TjWatchSearchHeader", "חיפוש קבצים");
+        m.put("TjWatchSearchCaption", "חיפוש גם בכיתוב");
+        m.put("TjWatchSearchCaptionInfo", "הרבה סרטונים נשלחים עם שם קובץ חסר משמעות, כמו index.mp4, והשם האמיתי כתוב בכיתוב. כשזה מופעל, גם שתי השורות הראשונות של הכיתוב נחשבות לשם הסרטון.");
         m.put("TjWatchInDrawer", "צפייה בתפריט הצד");
         m.put("TjWatchInTabs", "צפייה בסרגל התחתון");
         m.put("TjFastDownload", "הורדה והעלאה מהירה");

@@ -60,6 +60,10 @@ public final class TjTitleMatch {
         haystacks.add(parsed.title);
         if (filename != null && !filename.isEmpty()) haystacks.add(TjMediaTitle.parse(filename, "").title);
         if (caption != null && !caption.isEmpty()) haystacks.add(TjMediaTitle.parse("", caption).title);
+        List<String> captionLines = TjConfig.watchSearchCaption() ? firstLines(caption, 2) : new ArrayList<>();
+        // Videos are often named index.mp4 with the real name written in the caption, on the first
+        // line or under a line of emoji; each of the two lines is a name candidate of its own.
+        for (String line : captionLines) haystacks.add(TjMediaTitle.parse("", line).title);
 
         int best = REJECT;
         for (String target : targets) {
@@ -73,6 +77,23 @@ public final class TjTitleMatch {
                 if (hasRealWord(extra)) continue;
                 int score = 100 - extra.size();
                 best = Math.max(best, score);
+            }
+        }
+        if (best == REJECT) {
+            // A caption line is a sentence more often than a bare name - "the new film X, dubbed".
+            // It still counts when the whole name is in it, just below a line that is only the name.
+            for (String target : targets) {
+                Set<String> wanted = tokens(target);
+                if (wanted.isEmpty()) continue;
+                for (String line : captionLines) {
+                    Set<String> candidate = tokens(line);
+                    if (!candidate.containsAll(wanted)) continue;
+                    Set<String> extra = new HashSet<>(candidate);
+                    extra.removeAll(wanted);
+                    int words = realWords(extra);
+                    if (words > 4) continue;
+                    best = Math.max(best, 60 - words * 5);
+                }
             }
         }
         if (best == REJECT) return REJECT;
@@ -98,6 +119,29 @@ public final class TjTitleMatch {
         String title = parsed.title == null ? "" : parsed.title.trim();
         if (title.isEmpty()) return filename == null ? "" : filename;
         return parsed.year > 0 ? title + " (" + parsed.year + ")" : title;
+    }
+
+    private static List<String> firstLines(String caption, int count) {
+        List<String> lines = new ArrayList<>();
+        if (caption == null) return lines;
+        for (String line : caption.split("\\r?\\n")) {
+            line = line.trim();
+            // Links and lines with no letters (emoji, separators) are not where a name is written.
+            if (line.isEmpty() || line.startsWith("http://") || line.startsWith("https://") || !line.matches("(?s).*\\p{L}.*")) continue;
+            lines.add(line);
+            if (lines.size() >= count) break;
+        }
+        return lines;
+    }
+
+    private static int realWords(Set<String> extra) {
+        int count = 0;
+        for (String token : extra) {
+            if (token.length() < 3 || NOISE.contains(token) || !token.matches(".*\\p{L}.*")) continue;
+            if (token.matches("(19|20)\\d{2}")) continue;
+            count++;
+        }
+        return count;
     }
 
     /** A leftover word with letters in it is a different work; punctuation and codecs are not. */

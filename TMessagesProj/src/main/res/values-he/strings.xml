@@ -342,6 +342,9 @@
     <string name="TjWatchSearchHint">חפש סרט או סדרה</string>
     <string name="TjWatchAll">הכל</string>
     <string name="TjWatchCategories">קטגוריות</string>
+    <string name="TjWatchSearchHeader">חיפוש קבצים</string>
+    <string name="TjWatchSearchCaption">חיפוש גם בכיתוב</string>
+    <string name="TjWatchSearchCaptionInfo">הרבה סרטונים נשלחים עם שם קובץ חסר משמעות, כמו index.mp4, והשם האמיתי כתוב בכיתוב. כשזה מופעל, גם שתי השורות הראשונות של הכיתוב נחשבות לשם הסרטון.</string>
     <string name="TjWatchInDrawer">צפייה בתפריט הצד</string>
     <string name="TjWatchTitle">צפייה</string>
     <string name="TjWatchNeedsKey">כדי לעיין בסרטים ובסדרות צריך מפתח TMDB משלך. הוא חינמי, נשמר במכשיר הזה בלבד, ושום דבר מהחשבון שלך לא נשלח איתו.</string>
