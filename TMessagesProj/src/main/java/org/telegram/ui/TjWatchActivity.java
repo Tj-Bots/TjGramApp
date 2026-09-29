@@ -466,24 +466,24 @@ public class TjWatchActivity extends BaseFragment {
         stylePill(genrePill, selectedGenre != null);
     }
 
+    /** A dropdown under the pill, like a site's menu; a tap anywhere else closes it. */
     private void showGenrePicker() {
-        if (getParentActivity() == null || genres.isEmpty()) return;
-        ArrayList<Genre> shown = new ArrayList<>();
-        ArrayList<CharSequence> names = new ArrayList<>();
-        names.add(TjLocale.getString(R.string.TjWatchAllGenres));
-        shown.add(null);
+        if (getParentActivity() == null || genres.isEmpty() || genrePill == null) return;
+        org.telegram.ui.Components.ItemOptions options = org.telegram.ui.Components.ItemOptions.makeOptions(this, genrePill)
+                .setDimAlpha(0x33)
+                .forceBottom(true)
+                .setMinWidth(200)
+                .setMaxHeight(Math.min(dp(420), AndroidUtilities.displaySize.y / 2));
+        options.addChecked(selectedGenre == null, TjLocale.getString(R.string.TjWatchAllGenres), () -> {
+            if (selectedGenre != null) selectGenre(null);
+        });
         for (Genre genre : genres) {
             if (!fits(genre)) continue;
-            shown.add(genre);
-            names.add(genre == selectedGenre ? "\u2713 " + genre.name : genre.name);
+            options.addChecked(genre == selectedGenre, genre.name, () -> {
+                if (genre != selectedGenre) selectGenre(genre);
+            });
         }
-        showDialog(new AlertDialog.Builder(getParentActivity())
-                .setTitle(TjLocale.getString(R.string.TjWatchCategories))
-                .setItems(names.toArray(new CharSequence[0]), (dialog, which) -> {
-                    Genre genre = shown.get(which);
-                    if (genre != selectedGenre) selectGenre(genre);
-                })
-                .create());
+        options.show();
     }
 
     /**
