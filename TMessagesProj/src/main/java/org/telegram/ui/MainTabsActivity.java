@@ -1009,6 +1009,8 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
                 if (name.equals(path) && updateLayout != null) {
                     updateLayout.updateAppUpdateViews(currentAccount, true);
                 }
+            } else if (org.telegram.messenger.tj.TjUpdates.isUpdateFile(path) && updateLayout != null) {
+                updateLayout.updateAppUpdateViews(currentAccount, true);
             }
         } else if (id == NotificationCenter.fileLoadFailed) {
             String path = (String) args[0];
@@ -1017,6 +1019,8 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
                 if (name.equals(path) && updateLayout != null) {
                     updateLayout.updateAppUpdateViews(currentAccount, true);
                 }
+            } else if (org.telegram.messenger.tj.TjUpdates.isUpdateFile(path) && updateLayout != null) {
+                updateLayout.updateAppUpdateViews(currentAccount, true);
             }
         } else if (id == NotificationCenter.fileLoadProgressChanged) {
             if (updateLayout != null) {

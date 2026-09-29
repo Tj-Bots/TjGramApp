@@ -410,6 +410,14 @@ public class TjLocale {
         m.put("TjPlayerCasting", "מוצג בטלוויזיה");
         m.put("TjPlayerCast", "שידור לטלוויזיה");
         m.put("TjPlayerMinimize", "חלון קטן");
+        m.put("TjUpdateAvailable", "עדכון גרסה");
+        m.put("TjUpdateDownloading", "מוריד %1$d%%");
+        m.put("TjUpdateInstall", "התקן עדכון");
+        m.put("TjUpdateCheck", "בדיקת עדכונים");
+        m.put("TjUpdateReady", "גרסה חדשה זמינה");
+        m.put("TjUpdateFound", "נמצאה גרסה חדשה והיא בהורדה - ההתקדמות למטה ברשימת הצ\'אטים");
+        m.put("TjUpdateNone", "יש לך את הגרסה האחרונה");
+        m.put("TjUpdateFailed", "לא ניתן לבדוק עדכונים כרגע");
         m.put("TjAppIconBlack", "שחור");
         m.put("TjAppIconWhite", "לבן");
         m.put("TjAppIconMidnight", "חצות");

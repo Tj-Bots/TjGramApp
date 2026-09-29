@@ -52,6 +52,7 @@ public class TjSettingsHomeActivity extends BaseFragment {
     private static final int CHANNEL = 10;
     private static final int DISCUSSION = 11;
     private static final int FAQ = 12;
+    private static final int UPDATES = 13;
 
     private final ArrayList<Item> items = new ArrayList<>();
     private Adapter adapter;
@@ -146,6 +147,9 @@ public class TjSettingsHomeActivity extends BaseFragment {
                 case FAQ:
                     Browser.openUrl(getParentActivity(), TjCommunity.FAQ_URL);
                     break;
+                case UPDATES:
+                    checkForUpdates();
+                    break;
             }
         });
         root.addView(list, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
@@ -181,6 +185,9 @@ public class TjSettingsHomeActivity extends BaseFragment {
         items.add(Item.category(ADVANCED, R.string.TjAdvancedSettings, R.string.TjAdvancedSettingsDesc,
                 R.drawable.msg_settings, TjSettingsStyle.ADVANCED_COLOR));
         items.add(Item.header(TjLocale.getString(R.string.TjLinks)));
+        items.add(new Item(TYPE_CATEGORY, UPDATES, TjLocale.getString(R.string.TjUpdateCheck),
+                org.telegram.messenger.tj.TjUpdates.available() ? TjLocale.getString(R.string.TjUpdateReady) : "@" + TjCommunity.UPDATES_USERNAME,
+                R.drawable.msg_download, TjSettingsStyle.CHANNEL_COLOR));
         items.add(new Item(TYPE_CATEGORY, FAQ, TjLocale.getString(R.string.TjFAQ),
                 TjCommunity.FAQ_USERNAME, R.drawable.msg_info, TjSettingsStyle.CHANNEL_COLOR));
         items.add(new Item(TYPE_CATEGORY, CHANNEL, TjLocale.getString(R.string.TjChannel),
@@ -188,6 +195,32 @@ public class TjSettingsHomeActivity extends BaseFragment {
         items.add(new Item(TYPE_CATEGORY, DISCUSSION, TjLocale.getString(R.string.TjDiscussions),
                 TjCommunity.DISCUSSION_USERNAME, R.drawable.msg_groups, TjSettingsStyle.DISCUSSION_COLOR));
         items.add(new Item(TYPE_INFO, 0, TjLocale.getString(R.string.TjSettingsFooter), null, 0, 0));
+    }
+
+    private boolean checkingUpdates;
+
+    /** Asks the updates channel now; a newer build starts downloading into the strip under the chats. */
+    private void checkForUpdates() {
+        if (checkingUpdates) return;
+        checkingUpdates = true;
+        org.telegram.messenger.tj.TjUpdates.check(currentAccount, true, result -> {
+            checkingUpdates = false;
+            if (fragmentView == null) return;
+            int text;
+            if (result == org.telegram.messenger.tj.TjUpdates.RESULT_FOUND) {
+                if (!org.telegram.messenger.tj.TjUpdates.downloaded() && !org.telegram.messenger.tj.TjUpdates.downloading()) {
+                    org.telegram.messenger.tj.TjUpdates.download();
+                }
+                text = R.string.TjUpdateFound;
+            } else if (result == org.telegram.messenger.tj.TjUpdates.RESULT_NONE) {
+                text = R.string.TjUpdateNone;
+            } else {
+                text = R.string.TjUpdateFailed;
+            }
+            org.telegram.ui.Components.BulletinFactory.of(this).createSimpleBulletin(R.raw.info, TjLocale.getString(text)).show();
+            buildItems();
+            adapter.notifyDataSetChanged();
+        });
     }
 
     /** Ghost mode is the headline feature, so its row says how much of it is actually on. */

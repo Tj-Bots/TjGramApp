@@ -11461,6 +11461,14 @@
     <string name="TjPlayerCasting">Playing on the TV</string>
     <string name="TjPlayerCast">Cast to TV</string>
     <string name="TjPlayerMinimize">Mini player</string>
+    <string name="TjUpdateAvailable">Update version</string>
+    <string name="TjUpdateDownloading">Downloading %1$d%%</string>
+    <string name="TjUpdateInstall">Install update</string>
+    <string name="TjUpdateCheck">Check for updates</string>
+    <string name="TjUpdateReady">A new version is available</string>
+    <string name="TjUpdateFound">A new version was found and is downloading - the progress is under the chats list</string>
+    <string name="TjUpdateNone">You have the latest version</string>
+    <string name="TjUpdateFailed">Could not check for updates right now</string>
     <string name="TjAppIconBlack">Black</string>
     <string name="TjAppIconWhite">White</string>
     <string name="TjAppIconMidnight">Midnight</string>

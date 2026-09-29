@@ -14,6 +14,8 @@ public final class TjCommunity {
     public static final String FAQ_URL = "https://t.me/TjGramFAQ/3";
     public static final String DISCUSSION_USERNAME = "@TjGramAppChat";
     public static final String DISCUSSION_URL = "https://t.me/TjGramAppChat";
+    /** Public channel whose APK posts are offered as in-app updates. */
+    public static final String UPDATES_USERNAME = "TjGramApp";
 
     private static final String PREFERENCES = "tjcommunity";
     // v1 was accidentally shown in English when Telegram used an in-app Hebrew language pack.

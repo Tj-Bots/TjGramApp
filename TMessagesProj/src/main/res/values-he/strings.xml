@@ -237,6 +237,14 @@
     <string name="TjPlayerCasting">מוצג בטלוויזיה</string>
     <string name="TjPlayerCast">שידור לטלוויזיה</string>
     <string name="TjPlayerMinimize">חלון קטן</string>
+    <string name="TjUpdateAvailable">עדכון גרסה</string>
+    <string name="TjUpdateDownloading">מוריד %1$d%%</string>
+    <string name="TjUpdateInstall">התקן עדכון</string>
+    <string name="TjUpdateCheck">בדיקת עדכונים</string>
+    <string name="TjUpdateReady">גרסה חדשה זמינה</string>
+    <string name="TjUpdateFound">נמצאה גרסה חדשה והיא בהורדה - ההתקדמות למטה ברשימת הצ\'אטים</string>
+    <string name="TjUpdateNone">יש לך את הגרסה האחרונה</string>
+    <string name="TjUpdateFailed">לא ניתן לבדוק עדכונים כרגע</string>
     <string name="TjAppIconBlack">שחור</string>
     <string name="TjAppIconWhite">לבן</string>
     <string name="TjAppIconMidnight">חצות</string>
