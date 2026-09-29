@@ -154,7 +154,6 @@ public class TjWatchActivity extends BaseFragment {
     private ActionBarMenuItem searchItem;
     private TextView status;
     private View gate;
-    private LinearLayout genreRow;
     private LinearLayout kindRow;
     private Genre selectedGenre;
     private int kind = KIND_ALL;
@@ -209,25 +208,24 @@ public class TjWatchActivity extends BaseFragment {
         root.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundGray));
         fragmentView = root;
 
-        LinearLayout content = new LinearLayout(context);
-        content.setOrientation(LinearLayout.VERTICAL);
+        FrameLayout content = new FrameLayout(context);
         root.addView(content, LayoutHelper.createFrame(-1, -1));
 
-        // The films/series switch and the genre row fold away while scrolling down and come back
-        // on the way up, like the header of a streaming app - the list gets the whole screen.
+        // Series / films / categories, as pills the way a streaming app puts them: part of the top
+        // of the list, so they are there only up at the top and scroll away with everything else.
         filtersHeader = new LinearLayout(context);
         filtersHeader.setOrientation(LinearLayout.VERTICAL);
-        filtersHeader.addView(kindSection(context), LayoutHelper.createLinear(-1, 34, 12, 10, 12, 0));
-        filtersHeader.addView(genreSection(context), LayoutHelper.createLinear(-1, -2, 0, 8, 0, 0));
-        content.addView(filtersHeader, LayoutHelper.createLinear(-1, -2));
-
+        filtersHeader.setBackgroundColor(Theme.getColor(Theme.key_windowBackgroundGray));
+        filtersHeader.addView(kindSection(context), LayoutHelper.createLinear(-1, 34, 12, 10, 12, 8));
+        filtersHeader.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, orr, ob) -> {
+            if (b - t != ob - ot) applyListPadding();
+        });
 
         status = new TextView(context);
         status.setTextSize(14);
         status.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText));
         status.setGravity(Gravity.CENTER);
         status.setPadding(dp(28), dp(28), dp(28), dp(12));
-        content.addView(status, LayoutHelper.createLinear(-1, -2));
 
         listView = new RecyclerListView(context);
         listView.setClipToPadding(false);
@@ -241,17 +239,13 @@ public class TjWatchActivity extends BaseFragment {
         listView.setOnScrollListener(new RecyclerView.OnScrollListener() {
             @Override public void onScrolled(RecyclerView view, int dx, int dy) {
                 if (dy > 0) checkLoadMore();
-                scrolledSinceTurn = (dy > 0) == (scrolledSinceTurn > 0) ? scrolledSinceTurn + dy : dy;
-                if (!view.canScrollVertically(-1)) {
-                    setFiltersShown(true);
-                } else if (scrolledSinceTurn > dp(24)) {
-                    setFiltersShown(false);
-                } else if (scrolledSinceTurn < -dp(24)) {
-                    setFiltersShown(true);
-                }
+                headerScroll = view.canScrollVertically(-1) ? Math.max(0, headerScroll + dy) : 0;
+                moveHeader();
             }
         });
-        content.addView(listView, LayoutHelper.createLinear(-1, -1));
+        content.addView(listView, LayoutHelper.createFrame(-1, -1));
+        content.addView(status, LayoutHelper.createFrame(-1, -2, Gravity.TOP));
+        content.addView(filtersHeader, LayoutHelper.createFrame(-1, -2, Gravity.TOP));
         applyMode();
 
         if (!TjTmdb.available(currentAccount)) {
@@ -265,42 +259,25 @@ public class TjWatchActivity extends BaseFragment {
     }
 
     private LinearLayout filtersHeader;
-    private boolean filtersShown = true;
-    private int scrolledSinceTurn;
-    private android.animation.ValueAnimator filtersAnimator;
+    private int headerScroll;
 
-    private void setFiltersShown(boolean shown) {
-        if (filtersHeader == null || filtersShown == shown) return;
-        filtersShown = shown;
-        if (filtersAnimator != null) filtersAnimator.cancel();
-        final ViewGroup.LayoutParams params = filtersHeader.getLayoutParams();
-        final int from = filtersHeader.getHeight();
-        int target = 0;
-        if (shown) {
-            filtersHeader.measure(View.MeasureSpec.makeMeasureSpec(Math.max(1, ((View) filtersHeader.getParent()).getWidth()), View.MeasureSpec.EXACTLY),
-                    View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED));
-            target = filtersHeader.getMeasuredHeight();
+    /** The header sits over the top of the list and goes up exactly as far as the list has. */
+    private void moveHeader() {
+        if (filtersHeader == null) return;
+        float y = -Math.min(headerScroll, filtersHeader.getHeight());
+        filtersHeader.setTranslationY(y);
+        status.setTranslationY(y + filtersHeader.getHeight());
+    }
+
+    private void applyListPadding() {
+        if (listView == null) return;
+        int header = filtersHeader == null ? 0 : filtersHeader.getHeight();
+        if (gridMode) {
+            listView.setPadding(dp(6), header + dp(6), dp(6), dp(24));
+        } else {
+            listView.setPadding(0, header + dp(2), 0, dp(24));
         }
-        final int to = target;
-        filtersAnimator = android.animation.ValueAnimator.ofInt(from, to);
-        filtersAnimator.setDuration(200);
-        filtersAnimator.setInterpolator(org.telegram.ui.Components.CubicBezierInterpolator.EASE_OUT_QUINT);
-        filtersAnimator.addUpdateListener(a -> {
-            params.height = (int) a.getAnimatedValue();
-            filtersHeader.setLayoutParams(params);
-            filtersHeader.setAlpha(to == 0 ? (float) params.height / Math.max(1, from) : (float) params.height / Math.max(1, to));
-        });
-        filtersAnimator.addListener(new android.animation.AnimatorListenerAdapter() {
-            @Override
-            public void onAnimationEnd(android.animation.Animator animation) {
-                if (filtersShown) {
-                    params.height = ViewGroup.LayoutParams.WRAP_CONTENT;
-                    filtersHeader.setLayoutParams(params);
-                    filtersHeader.setAlpha(1f);
-                }
-            }
-        });
-        filtersAnimator.start();
+        moveHeader();
     }
 
     private void open(Item item) {
@@ -313,21 +290,19 @@ public class TjWatchActivity extends BaseFragment {
      */
     private void applyMode() {
         if (listView == null) return;
-        scrolledSinceTurn = 0;
-        setFiltersShown(true);
+        headerScroll = 0;
         if (gridMode) {
             listView.setLayoutManager(new GridLayoutManager(getParentActivity(), 3) {
                 // The app declares no RTL support and mirrors by hand, so the manager has to be
                 // told; left to itself it fills a Hebrew grid from the left like an English one.
                 @Override protected boolean isLayoutRTL() { return LocaleController.isRTL; }
             });
-            listView.setPadding(dp(6), dp(6), dp(6), dp(24));
             if (listView.getAdapter() != adapter) listView.setAdapter(adapter);
         } else {
             listView.setLayoutManager(new LinearLayoutManager(getParentActivity()));
-            listView.setPadding(0, dp(2), 0, dp(24));
             if (listView.getAdapter() != shelfAdapter) listView.setAdapter(shelfAdapter);
         }
+        applyListPadding();
     }
 
     /**
@@ -373,74 +348,84 @@ public class TjWatchActivity extends BaseFragment {
     private View kindSection(Context context) {
         kindRow = new LinearLayout(context);
         kindRow.setOrientation(LinearLayout.HORIZONTAL);
-        kindRow.setBackground(Theme.createRoundRectDrawable(dp(17),
-                Theme.getColor(Theme.key_windowBackgroundWhite)));
-        kindRow.setPadding(dp(3), dp(3), dp(3), dp(3));
+        kindRow.setGravity((LocaleController.isRTL ? Gravity.RIGHT : Gravity.LEFT) | Gravity.CENTER_VERTICAL);
+        ArrayList<View> pills = new ArrayList<>();
+        pills.add(kindPill(context, TjLocale.getString(R.string.TjMediaSeries), KIND_SERIES));
+        pills.add(kindPill(context, TjLocale.getString(R.string.TjMediaMovies), KIND_MOVIES));
+        genrePill = pill(context);
+        genrePill.setOnClickListener(v -> showGenrePicker());
+        genrePill.setVisibility(View.GONE);
+        pills.add(genrePill);
         // Added back to front in a language read that way, since nothing here is mirrored for us.
-        int[] order = LocaleController.isRTL ? new int[]{KIND_SERIES, KIND_MOVIES, KIND_ALL}
-                : new int[]{KIND_ALL, KIND_MOVIES, KIND_SERIES};
-        for (int value : order) {
-            kindRow.addView(segment(context, TjLocale.getString(value == KIND_ALL ? R.string.TjWatchAll
-                            : value == KIND_MOVIES ? R.string.TjMediaMovies : R.string.TjMediaSeries), value),
-                    LayoutHelper.createLinear(0, -1, 1f));
-        }
+        if (LocaleController.isRTL) java.util.Collections.reverse(pills);
+        for (View view : pills) kindRow.addView(view, LayoutHelper.createLinear(-2, -1, 4, 0, 4, 0));
         styleKinds();
         return kindRow;
     }
 
-    private TextView segment(Context context, String label, int value) {
+    private TextView genrePill;
+
+    private TextView pill(Context context) {
         TextView view = new TextView(context);
-        view.setTextSize(13);
-        view.setText(label);
+        view.setTextSize(14);
         view.setGravity(Gravity.CENTER);
+        view.setSingleLine(true);
+        view.setPadding(dp(16), 0, dp(16), 0);
         view.setTypeface(AndroidUtilities.getTypeface("fonts/rmedium.ttf"));
-        view.setTag(value);
-        view.setOnClickListener(v -> {
-            if (kind == value) return;
-            kind = value;
-            styleKinds();
-            // A genre only one half of the catalogue knows about goes with that half.
-            if (selectedGenre != null && !fits(selectedGenre)) selectedGenre = null;
-            buildGenreChips();
-            // Every row is about one half of the catalogue, so they are all asked again.
-            if (trendingShelf != null) { trendingShelf.asked = false; trendingShelf.items.clear(); }
-            genreShelves.clear();
-            reload();
-        });
+        ScaleStateListAnimator.apply(view, 0.05f, 1.2f);
         return view;
+    }
+
+    /** Series or films; the chosen one again goes back to both. */
+    private TextView kindPill(Context context, String label, int value) {
+        TextView view = pill(context);
+        view.setText(label);
+        view.setTag(value);
+        view.setOnClickListener(v -> setKind(kind == value ? KIND_ALL : value));
+        return view;
+    }
+
+    private void setKind(int value) {
+        if (kind == value) return;
+        kind = value;
+        styleKinds();
+        // A genre only one half of the catalogue knows about goes with that half.
+        if (selectedGenre != null && !fits(selectedGenre)) selectedGenre = null;
+        buildGenreChips();
+        // Every row is about one half of the catalogue, so they are all asked again.
+        if (trendingShelf != null) { trendingShelf.asked = false; trendingShelf.items.clear(); }
+        genreShelves.clear();
+        reload();
+    }
+
+    private void stylePill(TextView view, boolean chosen) {
+        if (chosen) {
+            view.setBackground(Theme.createSimpleSelectorRoundRectDrawable(dp(17),
+                    Theme.getColor(Theme.key_featuredStickers_addButton), Theme.getColor(Theme.key_listSelector)));
+            view.setTextColor(Theme.getColor(Theme.key_featuredStickers_buttonText));
+        } else {
+            android.graphics.drawable.GradientDrawable outline = new android.graphics.drawable.GradientDrawable();
+            outline.setCornerRadius(dp(17));
+            outline.setStroke(Math.max(1, dp(1)), androidx.core.graphics.ColorUtils.setAlphaComponent(
+                    Theme.getColor(Theme.key_windowBackgroundWhiteBlackText), 0x60));
+            view.setBackground(outline);
+            view.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText));
+        }
     }
 
     private void styleKinds() {
         if (kindRow == null) return;
         for (int a = 0; a < kindRow.getChildCount(); a++) {
-            TextView view = (TextView) kindRow.getChildAt(a);
-            boolean chosen = (Integer) view.getTag() == kind;
-            view.setBackground(chosen ? Theme.createRoundRectDrawable(dp(14),
-                    Theme.getColor(Theme.key_featuredStickers_addButton)) : null);
-            view.setTextColor(chosen ? Theme.getColor(Theme.key_featuredStickers_buttonText)
-                    : Theme.getColor(Theme.key_windowBackgroundWhiteGrayText2));
+            View view = kindRow.getChildAt(a);
+            if (view.getTag() instanceof Integer) {
+                stylePill((TextView) view, (Integer) view.getTag() == kind);
+            }
         }
     }
 
     /** True when this genre exists on the half of the catalogue currently being shown. */
     private boolean fits(Genre genre) {
         return (wantsSeries() && genre.seriesId > 0) || (wantsMovies() && genre.movieId > 0);
-    }
-
-    /**
-     * The row of names the catalogue files things under, which is the other way people look for
-     * something to watch: not a title they already have in mind, but a kind of evening.
-     */
-    private View genreSection(Context context) {
-        android.widget.HorizontalScrollView scroll = new android.widget.HorizontalScrollView(context);
-        scroll.setHorizontalScrollBarEnabled(false);
-        scroll.setClipToPadding(false);
-        scroll.setPadding(dp(12), 0, dp(12), 0);
-        scroll.setVisibility(View.GONE);
-        genreRow = new LinearLayout(context);
-        genreRow.setOrientation(LinearLayout.HORIZONTAL);
-        scroll.addView(genreRow, new FrameLayout.LayoutParams(-2, -2));
-        return scroll;
     }
 
     /**
@@ -472,43 +457,33 @@ public class TjWatchActivity extends BaseFragment {
         if (!gridMode) buildShelves();
     }
 
+    /** The categories pill: the chosen genre's name when there is one, otherwise "Categories". */
     private void buildGenreChips() {
-        if (genreRow == null) return;
-        Context context = genreRow.getContext();
-        genreRow.removeAllViews();
-        if (genres.isEmpty()) {
-            ((View) genreRow.getParent()).setVisibility(View.GONE);
-            return;
-        }
-        ((View) genreRow.getParent()).setVisibility(View.VISIBLE);
-        ArrayList<View> chips = new ArrayList<>();
-        chips.add(chip(context, TjLocale.getString(R.string.TjWatchAllGenres), null));
-        for (Genre genre : genres) {
-            if (fits(genre)) chips.add(chip(context, genre.name, genre));
-        }
-        // Nothing here is mirrored for us, so the first chip is added last when the row is read
-        // from the right, and the row is scrolled to that end once it has a width.
-        if (LocaleController.isRTL) java.util.Collections.reverse(chips);
-        for (View view : chips) genreRow.addView(view, LayoutHelper.createLinear(-2, 32, 0, 0, 6, 0));
-        styleChips();
-        if (LocaleController.isRTL) {
-            View parent = (View) genreRow.getParent();
-            // scrollTo rather than fullScroll: the latter also hands focus to a chip.
-            parent.post(() -> parent.scrollTo(genreRow.getWidth(), 0));
-        }
+        if (genrePill == null) return;
+        genrePill.setVisibility(genres.isEmpty() ? View.GONE : View.VISIBLE);
+        String label = selectedGenre != null ? selectedGenre.name : TjLocale.getString(R.string.TjWatchCategories);
+        genrePill.setText(label + " \u25BE");
+        stylePill(genrePill, selectedGenre != null);
     }
 
-    private TextView chip(Context context, String label, Genre genre) {
-        TextView view = new TextView(context);
-        view.setTextSize(13);
-        view.setText(label);
-        view.setGravity(Gravity.CENTER);
-        view.setPadding(dp(14), 0, dp(14), 0);
-        view.setTypeface(AndroidUtilities.getTypeface("fonts/rmedium.ttf"));
-        view.setTag(genre);
-        view.setOnClickListener(v -> selectGenre(genre));
-        ScaleStateListAnimator.apply(view, 0.05f, 1.2f);
-        return view;
+    private void showGenrePicker() {
+        if (getParentActivity() == null || genres.isEmpty()) return;
+        ArrayList<Genre> shown = new ArrayList<>();
+        ArrayList<CharSequence> names = new ArrayList<>();
+        names.add(TjLocale.getString(R.string.TjWatchAllGenres));
+        shown.add(null);
+        for (Genre genre : genres) {
+            if (!fits(genre)) continue;
+            shown.add(genre);
+            names.add(genre == selectedGenre ? "\u2713 " + genre.name : genre.name);
+        }
+        showDialog(new AlertDialog.Builder(getParentActivity())
+                .setTitle(TjLocale.getString(R.string.TjWatchCategories))
+                .setItems(names.toArray(new CharSequence[0]), (dialog, which) -> {
+                    Genre genre = shown.get(which);
+                    if (genre != selectedGenre) selectGenre(genre);
+                })
+                .create());
     }
 
     /**
@@ -528,17 +503,7 @@ public class TjWatchActivity extends BaseFragment {
     }
 
     private void styleChips() {
-        if (genreRow == null) return;
-        for (int a = 0; a < genreRow.getChildCount(); a++) {
-            View view = genreRow.getChildAt(a);
-            boolean chosen = view.getTag() == selectedGenre;
-            view.setBackground(Theme.createSimpleSelectorRoundRectDrawable(dp(16),
-                    chosen ? Theme.getColor(Theme.key_featuredStickers_addButton)
-                            : Theme.getColor(Theme.key_windowBackgroundWhite),
-                    Theme.getColor(Theme.key_listSelector)));
-            ((TextView) view).setTextColor(chosen ? Theme.getColor(Theme.key_featuredStickers_buttonText)
-                    : Theme.getColor(Theme.key_windowBackgroundWhiteBlackText));
-        }
+        buildGenreChips();
     }
 
     /**

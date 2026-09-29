@@ -19,7 +19,8 @@ import java.util.Objects;
 public class BuildVars {
 
     public static boolean DEBUG_VERSION = BuildConfig.DEBUG_VERSION;
-    public static boolean LOGS_ENABLED = BuildConfig.DEBUG_VERSION;
+    // TjGram ships debug-flavoured builds; logs stay off unless turned on by hand, so storage does not fill with them.
+    public static boolean LOGS_ENABLED = false;
     public static boolean DEBUG_PRIVATE_VERSION = BuildConfig.DEBUG_PRIVATE_VERSION;
     public static boolean USE_CLOUD_STRINGS = true;
     public static boolean CHECK_UPDATES = true;
@@ -48,7 +49,22 @@ public class BuildVars {
     static {
         if (ApplicationLoader.applicationContext != null) {
             SharedPreferences sharedPreferences = ApplicationLoader.applicationContext.getSharedPreferences("systemConfig", Context.MODE_PRIVATE);
-            LOGS_ENABLED = DEBUG_VERSION || sharedPreferences.getBoolean("logsEnabled", DEBUG_VERSION);
+            LOGS_ENABLED = sharedPreferences.getBoolean("logsEnabled", false);
+            if (!LOGS_ENABLED) {
+                // Whatever earlier builds wrote while logging was forced on.
+                new Thread(() -> {
+                    try {
+                        java.io.File dir = AndroidUtilities.getLogsDir();
+                        java.io.File[] files = dir == null ? null : dir.listFiles();
+                        if (files != null) {
+                            for (java.io.File file : files) {
+                                if (file.isFile()) file.delete();
+                            }
+                        }
+                    } catch (Throwable ignore) {
+                    }
+                }, "tj-logs-cleanup").start();
+            }
             if (LOGS_ENABLED) {
                 final Thread.UncaughtExceptionHandler pastHandler = Thread.getDefaultUncaughtExceptionHandler();
                 Thread.setDefaultUncaughtExceptionHandler((thread, exception) -> {

@@ -506,6 +506,7 @@ public class TjLocale {
         m.put("TjCategories", "קטגוריות");
         m.put("TjWatchSearchHint", "חפש סרט או סדרה");
         m.put("TjWatchAll", "הכל");
+        m.put("TjWatchCategories", "קטגוריות");
         m.put("TjWatchInDrawer", "צפייה בתפריט הצד");
         m.put("TjWatchInTabs", "צפייה בסרגל התחתון");
         m.put("TjFastDownload", "הורדה והעלאה מהירה");

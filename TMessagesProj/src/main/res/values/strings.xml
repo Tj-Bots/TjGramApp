@@ -11565,6 +11565,7 @@
     <string name="TjCategories">Categories</string>
     <string name="TjWatchSearchHint">Search a film or a series</string>
     <string name="TjWatchAll">All</string>
+    <string name="TjWatchCategories">Categories</string>
     <string name="TjWatchInDrawer">Watch in the side menu</string>
     <string name="TjWatchInTabs">Watch in the bottom bar</string>
     <string name="TjFastDownload">Faster downloads and uploads</string>
