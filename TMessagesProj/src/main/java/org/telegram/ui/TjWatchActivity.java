@@ -312,6 +312,10 @@ public class TjWatchActivity extends BaseFragment {
      */
     @Override
     public boolean onBackPressed(boolean invoked) {
+        if (genreDropdown != null) {
+            if (invoked) hideGenrePicker();
+            return false;
+        }
         if (actionBar != null && actionBar.isSearchFieldVisible()) {
             if (invoked) actionBar.closeSearchField(true);
             return false;
@@ -466,24 +470,158 @@ public class TjWatchActivity extends BaseFragment {
         stylePill(genrePill, selectedGenre != null);
     }
 
-    /** A dropdown under the pill, like a site's menu; a tap anywhere else closes it. */
+    private FrameLayout genreDropdown;
+
+    /**
+     * The categories pill opens downwards into a list, like a select box on a website: the same
+     * outline carries on from the pill around the list, the chosen genre carries a round check,
+     * and a tap anywhere outside folds it back.
+     */
     private void showGenrePicker() {
-        if (getParentActivity() == null || genres.isEmpty() || genrePill == null) return;
-        org.telegram.ui.Components.ItemOptions options = org.telegram.ui.Components.ItemOptions.makeOptions(this, genrePill)
-                .setDimAlpha(0x33)
-                .forceBottom(true)
-                .setMinWidth(200)
-                .setMaxHeight(Math.min(dp(420), AndroidUtilities.displaySize.y / 2));
-        options.addChecked(selectedGenre == null, TjLocale.getString(R.string.TjWatchAllGenres), () -> {
+        if (getParentActivity() == null || genres.isEmpty() || genrePill == null || root == null || genreDropdown != null) return;
+        Context context = getParentActivity();
+
+        int[] pillAt = new int[2];
+        int[] rootAt = new int[2];
+        genrePill.getLocationInWindow(pillAt);
+        root.getLocationInWindow(rootAt);
+        final int pillX = pillAt[0] - rootAt[0];
+        final int pillY = pillAt[1] - rootAt[1];
+        final int pillW = genrePill.getWidth();
+        final int pillH = genrePill.getHeight();
+        final boolean anchorLeft = pillX + pillW / 2 < root.getWidth() / 2;
+
+        genreDropdown = new FrameLayout(context);
+        genreDropdown.setOnClickListener(v -> hideGenrePicker());
+        root.addView(genreDropdown, LayoutHelper.createFrame(-1, -1));
+
+        int line = androidx.core.graphics.ColorUtils.setAlphaComponent(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText), 0x60);
+        LinearLayout box = new LinearLayout(context);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setClickable(true);
+        android.graphics.drawable.GradientDrawable frame = new android.graphics.drawable.GradientDrawable();
+        frame.setCornerRadius(pillH / 2f);
+        frame.setColor(Theme.getColor(Theme.key_windowBackgroundWhite));
+        frame.setStroke(Math.max(1, dp(1)), line);
+        box.setBackground(frame);
+        box.setClipToOutline(true);
+        box.setElevation(dp(6));
+
+        // The pill's own face at the top, so the box reads as the pill opening up.
+        TextView head = new TextView(context);
+        head.setTextSize(14);
+        head.setSingleLine(true);
+        head.setTypeface(AndroidUtilities.getTypeface("fonts/rmedium.ttf"));
+        head.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText));
+        head.setText((selectedGenre != null ? selectedGenre.name : TjLocale.getString(R.string.TjWatchCategories)) + " \u25B4");
+        head.setGravity((anchorLeft ? Gravity.LEFT : Gravity.RIGHT) | Gravity.CENTER_VERTICAL);
+        head.setPadding(dp(16), 0, dp(16), 0);
+        head.setOnClickListener(v -> hideGenrePicker());
+        box.addView(head, LayoutHelper.createLinear(-1, 0, 0f));
+        head.getLayoutParams().height = pillH;
+
+        View divider = new View(context);
+        divider.setBackgroundColor(androidx.core.graphics.ColorUtils.setAlphaComponent(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText), 0x22));
+        box.addView(divider, LayoutHelper.createLinear(-1, 1));
+
+        android.widget.ScrollView scroll = new android.widget.ScrollView(context);
+        scroll.setVerticalScrollBarEnabled(false);
+        LinearLayout list = new LinearLayout(context);
+        list.setOrientation(LinearLayout.VERTICAL);
+        list.setPadding(0, dp(4), 0, dp(4));
+        scroll.addView(list);
+        list.addView(genreRow(context, TjLocale.getString(R.string.TjWatchAllGenres), selectedGenre == null, () -> {
             if (selectedGenre != null) selectGenre(null);
-        });
+        }));
         for (Genre genre : genres) {
             if (!fits(genre)) continue;
-            options.addChecked(genre == selectedGenre, genre.name, () -> {
+            list.addView(genreRow(context, genre.name, genre == selectedGenre, () -> {
                 if (genre != selectedGenre) selectGenre(genre);
-            });
+            }));
         }
-        options.show();
+        int maxList = Math.max(dp(160), Math.min(dp(380), root.getHeight() - pillY - pillH - dp(32)));
+        list.measure(View.MeasureSpec.makeMeasureSpec(dp(240), View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED));
+        box.addView(scroll, LayoutHelper.createLinear(-1, 0, 0f));
+        scroll.getLayoutParams().height = Math.min(maxList, list.getMeasuredHeight());
+
+        int width = Math.max(pillW, dp(240));
+        FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(width, -2);
+        params.topMargin = pillY;
+        params.leftMargin = anchorLeft ? Math.max(dp(8), pillX) : Math.max(dp(8), pillX + pillW - width);
+        params.gravity = Gravity.TOP | Gravity.LEFT;
+        genreDropdown.addView(box, params);
+
+        genrePill.setVisibility(View.INVISIBLE);
+        box.setPivotY(0);
+        box.setPivotX(anchorLeft ? 0 : width);
+        box.setScaleY(0.4f);
+        box.setScaleX(0.9f);
+        box.setAlpha(0f);
+        box.animate().scaleY(1f).scaleX(1f).alpha(1f).setDuration(180)
+                .setInterpolator(org.telegram.ui.Components.CubicBezierInterpolator.EASE_OUT_QUINT).start();
+        // A light shade over the rest, so it is clear something is open.
+        genreDropdown.setBackgroundColor(0x00000000);
+        android.animation.ValueAnimator shade = android.animation.ValueAnimator.ofInt(0, 0x40);
+        shade.setDuration(180);
+        shade.addUpdateListener(a -> {
+            if (genreDropdown != null) genreDropdown.setBackgroundColor(((int) a.getAnimatedValue()) << 24);
+        });
+        shade.start();
+    }
+
+    private View genreRow(Context context, String name, boolean chosen, Runnable onClick) {
+        LinearLayout row = new LinearLayout(context);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(dp(16), 0, dp(16), 0);
+        row.setBackground(Theme.getSelectorDrawable(false));
+
+        org.telegram.ui.Components.CheckBox2 check = new org.telegram.ui.Components.CheckBox2(context, 21);
+        check.setDrawUnchecked(true);
+        check.setDrawBackgroundAsArc(10);
+        check.setColor(Theme.key_radioBackgroundChecked, Theme.key_checkboxDisabled, Theme.key_checkboxCheck);
+        check.setChecked(chosen, false);
+
+        TextView text = new TextView(context);
+        text.setText(name);
+        text.setTextSize(15);
+        text.setSingleLine(true);
+        text.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        text.setTextColor(chosen ? Theme.getColor(Theme.key_featuredStickers_addButton) : Theme.getColor(Theme.key_windowBackgroundWhiteBlackText));
+        if (chosen) text.setTypeface(AndroidUtilities.getTypeface("fonts/rmedium.ttf"));
+        text.setGravity((LocaleController.isRTL ? Gravity.RIGHT : Gravity.LEFT) | Gravity.CENTER_VERTICAL);
+
+        // The mark comes first in reading order, as a website's list puts it.
+        if (LocaleController.isRTL) {
+            row.addView(text, LayoutHelper.createLinear(0, -1, 1f, 0, 0, 12, 0));
+            row.addView(check, LayoutHelper.createLinear(22, 22));
+        } else {
+            row.addView(check, LayoutHelper.createLinear(22, 22));
+            row.addView(text, LayoutHelper.createLinear(0, -1, 1f, 12, 0, 0, 0));
+        }
+        row.setLayoutParams(new LinearLayout.LayoutParams(-1, dp(46)));
+        row.setOnClickListener(v -> {
+            check.setChecked(true, true);
+            AndroidUtilities.runOnUIThread(() -> {
+                hideGenrePicker();
+                onClick.run();
+            }, 120);
+        });
+        return row;
+    }
+
+    private void hideGenrePicker() {
+        final FrameLayout dropdown = genreDropdown;
+        if (dropdown == null) return;
+        genreDropdown = null;
+        View box = dropdown.getChildCount() > 0 ? dropdown.getChildAt(0) : null;
+        if (box != null) {
+            box.animate().scaleY(0.4f).scaleX(0.9f).alpha(0f).setDuration(140).start();
+        }
+        dropdown.animate().alpha(0f).setDuration(140).withEndAction(() -> {
+            if (dropdown.getParent() instanceof ViewGroup) ((ViewGroup) dropdown.getParent()).removeView(dropdown);
+            if (genrePill != null && genreDropdown == null && !genres.isEmpty()) genrePill.setVisibility(View.VISIBLE);
+        }).start();
     }
 
     /**
