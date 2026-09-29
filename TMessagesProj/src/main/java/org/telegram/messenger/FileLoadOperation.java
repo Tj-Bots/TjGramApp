@@ -1217,6 +1217,18 @@ public class FileLoadOperation {
                     downloadedBytes -= (range.end - range.start);
                 }
                 requestedBytesCount = downloadedBytes;
+                // TJ: pieces from an earlier run of this file may have been asked for in a smaller
+                // size (before the fast switch, before Premium was known). A bigger piece starting
+                // where they left off would cross a 1 MB line, which the server refuses, and the
+                // download would stop at that spot every time. Such a file carries on in the
+                // largest size its gaps are aligned to.
+                if (!forceSmallChunk) {
+                    int aligned = currentDownloadChunkSize;
+                    while (aligned > 1024 * 32 && !rangesAligned(notLoadedBytesRanges, aligned)) {
+                        aligned /= 2;
+                    }
+                    currentDownloadChunkSize = aligned;
+                }
             }
 
             if (BuildVars.LOGS_ENABLED) {
@@ -2526,6 +2538,22 @@ public class FileLoadOperation {
                         requestedBytesCount -= requestInfo.chunkSize;
                         removePart(notRequestedBytesRanges, requestInfo.offset, requestInfo.offset + requestInfo.chunkSize);
                         return;
+                    } else if (error.text != null && (error.text.startsWith("FLOOD_WAIT_") || error.text.startsWith("FLOOD_PREMIUM_WAIT_"))) {
+                        // TJ: asked for too much at once. Upstream treated this as a failed file, so
+                        // the download stopped - and stopped again the moment it was resumed. The
+                        // piece goes back in line, fewer are asked for at a time, and the download
+                        // carries on after the wait the server named.
+                        requestInfos.remove(requestInfo);
+                        requestedBytesCount -= requestInfo.chunkSize;
+                        removePart(notRequestedBytesRanges, requestInfo.offset, requestInfo.offset + requestInfo.chunkSize);
+                        currentMaxDownloadRequests = Math.max(4, currentMaxDownloadRequests / 2);
+                        int seconds = Utilities.parseInt(error.text.substring(error.text.lastIndexOf('_') + 1));
+                        long delay = Math.max(1, Math.min(30, seconds)) * 1000L;
+                        final int retryConnection = connectionType;
+                        Utilities.stageQueue.postRunnable(() -> {
+                            if (state == stateDownloading) startDownloadRequest(retryConnection);
+                        }, delay);
+                        return;
                     } else if (FileRefController.isFileRefError(error.text)) {
                         requestReference(requestInfo);
                         return;
@@ -2645,6 +2673,14 @@ public class FileLoadOperation {
 
     public void setDelegate(FileLoadOperationDelegate delegate) {
         this.delegate = delegate;
+    }
+
+    private boolean rangesAligned(ArrayList<Range> ranges, int size) {
+        for (int a = 0, n = ranges.size(); a < n; a++) {
+            long start = ranges.get(a).start;
+            if (start < totalBytesCount && start % size != 0) return false;
+        }
+        return true;
     }
 
     public static long floorDiv(long x, long y) {
