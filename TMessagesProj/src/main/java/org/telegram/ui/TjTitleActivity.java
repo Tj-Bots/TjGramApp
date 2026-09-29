@@ -55,6 +55,14 @@ public class TjTitleActivity extends BaseFragment {
             overview = object.optString("overview", "");
             still = object.optString("still_path", "");
         }
+
+        /** An episode known only from a file in the chats, with nothing but its number. */
+        Episode(int number) {
+            this.number = number;
+            name = "";
+            overview = "";
+            still = "";
+        }
     }
 
     private final long id;
@@ -69,6 +77,8 @@ public class TjTitleActivity extends BaseFragment {
     private final TjTmdb details = new TjTmdb();
     private final TjTmdb seasonClient = new TjTmdb();
     private final ArrayList<Integer> seasons = new ArrayList<>();
+    /** Seasons found only in the chats, ahead of the catalogue, with the episode numbers seen. */
+    private final java.util.TreeMap<Integer, java.util.TreeSet<Integer>> chatSeasons = new java.util.TreeMap<>();
     private final ArrayList<Episode> episodes = new ArrayList<>();
     private final ArrayList<Integer> accounts = new ArrayList<>();
 
@@ -255,6 +265,7 @@ public class TjTitleActivity extends BaseFragment {
                 }
                 buildSeasonChips();
                 if (!seasons.isEmpty()) selectSeason(seasons.contains(1) ? 1 : seasons.get(0));
+                probeChatSeasons();
             } else {
                 buildMovieAction();
             }
@@ -303,11 +314,43 @@ public class TjTitleActivity extends BaseFragment {
         }
     }
 
+    /**
+     * The catalogue can be seasons behind what the chats already have. The next few season numbers
+     * are asked for by name, and each one with files gets a chip of its own.
+     */
+    private void probeChatSeasons() {
+        int last = 0;
+        for (int season : seasons) last = Math.max(last, season);
+        ArrayList<Integer> accounts = new ArrayList<>();
+        for (int a = 0; a < org.telegram.messenger.UserConfig.MAX_ACCOUNT_COUNT; a++) {
+            if (org.telegram.messenger.UserConfig.getInstance(a).isClientActivated()) accounts.add(a);
+        }
+        if (accounts.remove((Integer) currentAccount)) accounts.add(0, currentAccount);
+        org.telegram.messenger.tj.TjWatchSearch.probeSeasons(accounts, targets(), 0, last + 1, 4, found -> {
+            if (getParentActivity() == null || found.isEmpty()) return;
+            chatSeasons.clear();
+            chatSeasons.putAll(found);
+            for (int season : found.keySet()) if (!seasons.contains(season)) seasons.add(season);
+            java.util.Collections.sort(seasons);
+            buildSeasonChips();
+        });
+    }
+
     private void selectSeason(int season) {
         selectedSeason = season;
         paintSeasonChips();
         episodes.clear();
         episodeList.removeAllViews();
+        java.util.TreeSet<Integer> fromChats = chatSeasons.get(season);
+        if (fromChats != null) {
+            // Not in the catalogue yet: the episodes are the numbers the files carry.
+            for (int number : fromChats) {
+                Episode episode = new Episode(number);
+                episodes.add(episode);
+                episodeList.addView(episodeRow(episode));
+            }
+            return;
+        }
         TextView loading = text(episodeList.getContext(), 14, Theme.key_windowBackgroundWhiteGrayText);
         loading.setText(TjLocale.getString(R.string.TjMediaLoading));
         loading.setPadding(dp(16), dp(16), dp(16), dp(16));

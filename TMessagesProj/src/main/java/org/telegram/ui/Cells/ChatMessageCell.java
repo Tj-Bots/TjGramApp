@@ -18419,9 +18419,14 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         w = (int) Math.ceil(Theme.chat_infoPaint.measureText(maxAvailableString));
         boolean fullWidth = true;
         if (documentAttachType == DOCUMENT_ATTACH_TYPE_DOCUMENT) {
-            int max = Math.max(this.infoWidth, docTitleWidth);
+            // TJ: a file's line may use the bubble's width beside the icon, not only the title's,
+            // so the speed fits next to loaded / total; when it does not, the speed is kept over
+            // the total, since the total is already on the file.
+            int max = Math.max(Math.max(this.infoWidth, docTitleWidth), backgroundWidth - dp(104));
             if (w <= max) {
                 str = String.format("%s / %s", AndroidUtilities.formatFileSize(loadedSize), totalStr) + speedStr;
+            } else if (!speedStr.isEmpty() && (int) Math.ceil(Theme.chat_infoPaint.measureText("000.0 mm" + speedStr)) <= max) {
+                str = AndroidUtilities.formatFileSize(loadedSize) + speedStr;
             } else if ((int) Math.ceil(Theme.chat_infoPaint.measureText(String.format("000.0 mm / %s", totalStr))) <= max) {
                 str = String.format("%s / %s", AndroidUtilities.formatFileSize(loadedSize), totalStr);
             } else {

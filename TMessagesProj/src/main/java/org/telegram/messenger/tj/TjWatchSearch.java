@@ -40,7 +40,7 @@ public final class TjWatchSearch {
         void complete(ArrayList<MessageObject> messages);
     }
 
-    private static final int LIMIT = 40;
+    private static final int LIMIT = 100;
 
     private TjWatchSearch() {
     }
@@ -67,10 +67,17 @@ public final class TjWatchSearch {
             return;
         }
         if (season >= 0 && episode >= 0) {
-            // The episode label is a word of its own in most filenames, and asking for it reaches
-            // episodes that a search for the name alone would never page down to.
-            queries.add(queries.get(queries.size() - 1) + " "
-                    + String.format(Locale.US, "S%02dE%02d", season, episode));
+            // The episode label is a word of its own in most filenames and captions, and asking
+            // for it reaches episodes that a search for the name alone would never page down to -
+            // a long-running series fills a whole page of results with its latest season. It is
+            // written a few ways: S01E01, and in Hebrew captions "עונה 1 פרק 1".
+            ArrayList<String> names = new ArrayList<>(queries);
+            for (int i = 0; i < names.size() && i < 2; i++) {
+                String name = names.get(i);
+                queries.add(name + " " + String.format(Locale.US, "S%02dE%02d", season, episode));
+                if (season > 0) queries.add(name + " עונה " + season + " פרק " + episode);
+                else queries.add(name + " פרק " + episode);
+            }
         }
         final TLRPC.MessagesFilter[] filters = {
                 new TLRPC.TL_inputMessagesFilterVideo(),
@@ -105,6 +112,50 @@ public final class TjWatchSearch {
                     });
                 }
             }
+        }
+    }
+
+    /**
+     * Seasons the chats have that the catalogue does not list yet - Israeli series especially are
+     * often a few seasons ahead of TMDB. Asks for "name עונה N" and "name season N" for the next
+     * few numbers, and hands back each season found with the episode numbers seen in it.
+     */
+    public static void probeSeasons(List<Integer> accounts, List<String> targets, int year, int from, int count,
+                                    org.telegram.messenger.Utilities.Callback<java.util.TreeMap<Integer, java.util.TreeSet<Integer>>> callback) {
+        final java.util.TreeMap<Integer, java.util.TreeSet<Integer>> found = new java.util.TreeMap<>();
+        final ArrayList<String> names = new ArrayList<>();
+        for (String target : targets) {
+            if (target != null && !target.trim().isEmpty() && !names.contains(target.trim())) names.add(target.trim());
+        }
+        ArrayList<Integer> active = new ArrayList<>();
+        for (int account : accounts) if (UserConfig.getInstance(account).isClientActivated()) active.add(account);
+        if (names.isEmpty() || active.isEmpty() || count <= 0) {
+            callback.run(found);
+            return;
+        }
+        // One account is enough to see what exists; every season asked in Hebrew and in English.
+        final int account = active.get(0);
+        final ArrayList<String[]> asks = new ArrayList<>();
+        for (int season = from; season < from + count; season++) {
+            asks.add(new String[]{names.get(0) + " עונה " + season, String.valueOf(season)});
+            asks.add(new String[]{names.get(names.size() > 1 ? 1 : 0) + " season " + season, String.valueOf(season)});
+        }
+        final int[] pending = {asks.size()};
+        for (String[] ask : asks) {
+            final int season = Integer.parseInt(ask[1]);
+            send(account, ask[0], new TLRPC.TL_inputMessagesFilterVideo(), messages -> {
+                for (MessageObject message : messages) {
+                    if (!isPlayable(message)) continue;
+                    String caption = message.messageOwner == null ? "" : message.messageOwner.message;
+                    if (TjTitleMatch.score(message.getDocumentName(), caption, targets, year, season, -1) == TjTitleMatch.REJECT) continue;
+                    TjMediaTitle parsed = TjMediaTitle.parse(message.getDocumentName(), caption);
+                    if (parsed.season != season || parsed.episode < 0) continue;
+                    java.util.TreeSet<Integer> episodes = found.get(season);
+                    if (episodes == null) found.put(season, episodes = new java.util.TreeSet<>());
+                    episodes.add(parsed.episode);
+                }
+                if (--pending[0] == 0) callback.run(found);
+            });
         }
     }
 
