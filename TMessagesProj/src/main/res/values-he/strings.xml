@@ -343,6 +343,8 @@
     <string name="TjWatchSearchHint">חפש סרט או סדרה</string>
     <string name="TjWatchAll">הכל</string>
     <string name="TjWatchCategories">קטגוריות</string>
+    <string name="TjFavedStickersLimit">מדבקות מועדפות</string>
+    <string name="TjFavedStickersLimitInfo">טלגרם שומרת 5 מדבקות מועדפות (10 עם פרימיום). מה שמעבר לזה נשמר רק במכשיר הזה ולא יופיע באפליקציות אחרות.</string>
     <string name="TjCopyThumbnailDone">תמונת התצוגה הועתקה</string>
     <string name="TjCopyThumbnailFailed">לא ניתן להעתיק את התמונה</string>
     <string name="TjVersionCopied">מספר הגרסה הועתק</string>

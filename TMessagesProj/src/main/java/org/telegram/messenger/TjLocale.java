@@ -508,6 +508,8 @@ public class TjLocale {
         m.put("TjWatchSearchHint", "חפש סרט או סדרה");
         m.put("TjWatchAll", "הכל");
         m.put("TjWatchCategories", "קטגוריות");
+        m.put("TjFavedStickersLimit", "מדבקות מועדפות");
+        m.put("TjFavedStickersLimitInfo", "טלגרם שומרת 5 מדבקות מועדפות (10 עם פרימיום). מה שמעבר לזה נשמר רק במכשיר הזה ולא יופיע באפליקציות אחרות.");
         m.put("TjCopyThumbnailDone", "תמונת התצוגה הועתקה");
         m.put("TjCopyThumbnailFailed", "לא ניתן להעתיק את התמונה");
         m.put("TjVersionCopied", "מספר הגרסה הועתק");

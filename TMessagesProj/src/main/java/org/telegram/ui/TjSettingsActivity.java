@@ -299,6 +299,7 @@ public class TjSettingsActivity extends BaseFragment {
     private static final int VIEW_TYPE_CHECK = 1;
     private static final int VIEW_TYPE_SHADOW = 2;
     private static final int VIEW_TYPE_SETTING = 3;
+    private static final int VIEW_TYPE_SLIDER = 4;
 
     private static final int ID_HIDE_PHONE = 1;
     private static final int ID_BOT_API_IDS = 2;
@@ -604,6 +605,9 @@ public class TjSettingsActivity extends BaseFragment {
         items.add(new Item(VIEW_TYPE_CHECK, ID_WATCH_IN_DRAWER, TjLocale.getString(R.string.TjWatchInDrawer)));
         items.add(new Item(VIEW_TYPE_CHECK, ID_WATCH_TAB, TjLocale.getString(R.string.TjWatchInTabs)));
         items.add(new Item(VIEW_TYPE_SHADOW, 0, TjLocale.getString(R.string.TjOnlineIndicatorInfo)));
+        items.add(new Item(VIEW_TYPE_HEADER, 0, TjLocale.getString(R.string.TjFavedStickersLimit)));
+        items.add(new Item(VIEW_TYPE_SLIDER, 0, null));
+        items.add(new Item(VIEW_TYPE_SHADOW, 0, TjLocale.getString(R.string.TjFavedStickersLimitInfo)));
         items.add(new Item(VIEW_TYPE_HEADER, 0, TjLocale.getString(R.string.TjGhostMode)));
         items.add(new Item(VIEW_TYPE_SETTING, ID_GHOST_SETTINGS, TjLocale.getString(R.string.TjGhostSettings)));
         items.add(new Item(VIEW_TYPE_SHADOW, 0, TjLocale.getString(R.string.TjGhostModeInfo)));
@@ -693,6 +697,21 @@ public class TjSettingsActivity extends BaseFragment {
                 view = new TextCheckCell(parent.getContext());
             } else if (viewType == VIEW_TYPE_SETTING) {
                 view = new TextSettingsCell(parent.getContext());
+            } else if (viewType == VIEW_TYPE_SLIDER) {
+                // How many favourite stickers to keep: 5, 10, 15 or 20.
+                org.telegram.ui.Components.SlideChooseView slider = new org.telegram.ui.Components.SlideChooseView(parent.getContext());
+                slider.setCallback(index -> {
+                    int value = org.telegram.messenger.tj.TjFavedStickers.CHOICES[index];
+                    if (value == org.telegram.messenger.tj.TjFavedStickers.chosen()) return;
+                    org.telegram.messenger.tj.TjFavedStickers.setChosen(value);
+                    for (int a = 0; a < UserConfig.MAX_ACCOUNT_COUNT; a++) {
+                        if (UserConfig.getInstance(a).isClientActivated()) {
+                            org.telegram.messenger.MediaDataController.getInstance(a).loadRecents(
+                                    org.telegram.messenger.MediaDataController.TYPE_FAVE, false, false, true);
+                        }
+                    }
+                });
+                view = slider;
             } else {
                 view = new TextInfoPrivacyCell(parent.getContext());
             }
@@ -706,7 +725,17 @@ public class TjSettingsActivity extends BaseFragment {
             }
             Item item = items.get(position);
             applyCardStyle(holder.itemView, position, item.viewType);
-            if (item.viewType == VIEW_TYPE_HEADER) {
+            if (item.viewType == VIEW_TYPE_SLIDER) {
+                int chosen = org.telegram.messenger.tj.TjFavedStickers.chosen();
+                int index = 0;
+                int[] choices = org.telegram.messenger.tj.TjFavedStickers.CHOICES;
+                String[] labels = new String[choices.length];
+                for (int i = 0; i < choices.length; i++) {
+                    labels[i] = String.valueOf(choices[i]);
+                    if (choices[i] == chosen) index = i;
+                }
+                ((org.telegram.ui.Components.SlideChooseView) holder.itemView).setOptions(index, labels);
+            } else if (item.viewType == VIEW_TYPE_HEADER) {
                 ((TextView) holder.itemView).setText(item.text);
             } else if (item.viewType == VIEW_TYPE_SHADOW) {
                 ((TextInfoPrivacyCell) holder.itemView).setText(item.text);

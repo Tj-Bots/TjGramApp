@@ -979,7 +979,7 @@ public class MediaDataController extends BaseController {
             if (remove) {
                 NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.showBulletin, Bulletin.TYPE_STICKER, document, StickerSetBulletinLayout.TYPE_REMOVED_FROM_FAVORITES);
             } else {
-                boolean replace = recentStickers[type].size() > getMessagesController().maxFaveStickersCount;
+                boolean replace = recentStickers[type].size() > org.telegram.messenger.tj.TjFavedStickers.limit(currentAccount);
                 NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.showBulletin, Bulletin.TYPE_STICKER, document, replace ? StickerSetBulletinLayout.TYPE_REPLACED_TO_FAVORITES : StickerSetBulletinLayout.TYPE_ADDED_TO_FAVORITES);
             }
             TLRPC.TL_messages_faveSticker req = new TLRPC.TL_messages_faveSticker();
@@ -998,7 +998,9 @@ public class MediaDataController extends BaseController {
                     AndroidUtilities.runOnUIThread(() -> getMediaDataController().loadRecents(MediaDataController.TYPE_FAVE, false, false, true));
                 }
             });
-            maxCount = getMessagesController().maxFaveStickersCount;
+            // TJ: as many favourites as chosen in TjGram settings; the ones past Telegram's own
+            // limit are kept on the device.
+            maxCount = org.telegram.messenger.tj.TjFavedStickers.limit(currentAccount);
         } else {
             if (type == TYPE_IMAGE && remove) {
                 NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.showBulletin, Bulletin.TYPE_STICKER, document, StickerSetBulletinLayout.TYPE_REMOVED_FROM_RECENT);
@@ -1043,6 +1045,9 @@ public class MediaDataController extends BaseController {
             ArrayList<TLRPC.Document> arrayList = new ArrayList<>();
             arrayList.add(document);
             processLoadedRecentDocuments(type, arrayList, false, date, false);
+        }
+        if (type == TYPE_FAVE) {
+            org.telegram.messenger.tj.TjFavedStickers.saveExtras(currentAccount, recentStickers[type]);
         }
         if (type == TYPE_FAVE || type == TYPE_IMAGE && remove) {
             getNotificationCenter().postNotificationName(NotificationCenter.recentDocumentsDidLoad, false, type);
@@ -1965,7 +1970,7 @@ public class MediaDataController extends BaseController {
                             loadingRecentGifs = false;
                             recentGifsLoaded = true;
                         } else {
-                            recentStickers[type] = arrayList;
+                            recentStickers[type] = type == TYPE_FAVE ? org.telegram.messenger.tj.TjFavedStickers.merge(currentAccount, arrayList) : arrayList;
                             loadingRecentStickers[type] = false;
                             recentStickersLoaded[type] = true;
                         }
@@ -2090,7 +2095,7 @@ public class MediaDataController extends BaseController {
                         if (type == TYPE_GREETINGS || type == TYPE_PREMIUM_STICKERS) {
                             maxCount = 200;
                         } else if (type == TYPE_FAVE) {
-                            maxCount = getMessagesController().maxFaveStickersCount;
+                            maxCount = org.telegram.messenger.tj.TjFavedStickers.limit(currentAccount);
                         } else {
                             maxCount = getMessagesController().maxRecentStickersCount;
                         }
@@ -2182,7 +2187,7 @@ public class MediaDataController extends BaseController {
                     if (gif) {
                         recentGifs = documents;
                     } else {
-                        recentStickers[type] = documents;
+                        recentStickers[type] = type == TYPE_FAVE ? org.telegram.messenger.tj.TjFavedStickers.merge(currentAccount, documents) : documents;
                     }
                     if (type == TYPE_GREETINGS) {
                         preloadNextGreetingsSticker();

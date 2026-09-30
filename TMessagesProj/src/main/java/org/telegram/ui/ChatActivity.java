@@ -12308,7 +12308,8 @@ public class ChatActivity extends BaseFragment implements
         return message != null && message.isVideo() && !message.isRoundVideo() && !noforwardsOrPaidMedia
                 && !message.needDrawBluredPreview() && !message.hasRevealedExtendedMedia()
                 && !org.telegram.messenger.tj.TjVideoFiles.isTjMarked(message.getDocument())
-                && message.getDocument() != null && !message.getDocument().thumbs.isEmpty();
+                && (message.getVideoCover() != null
+                    || message.getDocument() != null && !message.getDocument().thumbs.isEmpty());
     }
 
     /**
@@ -12318,6 +12319,10 @@ public class ChatActivity extends BaseFragment implements
      */
     private void tjCopyVideoThumb(MessageObject message) {
         if (getParentActivity() == null || message == null) return;
+        // A cover set for the video comes first: it is the real picture, full size, where the
+        // thumbnail is only a small frame.
+        TLRPC.Photo cover = message.getVideoCover();
+        if (cover != null && tjCopyCover(message, cover)) return;
         android.graphics.Bitmap bitmap = null;
         if (chatListView != null) {
             for (int i = 0; i < chatListView.getChildCount(); i++) {
@@ -12336,14 +12341,53 @@ public class ChatActivity extends BaseFragment implements
             File file = thumb == null ? null : getFileLoader().getPathToAttach(thumb, true);
             if (file != null && file.exists()) bitmap = android.graphics.BitmapFactory.decodeFile(file.getAbsolutePath());
         }
+        tjCopyBitmap(bitmap, message.getId());
+    }
+
+    /** The cover in its largest size - from the cache, or loaded first and copied when it lands. */
+    private boolean tjCopyCover(MessageObject message, TLRPC.Photo cover) {
+        TLRPC.PhotoSize size = FileLoader.getClosestPhotoSizeWithSize(cover.sizes, AndroidUtilities.getPhotoSize());
+        if (size == null) return false;
+        File cached = getFileLoader().getPathToAttach(size, true);
+        if (cached == null || !cached.exists()) cached = getFileLoader().getPathToAttach(size, false);
+        if (cached != null && cached.exists()) {
+            tjCopyBitmap(android.graphics.BitmapFactory.decodeFile(cached.getAbsolutePath()), message.getId());
+            return true;
+        }
+        final String name = FileLoader.getAttachFileName(size);
+        final int account = currentAccount;
+        NotificationCenter.NotificationCenterDelegate observer = new NotificationCenter.NotificationCenterDelegate() {
+            @Override
+            public void didReceivedNotification(int id, int acc, Object... args) {
+                if (args.length == 0 || !name.equals(args[0])) return;
+                NotificationCenter.getInstance(account).removeObserver(this, NotificationCenter.fileLoaded);
+                NotificationCenter.getInstance(account).removeObserver(this, NotificationCenter.fileLoadFailed);
+                if (id == NotificationCenter.fileLoaded && getParentActivity() != null) {
+                    File loaded = getFileLoader().getPathToAttach(size, true);
+                    if (loaded == null || !loaded.exists()) loaded = getFileLoader().getPathToAttach(size, false);
+                    tjCopyBitmap(loaded != null && loaded.exists() ? android.graphics.BitmapFactory.decodeFile(loaded.getAbsolutePath()) : null, message.getId());
+                } else if (getParentActivity() != null) {
+                    tjCopyBitmap(null, message.getId());
+                }
+            }
+        };
+        NotificationCenter.getInstance(account).addObserver(observer, NotificationCenter.fileLoaded);
+        NotificationCenter.getInstance(account).addObserver(observer, NotificationCenter.fileLoadFailed);
+        getFileLoader().loadFile(ImageLocation.getForPhoto(size, cover), message, "jpg", FileLoader.PRIORITY_HIGH, 1);
+        return true;
+    }
+
+    private void tjCopyBitmap(android.graphics.Bitmap bitmap, int messageId) {
+        if (getParentActivity() == null) return;
         if (bitmap == null || bitmap.isRecycled()) {
             BulletinFactory.of(this).createErrorBulletin(TjLocale.getString(R.string.TjCopyThumbnailFailed)).show();
             return;
         }
+        final int id = messageId;
         try {
             File dir = new File(AndroidUtilities.getCacheDir(), "tj_copied");
             dir.mkdirs();
-            File out = new File(dir, "video_" + message.getId() + ".jpg");
+            File out = new File(dir, "video_" + id + ".jpg");
             try (java.io.FileOutputStream stream = new java.io.FileOutputStream(out)) {
                 bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 92, stream);
             }
@@ -47183,7 +47227,7 @@ public class ChatActivity extends BaseFragment implements
                                 items.add(LocaleController.getString(R.string.SaveToGallery));
                                 options.add(OPTION_SAVE_TO_GALLERY);
                                 icons.add(R.drawable.msg_gallery);
-                                if (selectedObject.getDocument() != null && !selectedObject.getDocument().thumbs.isEmpty()) {
+                                if (selectedObject.getVideoCover() != null || selectedObject.getDocument() != null && !selectedObject.getDocument().thumbs.isEmpty()) {
                                     items.add(TjLocale.getString(R.string.TjCopyThumbnail));
                                     options.add(OPTION_COPY_VIDEO_THUMB);
                                     icons.add(R.drawable.msg_copy);
@@ -47443,7 +47487,7 @@ public class ChatActivity extends BaseFragment implements
                         items.add(LocaleController.getString(R.string.SaveToGallery));
                         options.add(OPTION_SAVE_TO_GALLERY);
                         icons.add(R.drawable.msg_gallery);
-                        if (selectedObject.getDocument() != null && !selectedObject.getDocument().thumbs.isEmpty()) {
+                        if (selectedObject.getVideoCover() != null || selectedObject.getDocument() != null && !selectedObject.getDocument().thumbs.isEmpty()) {
                             items.add(TjLocale.getString(R.string.TjCopyThumbnail));
                             options.add(OPTION_COPY_VIDEO_THUMB);
                             icons.add(R.drawable.msg_copy);
