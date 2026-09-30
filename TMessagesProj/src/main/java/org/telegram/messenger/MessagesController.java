@@ -17104,6 +17104,7 @@ public class MessagesController extends BaseController implements NotificationCe
                                     MessageObject.getDialogId(message);
 
                                     if (!DialogObject.isEncryptedDialog(message.dialog_id)) {
+                                        org.telegram.messenger.tj.TjAccountEvents.onServiceMessage(currentAccount, message);
                                         if (message.action instanceof TLRPC.TL_messageActionChatDeleteUser) {
                                             TLRPC.User user = usersDict.get(message.action.user_id);
                                             if (user != null && user.bot) {
@@ -18707,6 +18708,8 @@ public class MessagesController extends BaseController implements NotificationCe
                     }
                 }
 
+                // TJ: joins and leaves of this account, for the account log.
+                org.telegram.messenger.tj.TjAccountEvents.onServiceMessage(currentAccount, message);
                 if (message.action instanceof TLRPC.TL_messageActionChatDeleteUser) {
                     TLRPC.User user = usersDict.get(message.action.user_id);
                     if (user != null && user.bot) {

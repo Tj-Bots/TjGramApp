@@ -7083,6 +7083,7 @@ public class LaunchActivity extends BasePermissionsActivity implements INavigati
         }
         checkAppUpdate(false, null);
         org.telegram.messenger.tj.TjUpdates.check(UserConfig.selectedAccount, false, null);
+        org.telegram.messenger.tj.TjReleaseNotes.check(UserConfig.selectedAccount);
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             ApplicationLoader.canDrawOverlays = Settings.canDrawOverlays(this);

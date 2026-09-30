@@ -166,7 +166,7 @@ public final class TjUpdates {
         if (done != null) done.run(result);
     }
 
-    private static boolean isApk(TLRPC.Document doc) {
+    static boolean isApk(TLRPC.Document doc) {
         if (doc == null || doc.size <= 0) return false;
         if (APK_MIME.equals(doc.mime_type)) return true;
         String name = FileLoader.getDocumentFileName(doc);

@@ -64,6 +64,8 @@ public final class TjAccountEvents {
 
     private static void remember(String key, String value, boolean worthKeeping) {
         if (worthKeeping) {
+            // Most copies of a chat change nothing; the disk is only touched when something did.
+            if (value.equals(lastRights.get(key))) return;
             lastRights.put(key, value);
             prefs().edit().putString(key, value).apply();
         } else {
@@ -107,15 +109,73 @@ public final class TjAccountEvents {
         String key = account + ":" + chat.id;
         String signature = signature(chat);
         String previous = remembered(key);
-        // Worth keeping while there is something to lose, or something to get back.
-        remember(key, signature, chat.admin_rights != null || chat.banned_rights != null
-                || chat.left || chat.kicked);
+        // Every chat is written down, not only the ones with rights on them: a member with no
+        // rights who then leaves, or a channel seen only as a preview that is then joined, has
+        // nothing to compare against otherwise, and that is where joins and leaves went missing.
+        remember(key, signature, true);
         if (previous == null || previous.equals(signature)) {
+            return;
+        }
+        boolean wasOut = previous.startsWith("l");
+        boolean nowOut = signature.startsWith("l");
+        if (wasOut != nowOut) {
+            membership(account, chat.id, 0, 0, nowOut, false);
             return;
         }
         TLRPC.Chat before = oldChat == null ? chat : oldChat;
         write(account, chat.id, 0, 0, before.admin_rights, chat.admin_rights,
-                before.banned_rights, chat.banned_rights, chat.left || chat.kicked);
+                before.banned_rights, chat.banned_rights, nowOut);
+    }
+
+    /**
+     * Joins and leaves as the chat itself records them - "added", "joined by link", "removed" -
+     * which also says who did it when it was someone else. These arrive whether or not a fresh
+     * copy of the chat does.
+     */
+    public static void onServiceMessage(int account, TLRPC.Message message) {
+        if (message == null || message.action == null || message.peer_id == null || !TjConfig.accountLog()) {
+            return;
+        }
+        long chatId = message.peer_id.channel_id != 0 ? message.peer_id.channel_id : message.peer_id.chat_id;
+        if (chatId == 0) return;
+        long self = UserConfig.getInstance(account).getClientUserId();
+        long from = message.from_id instanceof TLRPC.TL_peerUser ? message.from_id.user_id : 0;
+        TLRPC.MessageAction action = message.action;
+        if (action instanceof TLRPC.TL_messageActionChatAddUser) {
+            if (action.users != null && action.users.contains(self)) {
+                membership(account, chatId, from == self ? 0 : from, message.date, false, false);
+            }
+        } else if (action instanceof TLRPC.TL_messageActionChatJoinedByLink
+                || action instanceof TLRPC.TL_messageActionChatJoinedByRequest) {
+            if (from == self) membership(account, chatId, 0, message.date, false, false);
+        } else if (action instanceof TLRPC.TL_messageActionChatDeleteUser) {
+            if (action.user_id == self) {
+                membership(account, chatId, from == self ? 0 : from, message.date, true, from != 0 && from != self);
+            }
+        }
+    }
+
+    private static void membership(int account, long chatId, long actorId, int date, boolean gone, boolean removed) {
+        if (!wants(TYPE_MEMBERSHIP) || recentlyLogged(account, chatId, gone ? "out" : "in")) return;
+        Builder text = new Builder();
+        text.tag(removed ? "#removed" : gone ? "#left" : "#joined");
+        where(text, account, chatId);
+        by(text, account, actorId);
+        TjAccountLogChat.send(account, text.text(), text.entities(), date);
+    }
+
+    /**
+     * The same change can reach here twice - the attributed update and the fresh copy of the chat,
+     * or the service message and the chat - and should be written once.
+     */
+    private static final ConcurrentHashMap<String, Long> recent = new ConcurrentHashMap<>();
+
+    private static boolean recentlyLogged(int account, long chatId, String kind) {
+        String key = account + ":" + chatId + ":" + kind;
+        long now = System.currentTimeMillis();
+        Long last = recent.get(key);
+        recent.put(key, now);
+        return last != null && now - last < 120_000;
     }
 
     /** A plain group reports far less: only whether you are an admin at all. */
@@ -151,13 +211,15 @@ public final class TjAccountEvents {
                               boolean gone) {
         Builder text = new Builder();
         if (was != null || now != null) {
-            if (!wants(TYPE_ADMIN_RIGHTS)) return;
+            if (!wants(TYPE_ADMIN_RIGHTS) || !differs(ADMIN, was, now, false)
+                    || recentlyLogged(account, chatId, "admin:" + rightsKey(ADMIN, now, false))) return;
             text.tag(now == null ? "#removed_admin_rights" : "#admin_rights");
             where(text, account, chatId);
             by(text, account, actorId);
             changes(text, ADMIN, was, now, false);
         } else if (wasBanned != null || nowBanned != null) {
-            if (!wants(TYPE_RESTRICTED)) return;
+            if (!wants(TYPE_RESTRICTED) || !differs(BANNED, wasBanned, nowBanned, true)
+                    || recentlyLogged(account, chatId, "banned:" + rightsKey(BANNED, nowBanned, true))) return;
             text.tag(nowBanned == null ? "#unrestricted"
                     : nowBanned.view_messages ? "#kicked" : "#restricted");
             where(text, account, chatId);
@@ -166,7 +228,7 @@ public final class TjAccountEvents {
             // thing you may do again, a minus is a thing you no longer may.
             changes(text, BANNED, wasBanned, nowBanned, true);
         } else {
-            if (!wants(TYPE_MEMBERSHIP)) return;
+            if (!wants(TYPE_MEMBERSHIP) || recentlyLogged(account, chatId, gone ? "out" : "in")) return;
             text.tag(gone ? "#left" : "#joined");
             where(text, account, chatId);
             by(text, account, actorId);
@@ -233,6 +295,20 @@ public final class TjAccountEvents {
         text.quoteLines(lines);
     }
 
+    private static boolean differs(String[] table, Object was, Object now, boolean invert) {
+        for (String field : table) {
+            if ((read(was, field) != invert) != (read(now, field) != invert)) return true;
+        }
+        // Rights given for the first time with nothing ticked still read as a change of role.
+        return (was == null) != (now == null);
+    }
+
+    private static String rightsKey(String[] table, Object rights, boolean invert) {
+        StringBuilder key = new StringBuilder(rights == null ? "n" : "r");
+        for (String field : table) key.append(read(rights, field) != invert ? '1' : '0');
+        return key.toString();
+    }
+
     private static boolean read(Object rights, String field) {
         if (rights == null) return false;
         try {
@@ -243,7 +319,9 @@ public final class TjAccountEvents {
     }
 
     private static String signature(TLRPC.Chat chat) {
-        StringBuilder text = new StringBuilder(chat.left ? "l" : "-").append(chat.kicked ? "k" : "-").append('|');
+        // "l" for not in the chat in any way Telegram has of saying so: left, removed, or a
+        // forbidden copy of a chat that is closed to this account.
+        StringBuilder text = new StringBuilder(ChatObject.isNotInChat(chat) ? "l" : "-").append(chat.kicked ? "k" : "-").append('|');
         for (String field : ADMIN) text.append(read(chat.admin_rights, field) ? '1' : '0');
         text.append('|');
         for (String field : BANNED) text.append(read(chat.banned_rights, field) ? '1' : '0');
