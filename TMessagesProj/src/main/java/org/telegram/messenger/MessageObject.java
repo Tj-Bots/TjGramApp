@@ -6011,7 +6011,7 @@ public class MessageObject {
                     } else {
                         messageText = getString(R.string.AttachPhoto);
                     }
-                } else if (isVideo() || getMedia(messageOwner) instanceof TLRPC.TL_messageMediaDocument && (getDocument() instanceof TLRPC.TL_documentEmpty || getDocument() == null) && getMedia(messageOwner).ttl_seconds != 0) {
+                } else if (isVideo() && !org.telegram.messenger.tj.TjVideoFiles.isTjMarked(getDocument()) || getMedia(messageOwner) instanceof TLRPC.TL_messageMediaDocument && (getDocument() instanceof TLRPC.TL_documentEmpty || getDocument() == null) && getMedia(messageOwner).ttl_seconds != 0) {
                     if (getMedia(messageOwner).ttl_seconds != 0 && !(messageOwner instanceof TLRPC.TL_message_secret)) {
                         if (getMedia(messageOwner).voice) {
                             messageText = getString(R.string.AttachVoiceExpired);
@@ -6475,7 +6475,7 @@ public class MessageObject {
             } else {
                 return getString(R.string.AttachPhoto);
             }
-        } else if (media != null && (isVideoDocument(media.document) || media instanceof TLRPC.TL_messageMediaDocument && (media.document instanceof TLRPC.TL_documentEmpty || media.document == null) && media.ttl_seconds != 0)) {
+        } else if (media != null && (isVideoDocument(media.document) && !org.telegram.messenger.tj.TjVideoFiles.isTjMarked(media.document) || media instanceof TLRPC.TL_messageMediaDocument && (media.document instanceof TLRPC.TL_documentEmpty || media.document == null) && media.ttl_seconds != 0)) {
             if (media.ttl_seconds != 0 && !(messageOwner instanceof TLRPC.TL_message_secret)) {
                 if (media.voice) {
                     return getString(R.string.AttachVoiceExpired);
@@ -11175,7 +11175,10 @@ public class MessageObject {
     }
 
     public boolean isDocument() {
-        return getDocument() != null && !isVideo() && !isMusic() && !isVoice() && !isAnyKindOfSticker();
+        // TJ: a video sent as a plain file is still a file - in albums, lists and previews - even
+        // though the viewer plays it.
+        return getDocument() != null && (!isVideo() || org.telegram.messenger.tj.TjVideoFiles.isTjMarked(getDocument()))
+                && !isMusic() && !isVoice() && !isAnyKindOfSticker();
     }
 
     public boolean isVoice() {

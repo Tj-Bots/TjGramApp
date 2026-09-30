@@ -1876,7 +1876,7 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
                                     String emoji;
                                     if (!needEmoji) {
                                         emoji = "";
-                                    } else if (message.isVideo()) {
+                                    } else if (tjIsVideo(message)) {
                                         emoji = "\uD83D\uDCF9 ";
                                     } else if (message.isVoice()) {
                                         emoji = "\uD83C\uDFA4 ";
@@ -5670,7 +5670,7 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
             Collections.sort(groupMessages, Comparator.comparingInt(MessageObject::getId));
             for (int i = 0; i < Math.min(3, groupMessages.size()); ++i) {
                 MessageObject message = groupMessages.get(i);
-                if (message != null && !message.needDrawBluredPreview() && (message.isPhoto() || message.isNewGif() || message.isVideo() || message.isRoundVideo() || message.isStoryMedia())) {
+                if (message != null && !message.needDrawBluredPreview() && (message.isPhoto() || message.isNewGif() || tjIsVideo(message) || message.isRoundVideo() || message.isStoryMedia())) {
                     String type = message.isWebpage() ? message.messageOwner.media.webpage.type : null;
                     if (!("app".equals(type) || "profile".equals(type) || "article".equals(type) || type != null && type.startsWith("telegram_"))) {
                         setThumb(i, message);
@@ -5680,7 +5680,7 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
         } else if (message != null && currentDialogFolderId == 0) {
             thumbsCount = 0;
             hasVideoThumb = false;
-            if (!message.needDrawBluredPreview() && (message.isPhoto() || message.isNewGif() || message.isVideo() || message.isRoundVideo() || message.isStoryMedia())) {
+            if (!message.needDrawBluredPreview() && (message.isPhoto() || message.isNewGif() || tjIsVideo(message) || message.isRoundVideo() || message.isStoryMedia())) {
                 String type = message.isWebpage() ? message.messageOwner.media.webpage.type : null;
                 if (!("app".equals(type) || "profile".equals(type) || "article".equals(type) || type != null && type.startsWith("telegram_"))) {
                     setThumb(0, message);
@@ -5721,10 +5721,10 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
         }
 
         if (smallThumb != null) {
-            hasVideoThumb = hasVideoThumb || (message.isVideo() || message.isRoundVideo());
+            hasVideoThumb = hasVideoThumb || (tjIsVideo(message) || message.isRoundVideo());
             if (thumbsCount < 3) {
                 thumbsCount++;
-                drawPlay[index] = (message.isVideo() || message.isRoundVideo()) && !message.hasMediaSpoilers();
+                drawPlay[index] = (tjIsVideo(message) || message.isRoundVideo()) && !message.hasMediaSpoilers();
                 drawSpoiler[index] = message.hasMediaSpoilers();
                 int size = message.type == MessageObject.TYPE_PHOTO && selectedThumb != null ? selectedThumb.size : 0;
                 String filter = message.hasMediaSpoilers() ? "5_5_b" : "20_20";
@@ -5909,7 +5909,7 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
             String emoji;
             if (!needEmoji) {
                 emoji = "";
-            } else if (message.isVideo()) {
+            } else if (tjIsVideo(message)) {
                 emoji = "\uD83D\uDCF9 ";
             } else if (message.isVoice()) {
                 emoji = "\uD83C\uDFA4 ";
@@ -6505,5 +6505,10 @@ public class DialogCell extends BaseCell implements StoriesListPlaceProvider.Ava
             }
             invalidate();
         }
+    }
+
+    /** TJ: a video sent as a plain file plays in the viewer but is still a file in the chats list. */
+    private static boolean tjIsVideo(MessageObject message) {
+        return message.isVideo() && !org.telegram.messenger.tj.TjVideoFiles.isTjMarked(message.getDocument());
     }
 }
