@@ -23,11 +23,10 @@ import org.telegram.ui.Components.ColoredImageSpan;
 public final class TjMessageMarks {
 
     /** The deleted marks on offer, in the order the picker shows them. */
-    public static final String[] DELETED = {"trash", "trash_filled", "trash_x", "eye_off", "ghost",
-            "cross_circle", "cross", "block", "minus_circle", "cloud_off", "broom"};
+    public static final String[] DELETED = {"trash", "trash_filled", "trash_x", "eye_off",
+            "cross_circle", "cross", "block", "minus_circle"};
     /** The edited marks on offer; "text" is Telegram's own word. */
-    public static final String[] EDITED = {"text", "pencil", "pencil_outline", "edit_note", "history",
-            "autorenew", "sparkle", "asterisk"};
+    public static final String[] EDITED = {"text", "pencil", "pencil_outline", "edit_note", "history"};
     /** 0 follows the timestamp's colour; the rest are fixed. */
     public static final int[] COLORS = {0, 0xFFE53935, 0xFFC62828, 0xFFD81B60, 0xFFB43FD3,
             0xFF8E44E0, 0xFF5B4FE0, 0xFF3B7BE8};
@@ -40,20 +39,14 @@ public final class TjMessageMarks {
             case "trash_filled": return R.drawable.tj_mark_trash_filled;
             case "trash_x": return R.drawable.tj_mark_trash_x;
             case "eye_off": return R.drawable.tj_mark_eye_off;
-            case "ghost": return R.drawable.tj_mark_ghost;
             case "cross_circle": return R.drawable.tj_mark_cross_circle;
             case "cross": return R.drawable.tj_mark_cross;
             case "block": return R.drawable.tj_mark_block;
             case "minus_circle": return R.drawable.tj_mark_minus_circle;
-            case "cloud_off": return R.drawable.tj_mark_cloud_off;
-            case "broom": return R.drawable.tj_mark_broom;
             case "pencil": return R.drawable.tj_mark_pencil;
             case "pencil_outline": return R.drawable.tj_mark_pencil_outline;
             case "edit_note": return R.drawable.tj_mark_edit_note;
             case "history": return R.drawable.tj_mark_history;
-            case "autorenew": return R.drawable.tj_mark_autorenew;
-            case "sparkle": return R.drawable.tj_mark_sparkle;
-            case "asterisk": return R.drawable.tj_mark_asterisk;
             default: return R.drawable.tj_mark_trash;
         }
     }
@@ -62,11 +55,10 @@ public final class TjMessageMarks {
     public static String deletedKey() {
         String mark = TjConfig.deletedMark();
         if (mark == null) return "trash";
-        if (mark.startsWith("icon:")) return mark.substring(5);
+        if (mark.startsWith("icon:")) return known(DELETED, mark.substring(5), "trash");
         // The two X options have to differ by shape: both may be tinted with the timestamp colour.
         if (mark.startsWith("❌") || mark.startsWith("❎")) return "cross_circle";
         if (mark.startsWith("✖") || mark.startsWith("✗")) return "cross";
-        if (mark.startsWith("🧹") || mark.startsWith("🧽")) return "broom";
         return "trash";
     }
 
@@ -74,8 +66,14 @@ public final class TjMessageMarks {
     public static String editedKey() {
         String mark = TjConfig.editedMark();
         if (TextUtils.isEmpty(mark)) return "text";
-        if (mark.startsWith("icon:")) return mark.substring(5);
+        if (mark.startsWith("icon:")) return known(EDITED, mark.substring(5), "pencil");
         return "pencil";
+    }
+
+    /** A mark that is no longer offered falls back to the plain one. */
+    private static String known(String[] offered, String key, String fallback) {
+        for (String option : offered) if (option.equals(key)) return key;
+        return fallback;
     }
 
     public static void setDeleted(String key) {

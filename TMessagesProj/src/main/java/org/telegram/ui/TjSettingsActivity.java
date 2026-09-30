@@ -668,9 +668,8 @@ public class TjSettingsActivity extends BaseFragment {
                 TjLocale.getString(R.string.TjFolderTabIconOnly),
                 TjLocale.getString(R.string.TjFolderTabNameOnly)
         };
-        AlertDialog.Builder builder = new AlertDialog.Builder(getParentActivity());
-        builder.setTitle(TjLocale.getString(R.string.TjFolderTabStyle));
-        builder.setItems(options, (dialog, which) -> {
+        org.telegram.ui.Components.TjChoiceDialog.show(this, TjLocale.getString(R.string.TjFolderTabStyle), options,
+                getFolderTabStyle(), which -> {
             setFolderTabStyle(which);
             if (listView != null && listView.getAdapter() != null) {
                 listView.getAdapter().notifyDataSetChanged();
@@ -683,8 +682,6 @@ public class TjSettingsActivity extends BaseFragment {
                 }
             }
         });
-        builder.setNegativeButton(LocaleController.getString(R.string.Cancel), null);
-        showDialog(builder.create());
     }
 
     private class ListAdapter extends RecyclerListView.SelectionAdapter {

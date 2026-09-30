@@ -269,7 +269,8 @@ public class TjPrivacySettingsActivity extends BaseFragment implements Notificat
 
         items.add(new Item(TYPE_HEADER, 0, R.string.TjDeletedAppearance));
         items.add(new Item(TYPE_CHECK, DIM_DELETED, R.string.TjDimDeletedMessages));
-        items.add(new Item(TYPE_MARKS, DELETED_MARKER, R.string.TjDeletedMarker));
+        // Id 0: the picker handles its own taps; the list must not open the old marker dialog.
+        items.add(new Item(TYPE_MARKS, 0, R.string.TjDeletedMarker));
         items.add(new Item(TYPE_INFO, 0, R.string.TjDeletedAppearanceInfo));
 
         items.add(new Item(TYPE_HEADER, 0, R.string.TjExtras));
@@ -362,11 +363,6 @@ public class TjPrivacySettingsActivity extends BaseFragment implements Notificat
                 TjSyncController.restart();
                 adapter.notifyDataSetChanged();
             }
-        } else if (item.id == DELETED_MARKER) {
-            showDeletedMarkerDialog();
-        } else if (item.id == EDITED_MARKER) {
-            String marker = TjConfig.editedMark();
-            showTextEditor(item, marker.isEmpty() ? LocaleController.getString(R.string.EditedMessage) : marker, true);
         } else if (item.id == FILTER_EXPRESSIONS) {
             showTextEditor(item, TjConfig.filterExpressions(), false);
         } else if (item.id == SYNC_SERVER) {
@@ -532,48 +528,6 @@ public class TjPrivacySettingsActivity extends BaseFragment implements Notificat
         showDialog(builder.create());
     }
 
-    private String deletedMarkerName() {
-        String current = TjConfig.deletedMark();
-        if (current.startsWith("❌") || current.startsWith("❎")) {
-            return text(R.string.TjDeletedMarkerRedX);
-        }
-        if (current.startsWith("✖") || current.startsWith("✗")) {
-            return text(R.string.TjDeletedMarkerDarkX);
-        }
-        if (current.startsWith("🧹") || current.startsWith("🧽")) {
-            return text(R.string.TjDeletedMarkerBroom);
-        }
-        return text(R.string.TjDeletedMarkerTrash);
-    }
-
-    private void showDeletedMarkerDialog() {
-        if (getParentActivity() == null) {
-            return;
-        }
-        final String[] markers = {"🗑️", "❌", "✖", "🧹"};
-        final int[] labels = {
-                R.string.TjDeletedMarkerTrash,
-                R.string.TjDeletedMarkerRedX,
-                R.string.TjDeletedMarkerDarkX,
-                R.string.TjDeletedMarkerBroom
-        };
-        CharSequence[] choices = new CharSequence[markers.length];
-        String current = TjConfig.deletedMark();
-        for (int i = 0; i < markers.length; i++) {
-            // The stored value is still the old emoji, but it is only a key now - the mark itself
-            // is drawn, so the picker names the icon rather than showing a system emoji.
-            choices[i] = (markers[i].equals(current) ? "✓  " : "") + text(labels[i]);
-        }
-        AlertDialog.Builder builder = new AlertDialog.Builder(getParentActivity());
-        builder.setTitle(text(R.string.TjDeletedMarker));
-        builder.setItems(choices, (dialog, which) -> {
-            TjConfig.put("deleted_mark", markers[which]);
-            adapter.notifyDataSetChanged();
-        });
-        builder.setNegativeButton(LocaleController.getString(R.string.Cancel), null);
-        showDialog(builder.create());
-    }
-
     private void showClearArchiveDialog() {
         AlertDialog.Builder builder = new AlertDialog.Builder(getParentActivity());
         builder.setTitle(text(R.string.TjClearArchiveTitle));
@@ -606,11 +560,6 @@ public class TjPrivacySettingsActivity extends BaseFragment implements Notificat
     }
 
     private String valueFor(int id) {
-        if (id == DELETED_MARKER) return deletedMarkerName();
-        if (id == EDITED_MARKER) {
-            String marker = TjConfig.editedMark();
-            return marker.isEmpty() ? LocaleController.getString(R.string.EditedMessage) : marker;
-        }
         if (id == ARCHIVE_LIMIT) return TjConfig.archiveLimitGb() + " GB";
         if (id == FILTER_EXPRESSIONS) {
             String expressions = TjConfig.filterExpressions();
