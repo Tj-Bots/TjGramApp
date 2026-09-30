@@ -11567,6 +11567,8 @@
     <string name="TjWatchSearchHint">Search a film or a series</string>
     <string name="TjWatchAll">All</string>
     <string name="TjWatchCategories">Categories</string>
+    <string name="TjCopyThumbnailDone">Preview picture copied</string>
+    <string name="TjCopyThumbnailFailed">Couldn\'t copy the picture</string>
     <string name="TjVersionCopied">Version copied</string>
     <string name="TjGhostOptionLockAction">Lock this option</string>
     <string name="TjGhostOptionUnlockAction">Unlock this option</string>

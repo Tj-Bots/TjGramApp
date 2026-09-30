@@ -12304,6 +12304,62 @@ public class ChatActivity extends BaseFragment implements
         return selectedMessagesIds[0].size() > 0 || selectedMessagesIds[1].size() > 0;
     }
 
+    private boolean tjCanCopyVideoThumb(MessageObject message, boolean noforwardsOrPaidMedia) {
+        return message != null && message.isVideo() && !message.isRoundVideo() && !noforwardsOrPaidMedia
+                && !message.needDrawBluredPreview() && !message.hasRevealedExtendedMedia()
+                && !org.telegram.messenger.tj.TjVideoFiles.isTjMarked(message.getDocument())
+                && message.getDocument() != null && !message.getDocument().thumbs.isEmpty();
+    }
+
+    /**
+     * The picture the chat shows for a video, onto the clipboard as an image. It is taken from the
+     * message's own cell - that is the preview already loaded, downloaded video or not - and
+     * written to a cache file the clipboard can hand to another app.
+     */
+    private void tjCopyVideoThumb(MessageObject message) {
+        if (getParentActivity() == null || message == null) return;
+        android.graphics.Bitmap bitmap = null;
+        if (chatListView != null) {
+            for (int i = 0; i < chatListView.getChildCount(); i++) {
+                View child = chatListView.getChildAt(i);
+                if (child instanceof ChatMessageCell && ((ChatMessageCell) child).getMessageObject() != null
+                        && ((ChatMessageCell) child).getMessageObject().getId() == message.getId()) {
+                    ImageReceiver image = ((ChatMessageCell) child).getPhotoImage();
+                    if (image != null) bitmap = image.getBitmap();
+                    break;
+                }
+            }
+        }
+        if (bitmap == null) {
+            TLRPC.PhotoSize thumb = message.getDocument() == null ? null
+                    : FileLoader.getClosestPhotoSizeWithSize(message.getDocument().thumbs, 320);
+            File file = thumb == null ? null : getFileLoader().getPathToAttach(thumb, true);
+            if (file != null && file.exists()) bitmap = android.graphics.BitmapFactory.decodeFile(file.getAbsolutePath());
+        }
+        if (bitmap == null || bitmap.isRecycled()) {
+            BulletinFactory.of(this).createErrorBulletin(TjLocale.getString(R.string.TjCopyThumbnailFailed)).show();
+            return;
+        }
+        try {
+            File dir = new File(AndroidUtilities.getCacheDir(), "tj_copied");
+            dir.mkdirs();
+            File out = new File(dir, "video_" + message.getId() + ".jpg");
+            try (java.io.FileOutputStream stream = new java.io.FileOutputStream(out)) {
+                bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 92, stream);
+            }
+            Uri uri = FileProvider.getUriForFile(getParentActivity(), ApplicationLoader.getApplicationId() + ".provider", out);
+            ClipData clip = ClipData.newUri(getParentActivity().getContentResolver(), "image", uri);
+            android.content.ClipboardManager clipboard = (android.content.ClipboardManager) getParentActivity().getSystemService(Context.CLIPBOARD_SERVICE);
+            if (clipboard != null) {
+                clipboard.setPrimaryClip(clip);
+                BulletinFactory.of(this).createCopyBulletin(TjLocale.getString(R.string.TjCopyThumbnailDone)).show();
+            }
+        } catch (Exception e) {
+            FileLog.e(e);
+            BulletinFactory.of(this).createErrorBulletin(TjLocale.getString(R.string.TjCopyThumbnailFailed)).show();
+        }
+    }
+
     private boolean hasSelectedNoforwardsMessage() {
         try {
             for (int i = 0; i < selectedMessagesIds.length; ++i) {
@@ -34533,36 +34589,7 @@ public class ChatActivity extends BaseFragment implements
                 break;
             }
             case OPTION_COPY_VIDEO_THUMB: {
-                if (getParentActivity() == null) {
-                    return;
-                }
-                try {
-                    TLRPC.Document document = selectedObject.getDocument();
-                    if (document == null || document.thumbs.isEmpty()) {
-                        break;
-                    }
-                    TLRPC.PhotoSize thumb = FileLoader.getClosestPhotoSizeWithSize(document.thumbs, 320);
-                    if (thumb == null) {
-                        break;
-                    }
-                    File f = getFileLoader().getPathToAttach(thumb, true);
-                    if (f == null || !f.exists()) {
-                        break;
-                    }
-                    Uri uri = FileProvider.getUriForFile(getParentActivity(), ApplicationLoader.getApplicationId() + ".provider", f);
-                    getParentActivity().grantUriPermission(getParentActivity().getPackageName(), uri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
-                    ClipData clip = ClipData.newUri(getParentActivity().getContentResolver(), "image", uri);
-                    android.content.ClipboardManager clipboardManager = (android.content.ClipboardManager) getParentActivity().getSystemService(Context.CLIPBOARD_SERVICE);
-                    if (clipboardManager != null) {
-                        clipboardManager.setPrimaryClip(clip);
-                        createUndoView();
-                        if (undoView != null) {
-                            undoView.showWithAction(0, UndoView.ACTION_MESSAGE_COPIED, null);
-                        }
-                    }
-                } catch (Exception e) {
-                    FileLog.e(e);
-                }
+                tjCopyVideoThumb(selectedObject);
                 break;
             }
             case OPTION_SAVE_TO_GALLERY2: {
@@ -37200,9 +37227,9 @@ public class ChatActivity extends BaseFragment implements
                     builder.setTitleMultipleLines(true);
                 }
                 final int finalTimestamp = timestamp;
-                // TJ: a link is only text - with TjGram's protected-content switch on (the default),
-                // it can be copied and shared from a chat that forbids forwarding, as in Plus.
-                boolean noforwards = !TjConfig.protectedForwarding() && (isPeerNoForwards() || (messageObject != null && messageObject.messageOwner != null && messageObject.messageOwner.noforwards));
+                // TJ: a link is only text, so it can always be copied and shared - a chat that forbids
+                // forwarding included, as in Plus.
+                boolean noforwards = false;
                 // TJ: link buttons get the same Share entry as a long press on a plain link. The
                 // entries are built as a list because Share is not always available.
                 final ArrayList<CharSequence> linkItems = new ArrayList<>();
@@ -47068,6 +47095,12 @@ public class ChatActivity extends BaseFragment implements
                     options.add(OPTION_VIEW_IN_TOPIC);
                     icons.add(R.drawable.msg_viewintopic);
                 }
+                if (type != 4 && tjCanCopyVideoThumb(selectedObject, noforwardsOrPaidMedia)) {
+                    // TJ: the preview picture of a video, before it is downloaded as well.
+                    items.add(TjLocale.getString(R.string.TjCopyThumbnail));
+                    options.add(OPTION_COPY_VIDEO_THUMB);
+                    icons.add(R.drawable.msg_copy);
+                }
                 if (type == 2) {
                     if (chatMode != MODE_SCHEDULED) {
 
@@ -47398,6 +47431,12 @@ public class ChatActivity extends BaseFragment implements
                     items.add(LocaleController.getString(R.string.ViewInTopic));
                     options.add(OPTION_VIEW_IN_TOPIC);
                     icons.add(R.drawable.msg_viewintopic);
+                }
+                if (type != 4 && tjCanCopyVideoThumb(selectedObject, noforwardsOrPaidMedia)) {
+                    // TJ: the preview picture of a video, before it is downloaded as well.
+                    items.add(TjLocale.getString(R.string.TjCopyThumbnail));
+                    options.add(OPTION_COPY_VIDEO_THUMB);
+                    icons.add(R.drawable.msg_copy);
                 }
                 if (type == 4 && !noforwardsOrPaidMedia && !selectedObject.hasRevealedExtendedMedia() && !selectedObject.needDrawBluredPreview()) {
                     if (selectedObject.isVideo()) {

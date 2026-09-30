@@ -508,6 +508,8 @@ public class TjLocale {
         m.put("TjWatchSearchHint", "חפש סרט או סדרה");
         m.put("TjWatchAll", "הכל");
         m.put("TjWatchCategories", "קטגוריות");
+        m.put("TjCopyThumbnailDone", "תמונת התצוגה הועתקה");
+        m.put("TjCopyThumbnailFailed", "לא ניתן להעתיק את התמונה");
         m.put("TjVersionCopied", "מספר הגרסה הועתק");
         m.put("TjGhostOptionLockAction", "נעל את האפשרות");
         m.put("TjGhostOptionUnlockAction", "שחרר את הנעילה");
