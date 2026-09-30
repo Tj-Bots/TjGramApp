@@ -37200,7 +37200,9 @@ public class ChatActivity extends BaseFragment implements
                     builder.setTitleMultipleLines(true);
                 }
                 final int finalTimestamp = timestamp;
-                boolean noforwards = isPeerNoForwards() || (messageObject != null && messageObject.messageOwner != null && messageObject.messageOwner.noforwards);
+                // TJ: a link is only text - with TjGram's protected-content switch on (the default),
+                // it can be copied and shared from a chat that forbids forwarding, as in Plus.
+                boolean noforwards = !TjConfig.protectedForwarding() && (isPeerNoForwards() || (messageObject != null && messageObject.messageOwner != null && messageObject.messageOwner.noforwards));
                 // TJ: link buttons get the same Share entry as a long press on a plain link. The
                 // entries are built as a list because Share is not always available.
                 final ArrayList<CharSequence> linkItems = new ArrayList<>();
