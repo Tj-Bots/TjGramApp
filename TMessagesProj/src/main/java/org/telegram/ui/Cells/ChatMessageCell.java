@@ -18578,7 +18578,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         } else if (edited) {
             timeString = AppGlobalConfig.getInstance(currentAccount).messagePrimaryEditedDate.get() ?
                 LocaleController.formatPmEditedDate(currentMessagesGroup != null ? currentMessagesGroup.getMaxEditDate() : messageObject.messageOwner.edit_date) :
-                (getString(R.string.EditedMessage) + " " + LocaleController.getInstance().getFormatterDay().format((long) (messageObject.messageOwner.date) * 1000));
+                TextUtils.concat(TjMessageMarks.edited(getString(R.string.EditedMessage)), " ", LocaleController.getInstance().getFormatterDay().format((long) (messageObject.messageOwner.date) * 1000));
         } else if (currentMessageObject.isSaved && currentMessageObject.messageOwner.fwd_from != null && (currentMessageObject.messageOwner.fwd_from.date != 0 || currentMessageObject.messageOwner.fwd_from.saved_date != 0)) {
             int date = currentMessageObject.messageOwner.fwd_from.saved_date;
             if (date == 0) {

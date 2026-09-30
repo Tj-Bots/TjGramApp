@@ -11462,6 +11462,7 @@
     <string name="TjPlayerCast">Cast to TV</string>
     <string name="TjPlayerMinimize">Mini player</string>
     <string name="TjUpdateAvailable">Update version</string>
+    <string name="TjUpdateWhatsNew">What\'s new</string>
     <string name="TjUpdateDownloading">Downloading %1$d%%</string>
     <string name="TjUpdateInstall">Install update</string>
     <string name="TjUpdateCheck">Check for updates</string>
@@ -11566,6 +11567,8 @@
     <string name="TjWatchSearchHint">Search a film or a series</string>
     <string name="TjWatchAll">All</string>
     <string name="TjWatchCategories">Categories</string>
+    <string name="TjMarksPreviewText">This message was edited and then deleted</string>
+    <string name="TjMarksColor">Marks colour</string>
     <string name="TjWatchSearchHeader">Finding files</string>
     <string name="TjWatchSearchCaption">Search the caption too</string>
     <string name="TjWatchSearchCaptionInfo">Many videos are sent with a meaningless file name, like index.mp4, and the real name written in the caption. When this is on, the first two lines of a video\'s caption count as its name too.</string>

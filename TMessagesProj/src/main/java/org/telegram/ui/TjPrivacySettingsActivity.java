@@ -49,6 +49,7 @@ public class TjPrivacySettingsActivity extends BaseFragment implements Notificat
     private static final int TYPE_INFO = 2;
     private static final int TYPE_VALUE = 3;
     private static final int TYPE_ACTION = 4;
+    private static final int TYPE_MARKS = 5;
 
     private static final int GHOST = 1;
     private static final int HIDE_TYPING = 2;
@@ -268,8 +269,7 @@ public class TjPrivacySettingsActivity extends BaseFragment implements Notificat
 
         items.add(new Item(TYPE_HEADER, 0, R.string.TjDeletedAppearance));
         items.add(new Item(TYPE_CHECK, DIM_DELETED, R.string.TjDimDeletedMessages));
-        items.add(new Item(TYPE_VALUE, DELETED_MARKER, R.string.TjDeletedMarker));
-        items.add(new Item(TYPE_VALUE, EDITED_MARKER, R.string.TjEditedMarker));
+        items.add(new Item(TYPE_MARKS, DELETED_MARKER, R.string.TjDeletedMarker));
         items.add(new Item(TYPE_INFO, 0, R.string.TjDeletedAppearanceInfo));
 
         items.add(new Item(TYPE_HEADER, 0, R.string.TjExtras));
@@ -594,20 +594,15 @@ public class TjPrivacySettingsActivity extends BaseFragment implements Notificat
 
     private void showArchiveLimitDialog() {
         CharSequence[] values = new CharSequence[10];
-        int current = TjConfig.archiveLimitGb();
         for (int i = 0; i < values.length; i++) {
-            int size = i + 1;
-            values[i] = (size == current ? "✓  " : "") + size + " GB";
+            values[i] = (i + 1) + " GB";
         }
-        AlertDialog.Builder builder = new AlertDialog.Builder(getParentActivity());
-        builder.setTitle(text(R.string.TjArchiveLimit));
-        builder.setItems(values, (dialog, which) -> {
-            TjConfig.put("archive_limit_gb", which + 1);
-            TjMessageArchive.getInstance().enforceQuota(currentAccount);
-            adapter.notifyDataSetChanged();
-        });
-        builder.setNegativeButton(LocaleController.getString(R.string.Cancel), null);
-        showDialog(builder.create());
+        org.telegram.ui.Components.TjChoiceDialog.show(this, text(R.string.TjArchiveLimit), values,
+                TjConfig.archiveLimitGb() - 1, which -> {
+                    TjConfig.put("archive_limit_gb", which + 1);
+                    TjMessageArchive.getInstance().enforceQuota(currentAccount);
+                    adapter.notifyDataSetChanged();
+                });
     }
 
     private String valueFor(int id) {
@@ -663,6 +658,8 @@ public class TjPrivacySettingsActivity extends BaseFragment implements Notificat
             } else if (viewType == TYPE_INFO) {
                 view = new TextInfoPrivacyCell(parent.getContext());
                 return new RecyclerListView.Holder(view);
+            } else if (viewType == TYPE_MARKS) {
+                view = new org.telegram.ui.Components.TjMarksPickerView(parent.getContext());
             } else {
                 view = new TextSettingsCell(parent.getContext());
             }
@@ -673,7 +670,9 @@ public class TjPrivacySettingsActivity extends BaseFragment implements Notificat
         public void onBindViewHolder(RecyclerView.ViewHolder holder, int position) {
             Item item = items.get(position);
             applyCardStyle(holder.itemView, position, item.type);
-            if (item.type == TYPE_HEADER) {
+            if (item.type == TYPE_MARKS) {
+                ((org.telegram.ui.Components.TjMarksPickerView) holder.itemView).refresh();
+            } else if (item.type == TYPE_HEADER) {
                 ((TextView) holder.itemView).setText(text(item.text));
             } else if (item.type == TYPE_INFO) {
                 ((TextInfoPrivacyCell) holder.itemView).setText(text(item.text));
@@ -733,6 +732,7 @@ public class TjPrivacySettingsActivity extends BaseFragment implements Notificat
             }
             Item item = items.get(position);
             return holder.getItemViewType() != TYPE_HEADER && holder.getItemViewType() != TYPE_INFO
+                    && holder.getItemViewType() != TYPE_MARKS
                     && item.id != SYNC_STATUS && item.id != SYNC_DEVICE_ID
                     && item.id != SYNC_LAST_SENT && item.id != SYNC_LAST_RECEIVED
                     && item.id != SYNC_REGISTER_STATUS;

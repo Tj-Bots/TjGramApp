@@ -8,6 +8,7 @@ import android.app.Activity;
 import android.graphics.Canvas;
 import android.graphics.drawable.Drawable;
 import android.os.SystemClock;
+import android.text.TextUtils;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
@@ -35,6 +36,7 @@ public class TjUpdateLayout extends IUpdateLayout {
     private AnimatedTextView updateTextView;
     private AnimatedTextView.AnimatedTextDrawable updateSizeTextView;
     private AnimatedTextView.AnimatedTextDrawable speedTextView;
+    private android.widget.ImageView infoButton;
 
     private final Activity activity;
     private final ViewGroup container;
@@ -116,7 +118,7 @@ public class TjUpdateLayout extends IUpdateLayout {
             protected void onDraw(Canvas canvas) {
                 updateSizeTextView.setBounds(0, 0, getMeasuredWidth() - dp(16), getMeasuredHeight());
                 updateSizeTextView.draw(canvas);
-                speedTextView.setBounds(dp(16), 0, getMeasuredWidth(), getMeasuredHeight());
+                speedTextView.setBounds(dp(48), 0, getMeasuredWidth(), getMeasuredHeight());
                 speedTextView.draw(canvas);
 
                 canvas.save();
@@ -139,6 +141,17 @@ public class TjUpdateLayout extends IUpdateLayout {
         updateLayout.addView(updateTextView, LayoutHelper.createFrameMatchParent());
         updateTextView.setText(TjLocale.getString(R.string.TjUpdateAvailable), false);
 
+        // What is new in this build: the caption of the post the APK came in.
+        infoButton = new android.widget.ImageView(activity);
+        infoButton.setImageResource(R.drawable.msg_info);
+        infoButton.setColorFilter(0xffffffff);
+        infoButton.setScaleType(android.widget.ImageView.ScaleType.CENTER);
+        infoButton.setBackground(Theme.createSelectorDrawable(0x40ffffff, Theme.RIPPLE_MASK_CIRCLE_20DP));
+        infoButton.setContentDescription(TjLocale.getString(R.string.TjUpdateWhatsNew));
+        infoButton.setOnClickListener(v -> showWhatsNew(currentAccount));
+        infoButton.setVisibility(View.GONE);
+        updateLayout.addView(infoButton, LayoutHelper.createFrame(44, 44, Gravity.LEFT | Gravity.CENTER_VERTICAL, 4, 0, 0, 0));
+
         updateLayoutIcon = new RadialProgress2(updateTextView);
         updateLayoutIcon.setColors(0xffffffff, 0xffffffff, Theme.getColor(Theme.key_featuredStickers_addButton), Theme.getColor(Theme.key_featuredStickers_addButton));
         updateLayoutIcon.setProgressRect(0, 0, dp(22), dp(22));
@@ -160,6 +173,27 @@ public class TjUpdateLayout extends IUpdateLayout {
         speedTextView.setTextColor(0xccffffff);
     }
 
+    private void showWhatsNew(int currentAccount) {
+        String notes = TjUpdates.notes();
+        if (TextUtils.isEmpty(notes) || activity == null) return;
+        org.telegram.ui.ActionBar.AlertDialog.Builder builder = new org.telegram.ui.ActionBar.AlertDialog.Builder(activity);
+        builder.setTitle(TjLocale.getString(R.string.TjUpdateWhatsNew));
+        builder.setMessage(notes);
+        if (TjUpdates.downloaded()) {
+            builder.setPositiveButton(TjLocale.getString(R.string.TjUpdateInstall),
+                    (d, w) -> AndroidUtilities.openForView(TjUpdates.document(), true, activity));
+        } else if (!TjUpdates.downloading()) {
+            builder.setPositiveButton(TjLocale.getString(R.string.TjUpdateAvailable), (d, w) -> {
+                speedSampleBytes = -1;
+                speed = 0;
+                TjUpdates.download();
+                updateAppUpdateViews(currentAccount, true);
+            });
+        }
+        builder.setNegativeButton(org.telegram.messenger.LocaleController.getString(R.string.Close), null);
+        builder.show();
+    }
+
     @Override
     public void updateAppUpdateViews(int currentAccount, boolean animated) {
         if (container == null) {
@@ -167,6 +201,7 @@ public class TjUpdateLayout extends IUpdateLayout {
         }
         if (TjUpdates.available()) {
             createUpdateUI(currentAccount);
+            infoButton.setVisibility(TextUtils.isEmpty(TjUpdates.notes()) ? View.GONE : View.VISIBLE);
 
             if (TjUpdates.downloaded()) {
                 updateLayoutIcon.setIcon(MediaActionDrawable.ICON_UPDATE, true, animated);

@@ -336,6 +336,8 @@ public final class TjConfig {
 
     public static String deletedMark() { return prefs().getString("deleted_mark", "🗑️"); }
     public static String editedMark() { return prefs().getString("edited_mark", ""); }
+    /** The colour of the deleted and edited marks; 0 follows the timestamp's colour. */
+    public static int marksColor() { return prefs().getInt("marks_color", 0); }
     public static String syncServer() { return prefs().getString("tj_sync_server", ""); }
     public static String syncToken() {
         SharedPreferences preferences = prefs();

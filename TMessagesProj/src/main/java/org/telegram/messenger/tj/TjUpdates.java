@@ -59,6 +59,12 @@ public final class TjUpdates {
         return account >= 0 ? account : UserConfig.selectedAccount;
     }
 
+    /** The caption of the post the update came in - what is new in it. */
+    public static String notes() {
+        if (message == null || message.messageOwner == null || message.messageOwner.message == null) return "";
+        return message.messageOwner.message.trim();
+    }
+
     public static String fileName() {
         return document == null ? null : FileLoader.getAttachFileName(document);
     }

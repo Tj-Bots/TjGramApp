@@ -14,48 +14,94 @@ import org.telegram.ui.Components.ColoredImageSpan;
  *
  * These used to be emoji dropped into the timestamp. Emoji are drawn by the system font, so they
  * ignored the theme, sat badly against the time text and looked different on every device. These
- * are drawables instead: they take the timestamp's own colour and line up with it.
+ * are drawables instead: they take the timestamp's own colour - or the colour picked for them - and
+ * line up with it.
  *
- * The stored preference is still the old emoji string, so existing installs keep whichever mark
- * they picked - the emoji simply chooses which icon to draw now.
+ * The preference holds "icon:name". Installs from before still hold the old emoji, which is read
+ * as the icon it used to stand for, so nobody's choice changes under them.
  */
 public final class TjMessageMarks {
+
+    /** The deleted marks on offer, in the order the picker shows them. */
+    public static final String[] DELETED = {"trash", "trash_filled", "trash_x", "eye_off", "ghost",
+            "cross_circle", "cross", "block", "minus_circle", "cloud_off", "broom"};
+    /** The edited marks on offer; "text" is Telegram's own word. */
+    public static final String[] EDITED = {"text", "pencil", "pencil_outline", "edit_note", "history",
+            "autorenew", "sparkle", "asterisk"};
+    /** 0 follows the timestamp's colour; the rest are fixed. */
+    public static final int[] COLORS = {0, 0xFFE53935, 0xFFC62828, 0xFFD81B60, 0xFFB43FD3,
+            0xFF8E44E0, 0xFF5B4FE0, 0xFF3B7BE8};
 
     private TjMessageMarks() {
     }
 
-    private static int deletedIcon(String mark) {
-        if (mark == null) {
-            return R.drawable.tj_mark_trash;
+    public static int iconRes(String name) {
+        switch (name == null ? "" : name) {
+            case "trash_filled": return R.drawable.tj_mark_trash_filled;
+            case "trash_x": return R.drawable.tj_mark_trash_x;
+            case "eye_off": return R.drawable.tj_mark_eye_off;
+            case "ghost": return R.drawable.tj_mark_ghost;
+            case "cross_circle": return R.drawable.tj_mark_cross_circle;
+            case "cross": return R.drawable.tj_mark_cross;
+            case "block": return R.drawable.tj_mark_block;
+            case "minus_circle": return R.drawable.tj_mark_minus_circle;
+            case "cloud_off": return R.drawable.tj_mark_cloud_off;
+            case "broom": return R.drawable.tj_mark_broom;
+            case "pencil": return R.drawable.tj_mark_pencil;
+            case "pencil_outline": return R.drawable.tj_mark_pencil_outline;
+            case "edit_note": return R.drawable.tj_mark_edit_note;
+            case "history": return R.drawable.tj_mark_history;
+            case "autorenew": return R.drawable.tj_mark_autorenew;
+            case "sparkle": return R.drawable.tj_mark_sparkle;
+            case "asterisk": return R.drawable.tj_mark_asterisk;
+            default: return R.drawable.tj_mark_trash;
         }
-        if (mark.startsWith("❌") || mark.startsWith("❎")) {
-            // The two X options have to differ by shape: both are tinted with the timestamp
-            // colour, so "red" and "dark" would come out identical.
-            return R.drawable.tj_mark_cross_circle;
-        }
-        if (mark.startsWith("✖") || mark.startsWith("✗")) {
-            return R.drawable.tj_mark_cross;
-        }
-        if (mark.startsWith("🧹") || mark.startsWith("🧽")) {
-            return R.drawable.tj_mark_broom;
-        }
-        return R.drawable.tj_mark_trash;
+    }
+
+    /** Which deleted mark is chosen, old emoji settings included. */
+    public static String deletedKey() {
+        String mark = TjConfig.deletedMark();
+        if (mark == null) return "trash";
+        if (mark.startsWith("icon:")) return mark.substring(5);
+        // The two X options have to differ by shape: both may be tinted with the timestamp colour.
+        if (mark.startsWith("❌") || mark.startsWith("❎")) return "cross_circle";
+        if (mark.startsWith("✖") || mark.startsWith("✗")) return "cross";
+        if (mark.startsWith("🧹") || mark.startsWith("🧽")) return "broom";
+        return "trash";
+    }
+
+    /** Which edited mark is chosen: "text" for the plain word, or an icon. */
+    public static String editedKey() {
+        String mark = TjConfig.editedMark();
+        if (TextUtils.isEmpty(mark)) return "text";
+        if (mark.startsWith("icon:")) return mark.substring(5);
+        return "pencil";
+    }
+
+    public static void setDeleted(String key) {
+        TjConfig.put("deleted_mark", "icon:" + key);
+    }
+
+    public static void setEdited(String key) {
+        TjConfig.put("edited_mark", "text".equals(key) ? "" : "icon:" + key);
+    }
+
+    public static int color() {
+        return TjConfig.marksColor();
     }
 
     /** The mark for a message someone deleted but this device kept. */
     public static CharSequence deleted() {
-        return icon(deletedIcon(TjConfig.deletedMark()));
+        return icon(iconRes(deletedKey()));
     }
 
-    /**
-     * The mark for an edited message. An empty preference means the user wants the plain word
-     * Telegram normally shows, so nothing is drawn here and the caller keeps its own text.
-     */
+    /** The mark for an edited message. The plain-word choice keeps the caller's own text. */
     public static CharSequence edited(CharSequence fallback) {
-        if (TextUtils.isEmpty(TjConfig.editedMark())) {
+        String key = editedKey();
+        if ("text".equals(key)) {
             return fallback;
         }
-        return icon(R.drawable.tj_mark_pencil);
+        return icon(iconRes(key));
     }
 
     private static CharSequence icon(int drawableRes) {
@@ -65,6 +111,8 @@ public final class TjMessageMarks {
             // Sized to the timestamp rather than the icon's own 24dp, so it reads as punctuation
             // next to the time instead of as a button - but large enough to be recognisable.
             span.setSize(dp(14));
+            int color = color();
+            if (color != 0) span.setOverrideColor(color);
             builder.setSpan(span, 0, 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
         } catch (Throwable ignore) {
             return "";

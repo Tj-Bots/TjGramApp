@@ -411,6 +411,7 @@ public class TjLocale {
         m.put("TjPlayerCast", "שידור לטלוויזיה");
         m.put("TjPlayerMinimize", "חלון קטן");
         m.put("TjUpdateAvailable", "עדכון גרסה");
+        m.put("TjUpdateWhatsNew", "מה חדש");
         m.put("TjUpdateDownloading", "מוריד %1$d%%");
         m.put("TjUpdateInstall", "התקן עדכון");
         m.put("TjUpdateCheck", "בדיקת עדכונים");
@@ -507,6 +508,8 @@ public class TjLocale {
         m.put("TjWatchSearchHint", "חפש סרט או סדרה");
         m.put("TjWatchAll", "הכל");
         m.put("TjWatchCategories", "קטגוריות");
+        m.put("TjMarksPreviewText", "ההודעה הזאת נערכה ואז נמחקה");
+        m.put("TjMarksColor", "צבע הסמנים");
         m.put("TjWatchSearchHeader", "חיפוש קבצים");
         m.put("TjWatchSearchCaption", "חיפוש גם בכיתוב");
         m.put("TjWatchSearchCaptionInfo", "הרבה סרטונים נשלחים עם שם קובץ חסר משמעות, כמו index.mp4, והשם האמיתי כתוב בכיתוב. כשזה מופעל, גם שתי השורות הראשונות של הכיתוב נחשבות לשם הסרטון.");

@@ -125,9 +125,11 @@ public class TjChatGhostSettingsActivity extends BaseFragment {
         for (int i = 0; i < labels.length; i++) {
             choices[i] = text(labels[i]);
         }
-        AlertDialog.Builder builder = new AlertDialog.Builder(getContext(), getResourceProvider());
-        builder.setTitle(text(title));
-        builder.setItems(choices, (dialog, which) -> {
+        int current = id == MODE ? TjConfig.chatGhostState(currentAccount, dialogId)
+                : id == READS ? TjConfig.chatReadState(currentAccount, dialogId)
+                : TjConfig.chatTypingState(currentAccount, dialogId);
+        int selected = current == TjConfig.CHAT_GHOST_INHERIT ? 0 : current == TjConfig.CHAT_GHOST_ON ? 1 : 2;
+        org.telegram.ui.Components.TjChoiceDialog.show(this, text(title), choices, selected, which -> {
             int state = which == 0 ? TjConfig.CHAT_GHOST_INHERIT
                     : which == 1 ? TjConfig.CHAT_GHOST_ON : TjConfig.CHAT_GHOST_OFF;
             if (id == MODE) {
@@ -139,7 +141,6 @@ public class TjChatGhostSettingsActivity extends BaseFragment {
             }
             adapter.notifyDataSetChanged();
         });
-        showDialog(builder.create());
     }
 
     private void confirmReset() {

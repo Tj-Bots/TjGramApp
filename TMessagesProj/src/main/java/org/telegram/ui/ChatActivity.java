@@ -22602,6 +22602,8 @@ public class ChatActivity extends BaseFragment implements
                 if (message != null) {
                     message.messageOwner.tjDeleted = true;
                     message.deleted = false;
+                    // The time line carries the deleted mark; rebuild it now, not on the next open.
+                    message.forceUpdate = true;
                     if (chatAdapter != null) {
                         chatAdapter.updateRowWithMessageObject(message, false, false);
                     }
@@ -26695,6 +26697,8 @@ public class ChatActivity extends BaseFragment implements
                 TjMessageArchive.getInstance().saveDeleted(currentAccount, obj.messageOwner);
                 obj.messageOwner.tjDeleted = true;
                 obj.deleted = false;
+                // The time line carries the deleted mark; rebuild it now, not on the next open.
+                obj.forceUpdate = true;
                 if (chatAdapter != null) {
                     chatAdapter.updateRowWithMessageObject(obj, false, false);
                 }
