@@ -532,7 +532,7 @@ public class TjSettingsActivity extends BaseFragment {
 
         listView.setOnItemLongClickListener((view, position) -> {
             if (position < 0 || position >= items.size()) return false;
-            return copyLinkTo(items.get(position));
+            return copyLinkTo(items.get(position), view);
         });
 
         if (focusPlayerSettings) {
@@ -567,12 +567,11 @@ public class TjSettingsActivity extends BaseFragment {
      * Puts a link to this switch on the clipboard, so one can be posted and everyone who taps it
      * lands on the same row. Rows that are not switches have nothing to point at.
      */
-    private boolean copyLinkTo(Item item) {
+    private boolean copyLinkTo(Item item, View view) {
         String key = keyFor(item.id);
         if (key == null || item.viewType != VIEW_TYPE_CHECK && item.viewType != VIEW_TYPE_SETTING) return false;
-        AndroidUtilities.addToClipboard(org.telegram.messenger.tj.TjSettingsLinks.build(sectionFor(item.id), key));
-        BulletinFactory.of(this).createCopyLinkBulletin().show();
-        return true;
+        return org.telegram.ui.Components.TjSettingsLinkMenu.show(this, view,
+                org.telegram.messenger.tj.TjSettingsLinks.build(sectionFor(item.id), key));
     }
 
     /**

@@ -508,6 +508,9 @@ public class TjLocale {
         m.put("TjWatchSearchHint", "חפש סרט או סדרה");
         m.put("TjWatchAll", "הכל");
         m.put("TjWatchCategories", "קטגוריות");
+        m.put("TjVersionCopied", "מספר הגרסה הועתק");
+        m.put("TjGhostOptionLockAction", "נעל את האפשרות");
+        m.put("TjGhostOptionUnlockAction", "שחרר את הנעילה");
         m.put("TjMarksPreviewText", "ההודעה הזאת נערכה ואז נמחקה");
         m.put("TjMarksColor", "צבע הסמנים");
         m.put("TjWatchSearchHeader", "חיפוש קבצים");

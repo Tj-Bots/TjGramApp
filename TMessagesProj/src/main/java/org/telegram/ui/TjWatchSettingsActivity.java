@@ -126,6 +126,8 @@ public class TjWatchSettingsActivity extends BaseFragment {
      */
     private void addCard(View view, boolean first, boolean last) {
         TjSettingsStyle.card(view, first, last);
+        view.setOnLongClickListener(v -> org.telegram.ui.Components.TjSettingsLinkMenu.show(this, v,
+                org.telegram.messenger.tj.TjSettingsLinks.build(org.telegram.messenger.tj.TjSettingsLinks.Section.WATCH_SETTINGS, null)));
         body.addView(view, LayoutHelper.createLinear(-1, -2,
                 TjSettingsStyle.SIDE_MARGIN, 0, TjSettingsStyle.SIDE_MARGIN, 0));
     }

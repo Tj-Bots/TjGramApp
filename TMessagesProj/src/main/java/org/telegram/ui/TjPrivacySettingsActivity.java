@@ -108,6 +108,30 @@ public class TjPrivacySettingsActivity extends BaseFragment implements Notificat
     private final int page;
     private int initialFocusId;
 
+    /** A settings link: the page, walked to the named row and marked. Nothing is changed. */
+    public static TjPrivacySettingsActivity forPage(int page, String item) {
+        TjPrivacySettingsActivity fragment = new TjPrivacySettingsActivity(page);
+        if (item != null && item.startsWith("r")) {
+            try {
+                fragment.initialFocusId = Integer.parseInt(item.substring(1));
+                fragment.highlightFocus = true;
+            } catch (NumberFormatException ignore) {
+            }
+        }
+        return fragment;
+    }
+
+    private boolean highlightFocus;
+
+    private org.telegram.messenger.tj.TjSettingsLinks.Section linkSection() {
+        switch (page) {
+            case PAGE_GHOST: return org.telegram.messenger.tj.TjSettingsLinks.Section.GHOST;
+            case PAGE_FILTERS: return org.telegram.messenger.tj.TjSettingsLinks.Section.FILTERS;
+            case PAGE_CUSTOMIZATION: return org.telegram.messenger.tj.TjSettingsLinks.Section.CUSTOMIZATION;
+            default: return org.telegram.messenger.tj.TjSettingsLinks.Section.ARCHIVE;
+        }
+    }
+
     public static TjPrivacySettingsActivity forLocalPremium() {
         TjPrivacySettingsActivity fragment = new TjPrivacySettingsActivity(PAGE_CUSTOMIZATION);
         fragment.initialFocusId = LOCAL_PREMIUM;
@@ -195,11 +219,13 @@ public class TjPrivacySettingsActivity extends BaseFragment implements Notificat
         list.setAdapter(adapter);
         frame.addView(list, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
         list.setOnItemClickListener((view, position) -> onItemClick(items.get(position), view));
-        list.setOnItemLongClickListener((view, position) -> onItemLongClick(items.get(position)));
+        list.setOnItemLongClickListener((view, position) -> onItemLongClick(items.get(position), view));
         if (initialFocusId != 0) {
             for (int i = 0; i < items.size(); i++) {
                 if (items.get(i).id == initialFocusId) {
                     ((LinearLayoutManager) list.getLayoutManager()).scrollToPositionWithOffset(Math.max(0, i - 1), 0);
+                    final int index = i;
+                    if (highlightFocus) list.highlightRow(() -> index);
                     break;
                 }
             }
@@ -380,8 +406,25 @@ public class TjPrivacySettingsActivity extends BaseFragment implements Notificat
         }
     }
 
-    private boolean onItemLongClick(Item item) {
-        if (page != PAGE_GHOST || !isGhostEssential(item.id)) return false;
+    /**
+     * Every row has a link of its own - copy it or share it into a chat. The ghost essentials keep
+     * their lock in the same menu.
+     */
+    private boolean onItemLongClick(Item item, View view) {
+        if (item.type == TYPE_HEADER || item.type == TYPE_INFO) return false;
+        String link = org.telegram.messenger.tj.TjSettingsLinks.build(linkSection(), item.id != 0 ? "r" + item.id : null);
+        org.telegram.ui.Components.ItemOptions options = org.telegram.ui.Components.TjSettingsLinkMenu.options(this, view, link);
+        if (page == PAGE_GHOST && isGhostEssential(item.id)) {
+            boolean locked = isGhostEssentialLocked(item.id);
+            options.add(locked ? R.drawable.menu_unlock : R.drawable.outline_header_lock_24,
+                    text(locked ? R.string.TjGhostOptionUnlockAction : R.string.TjGhostOptionLockAction),
+                    () -> toggleGhostLock(item));
+        }
+        options.show();
+        return true;
+    }
+
+    private boolean toggleGhostLock(Item item) {
         boolean locked = !isGhostEssentialLocked(item.id);
         prefs().edit().putBoolean("ghost_lock_" + item.id, locked).apply();
         if (adapter != null) adapter.notifyDataSetChanged();

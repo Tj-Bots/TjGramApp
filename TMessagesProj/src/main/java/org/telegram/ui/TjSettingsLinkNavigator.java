@@ -14,10 +14,25 @@ final class TjSettingsLinkNavigator {
                 fragment = TjSettingsActivity.forItem(item);
                 break;
             case GHOST:
-                fragment = new TjPrivacySettingsActivity(TjPrivacySettingsActivity.PAGE_GHOST);
+                fragment = TjPrivacySettingsActivity.forPage(TjPrivacySettingsActivity.PAGE_GHOST, item);
                 break;
             case ARCHIVE:
-                fragment = new TjPrivacySettingsActivity(TjPrivacySettingsActivity.PAGE_ARCHIVE);
+                fragment = TjPrivacySettingsActivity.forPage(TjPrivacySettingsActivity.PAGE_ARCHIVE, item);
+                break;
+            case FILTERS:
+                fragment = TjPrivacySettingsActivity.forPage(TjPrivacySettingsActivity.PAGE_FILTERS, item);
+                break;
+            case CUSTOMIZATION:
+                fragment = TjPrivacySettingsActivity.forPage(TjPrivacySettingsActivity.PAGE_CUSTOMIZATION, item);
+                break;
+            case HOME:
+                fragment = new TjSettingsHomeActivity();
+                break;
+            case OFFLINE_ACCOUNTS:
+                fragment = new TjOfflineAccountsActivity();
+                break;
+            case WATCH_SETTINGS:
+                fragment = new TjWatchSettingsActivity();
                 break;
             case LOCAL_PREMIUM:
                 fragment = TjPrivacySettingsActivity.forLocalPremium();

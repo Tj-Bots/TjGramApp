@@ -11567,6 +11567,9 @@
     <string name="TjWatchSearchHint">Search a film or a series</string>
     <string name="TjWatchAll">All</string>
     <string name="TjWatchCategories">Categories</string>
+    <string name="TjVersionCopied">Version copied</string>
+    <string name="TjGhostOptionLockAction">Lock this option</string>
+    <string name="TjGhostOptionUnlockAction">Unlock this option</string>
     <string name="TjMarksPreviewText">This message was edited and then deleted</string>
     <string name="TjMarksColor">Marks colour</string>
     <string name="TjWatchSearchHeader">Finding files</string>

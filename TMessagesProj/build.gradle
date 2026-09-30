@@ -151,6 +151,11 @@ android {
         if (tmdbKey == null || tmdbKey.toString().isEmpty()) tmdbKey = '2cedaf6c3e5614115817f6fbfbf11e87'
         buildConfigField "String", "TJ_TMDB_KEY", "\"" + tmdbKey + "\""
 
+        // TjGram's own version, apart from Telegram's: the number set here and the CI build it came
+        // from, so every published build reads differently. A local build says "dev".
+        def tjRun = System.getenv("GITHUB_RUN_NUMBER")
+        buildConfigField "String", "TJ_VERSION", "\"" + TJ_VERSION_NAME + "." + (tjRun != null ? tjRun : "dev") + "\""
+
         externalNativeBuild {
             cmake {
                 version '3.22.1'

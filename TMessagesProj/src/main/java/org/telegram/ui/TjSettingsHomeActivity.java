@@ -152,6 +152,11 @@ public class TjSettingsHomeActivity extends BaseFragment {
                     break;
             }
         });
+        list.setOnItemLongClickListener((view, position) -> {
+            if (position < 0 || position >= items.size()) return false;
+            String link = linkFor(items.get(position).id);
+            return link != null && org.telegram.ui.Components.TjSettingsLinkMenu.show(this, view, link);
+        });
         root.addView(list, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT));
         return root;
     }
@@ -164,6 +169,26 @@ public class TjSettingsHomeActivity extends BaseFragment {
             buildItems();
             adapter.notifyDataSetChanged();
         }
+    }
+
+    /** The link a row stands for: a TjGram settings link for a category, the address for a channel. */
+    private static String linkFor(int id) {
+        org.telegram.messenger.tj.TjSettingsLinks.Section section;
+        switch (id) {
+            case OFFLINE_ACCOUNTS: section = org.telegram.messenger.tj.TjSettingsLinks.Section.OFFLINE_ACCOUNTS; break;
+            case MEDIA_CENTER: section = org.telegram.messenger.tj.TjSettingsLinks.Section.MEDIA_CENTER; break;
+            case GHOST: section = org.telegram.messenger.tj.TjSettingsLinks.Section.GHOST; break;
+            case ARCHIVE: section = org.telegram.messenger.tj.TjSettingsLinks.Section.ARCHIVE; break;
+            case FILTERS: section = org.telegram.messenger.tj.TjSettingsLinks.Section.FILTERS; break;
+            case CUSTOMIZATION: section = org.telegram.messenger.tj.TjSettingsLinks.Section.CUSTOMIZATION; break;
+            case ADVANCED: section = org.telegram.messenger.tj.TjSettingsLinks.Section.GENERAL; break;
+            case CHANNEL: return TjCommunity.CHANNEL_URL;
+            case DISCUSSION: return TjCommunity.DISCUSSION_URL;
+            case FAQ: return TjCommunity.FAQ_URL;
+            case UPDATES: return "https://t.me/" + TjCommunity.UPDATES_USERNAME;
+            default: return null;
+        }
+        return org.telegram.messenger.tj.TjSettingsLinks.build(section, null);
     }
 
     private void buildItems() {
@@ -323,7 +348,14 @@ public class TjSettingsHomeActivity extends BaseFragment {
                     Gravity.CENTER_HORIZONTAL, 0, 12, 0, 0));
 
             TextView version = new TextView(context);
-            version.setText(versionName(context));
+            final String tjVersion = org.telegram.messenger.BuildConfig.TJ_VERSION;
+            version.setText("TjGram " + tjVersion);
+            // A tap copies it, for bug reports and for telling which build someone has.
+            version.setOnClickListener(v -> {
+                AndroidUtilities.addToClipboard("TjGram " + tjVersion + " (Telegram " + versionName(context) + ")");
+                org.telegram.ui.Components.BulletinFactory.of(TjSettingsHomeActivity.this)
+                        .createCopyBulletin(TjLocale.getString(R.string.TjVersionCopied)).show();
+            });
             version.setTextSize(13);
             version.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlueHeader));
             version.setGravity(Gravity.CENTER);
@@ -332,6 +364,14 @@ public class TjSettingsHomeActivity extends BaseFragment {
                     Theme.multAlpha(Theme.getColor(Theme.key_windowBackgroundWhiteBlueHeader), 0.12f)));
             content.addView(version, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT,
                     Gravity.CENTER_HORIZONTAL, 0, 8, 0, 0));
+
+            TextView base = new TextView(context);
+            base.setText("Telegram " + versionName(context));
+            base.setTextSize(12);
+            base.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText));
+            base.setGravity(Gravity.CENTER);
+            content.addView(base, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT,
+                    Gravity.CENTER_HORIZONTAL, 0, 4, 0, 0));
         }
 
         @Override

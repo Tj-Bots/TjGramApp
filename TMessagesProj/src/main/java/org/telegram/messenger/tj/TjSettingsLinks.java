@@ -9,7 +9,9 @@ public final class TjSettingsLinks {
         GHOST("ghost"), ARCHIVE("archive"), LOCAL_PREMIUM("local-premium"),
         FOLDERS("folders"), MEDIA_CENTER("media-center"), MEDIA_METADATA("media-metadata"),
         PLAYER("player"), MEDIA_LISTS("media-lists"), GENERAL("general"),
-        ACCOUNT_LOG("account-log"), MENU_SHORTCUTS("menu-shortcuts"), WATCH("watch");
+        ACCOUNT_LOG("account-log"), MENU_SHORTCUTS("menu-shortcuts"), WATCH("watch"),
+        HOME("home"), FILTERS("filters"), CUSTOMIZATION("customization"),
+        OFFLINE_ACCOUNTS("offline-accounts"), WATCH_SETTINGS("watch-settings");
 
         public final String value;
 
