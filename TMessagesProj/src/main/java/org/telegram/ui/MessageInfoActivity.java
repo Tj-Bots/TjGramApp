@@ -17,6 +17,7 @@ import org.telegram.messenger.MessageObject;
 import org.telegram.messenger.R;
 import org.telegram.messenger.TjLocale;
 import org.telegram.messenger.UserObject;
+import org.telegram.messenger.Utilities;
 import org.telegram.messenger.tj.TjMessageArchive;
 import org.telegram.tgnet.TLRPC;
 import org.telegram.ui.ActionBar.ActionBar;
@@ -183,6 +184,10 @@ public class MessageInfoActivity extends BaseFragment {
                 String sizeStr = AndroidUtilities.formatFileSize(document.size);
                 addRow(container, "Size", sizeStr, sizeStr);
             }
+            String quality = tjVideoQuality(document, filePath);
+            if (quality != null) {
+                addRow(container, "Quality", quality, quality);
+            }
             if (!TextUtils.isEmpty(document.mime_type)) {
                 addRow(container, "MimeType", document.mime_type, document.mime_type);
             }
@@ -192,6 +197,11 @@ public class MessageInfoActivity extends BaseFragment {
         } else if (photo != null) {
             if (filePath != null) {
                 addRow(container, "File", filePath, filePath);
+            }
+            TLRPC.PhotoSize biggest = FileLoader.getClosestPhotoSizeWithSize(photo.sizes, AndroidUtilities.getPhotoSize());
+            if (biggest != null && biggest.w > 0 && biggest.h > 0) {
+                String resolution = biggest.w + "×" + biggest.h;
+                addRow(container, "Resolution", resolution, resolution);
             }
             if (photo.dc_id != 0) {
                 addRow(container, "DC", "DC" + photo.dc_id, null);
@@ -228,6 +238,62 @@ public class MessageInfoActivity extends BaseFragment {
         final String pattern = LocaleController.is24HourFormat ? "dd.MM.yyyy, HH:mm:ss" : "dd.MM.yyyy, h:mm:ss a";
         return org.telegram.messenger.time.FastDateFormat.getInstance(pattern,
                 LocaleController.getInstance().getCurrentLocale()).format(millis);
+    }
+
+    /**
+     * "1080p · 1920×1080 · 30 fps" for a video - sent as a video or as a plain file. What the
+     * sender's app wrote on it comes first; a file without it is read from the copy on the device.
+     */
+    private static String tjVideoQuality(TLRPC.Document document, String filePath) {
+        int w = 0, h = 0;
+        for (TLRPC.DocumentAttribute attribute : document.attributes) {
+            if (attribute instanceof TLRPC.TL_documentAttributeVideo) {
+                w = attribute.w;
+                h = attribute.h;
+                break;
+            }
+        }
+        String fps = null;
+        boolean video = w > 0 || document.mime_type != null && document.mime_type.startsWith("video/");
+        if (!video) return null;
+        if (filePath != null && new java.io.File(filePath).exists()) {
+            android.media.MediaMetadataRetriever retriever = new android.media.MediaMetadataRetriever();
+            try {
+                retriever.setDataSource(filePath);
+                if (w <= 0 || h <= 0) {
+                    w = Utilities.parseInt(retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH));
+                    h = Utilities.parseInt(retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT));
+                    int rotation = Utilities.parseInt(retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION));
+                    if (rotation == 90 || rotation == 270) {
+                        int t = w; w = h; h = t;
+                    }
+                }
+                if (android.os.Build.VERSION.SDK_INT >= 23) {
+                    String rate = retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_CAPTURE_FRAMERATE);
+                    if (!TextUtils.isEmpty(rate)) {
+                        float value = Float.parseFloat(rate);
+                        if (value > 0 && value < 1000) fps = Math.round(value) + " fps";
+                    }
+                }
+            } catch (Throwable ignore) {
+            } finally {
+                try {
+                    retriever.release();
+                } catch (Throwable ignore) {
+                }
+            }
+        }
+        if (w <= 0 || h <= 0) return null;
+        int shortSide = Math.min(w, h);
+        String label;
+        if (shortSide >= 2160) label = "4K";
+        else if (shortSide >= 1440) label = "1440p";
+        else if (shortSide >= 1080) label = "1080p";
+        else if (shortSide >= 720) label = "720p";
+        else if (shortSide >= 480) label = "480p";
+        else if (shortSide >= 360) label = "360p";
+        else label = shortSide + "p";
+        return label + " · " + w + "×" + h + (fps != null ? " · " + fps : "");
     }
 
     private void addHistoryRow(LinearLayout container, int count) {

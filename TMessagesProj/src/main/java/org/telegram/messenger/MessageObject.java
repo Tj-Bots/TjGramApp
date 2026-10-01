@@ -8491,6 +8491,9 @@ public class MessageObject {
             }
             if (needDrawShareButton() && (isSaved || !isOutOwner())) {
                 maxWidth -= dp(isSaved && isOutOwner() ? 40 : 14);
+            } else if (!isOutOwner() && org.telegram.messenger.tj.TjConfig.messageTranslateButton()) {
+                // Room beside the bubble for the translate button, the way channels keep it for share.
+                maxWidth -= dp(14);
             }
             if (getMedia(messageOwner) instanceof TLRPC.TL_messageMediaGame) {
                 maxWidth -= dp(10);

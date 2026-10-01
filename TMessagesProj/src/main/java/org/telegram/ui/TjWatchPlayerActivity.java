@@ -168,6 +168,20 @@ public class TjWatchPlayerActivity extends BaseFragment {
     private long lastCastPosition = -1;
 
     private final Runnable hideControls = () -> setControlsVisible(false);
+
+    private static final int PICK_SUBTITLES = 4021;
+    /** Subtitles picked from the device for this episode; the video's own ones are off meanwhile. */
+    private org.telegram.messenger.tj.TjSubtitleFile externalSubtitles;
+    private String externalSubtitlesFor;
+    private final Runnable externalSubtitlesTicker = new Runnable() {
+        @Override
+        public void run() {
+            if (externalSubtitles == null || player == null) return;
+            java.util.List<com.google.android.exoplayer2.text.Cue> cues = externalSubtitles.cuesAt(playPosition(), false);
+            if (cues != null) subtitles.setCues(cues);
+            AndroidUtilities.runOnUIThread(this, 80);
+        }
+    };
     private final Runnable ticker = new Runnable() {
         @Override
         public void run() {
@@ -543,6 +557,9 @@ public class TjWatchPlayerActivity extends BaseFragment {
         subtitleChosenByHand = false;
         errorView.setVisibility(View.GONE);
         subtitles.clear();
+        if (externalSubtitles != null && !episodeKey().equals(externalSubtitlesFor)) {
+            setExternalSubtitles(null);
+        }
         updateTitle();
         updateBarButtons();
         ensureSeasonLoaded();
@@ -589,7 +606,9 @@ public class TjWatchPlayerActivity extends BaseFragment {
                     }
                 }
             });
-            player.setSubtitleListener(cues -> subtitles.setCues(cues));
+            player.setSubtitleListener(cues -> {
+                if (externalSubtitles == null) subtitles.setCues(cues);
+            });
             player.setTracksChangedListener(this::onTracksChanged);
             createPipSource();
         }
@@ -794,7 +813,18 @@ public class TjWatchPlayerActivity extends BaseFragment {
     // ---------------------------------------------------------------- tracks
 
     private void onTracksChanged() {
-        if (player == null || autoSubtitlesDone || subtitleChosenByHand) return;
+        if (player == null || autoSubtitlesDone || subtitleChosenByHand || externalSubtitles != null) {
+            if (externalSubtitles != null && player != null) {
+                // The file picked stands in for the video's own; keep those off, once.
+                for (VideoPlayer.TjTrack track : player.getSubtitleTracks()) {
+                    if (track.selected) {
+                        player.selectSubtitleTrack(null);
+                        break;
+                    }
+                }
+            }
+            return;
+        }
         if (!TjSettingsActivity.isSubtitleAutoEnabled()) return;
         ArrayList<VideoPlayer.TjTrack> tracks = player.getSubtitleTracks();
         if (tracks.isEmpty()) return;
@@ -1003,21 +1033,31 @@ public class TjWatchPlayerActivity extends BaseFragment {
 
         LinearLayout subtitleColumn = trackColumn(sheet, TjLocale.getString(R.string.TjPlayerSubtitles));
         ArrayList<VideoPlayer.TjTrack> texts = player.getSubtitleTracks();
-        boolean anySelected = false;
-        for (VideoPlayer.TjTrack track : texts) anySelected |= track.selected;
+        boolean anySelected = externalSubtitles != null;
+        for (VideoPlayer.TjTrack track : texts) anySelected |= track.selected && externalSubtitles == null;
         panelRow(subtitleColumn, TjLocale.getString(R.string.TjPlayerSubtitlesOff), null, !anySelected, () -> {
             subtitleChosenByHand = true;
+            setExternalSubtitles(null);
             player.selectSubtitleTrack(null);
             subtitles.clear();
             closePanel();
         });
         for (VideoPlayer.TjTrack track : texts) {
-            panelRow(subtitleColumn, track.label, null, track.selected, () -> {
+            panelRow(subtitleColumn, track.label, null, track.selected && externalSubtitles == null, () -> {
                 subtitleChosenByHand = true;
+                setExternalSubtitles(null);
                 player.selectSubtitleTrack(track);
                 closePanel();
             });
         }
+        if (externalSubtitles != null) {
+            panelRow(subtitleColumn, externalSubtitles.name, TjLocale.getString(R.string.TjPlayerSubtitlesFromDevice), true, () -> closePanel());
+        }
+        // A subtitles file of one's own, from the files on the device.
+        panelRow(subtitleColumn, "+  " + TjLocale.getString(R.string.TjPlayerSubtitlesAdd), null, false, () -> {
+            closePanel();
+            pickSubtitlesFile();
+        });
 
         int width = (int) (root.getWidth() * 0.62f);
         panelHost.addView(sheet, new FrameLayout.LayoutParams(width, ViewGroup.LayoutParams.MATCH_PARENT, Gravity.RIGHT));
@@ -1025,6 +1065,84 @@ public class TjWatchPlayerActivity extends BaseFragment {
         sheet.setTranslationX(width);
         sheet.animate().translationX(0).setDuration(200).start();
         AndroidUtilities.cancelRunOnUIThread(hideControls);
+    }
+
+    private String episodeKey() {
+        return session.season + ":" + session.episode;
+    }
+
+    private void pickSubtitlesFile() {
+        try {
+            Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
+            intent.addCategory(Intent.CATEGORY_OPENABLE);
+            intent.setType("*/*");
+            startActivityForResult(Intent.createChooser(intent, TjLocale.getString(R.string.TjPlayerSubtitlesAdd)), PICK_SUBTITLES);
+        } catch (Exception e) {
+            FileLog.e(e);
+        }
+    }
+
+    @Override
+    public void onActivityResultFragment(int requestCode, int resultCode, Intent data) {
+        super.onActivityResultFragment(requestCode, resultCode, data);
+        if (requestCode != PICK_SUBTITLES || resultCode != Activity.RESULT_OK || data == null || data.getData() == null) {
+            return;
+        }
+        final Uri uri = data.getData();
+        final Context context = org.telegram.messenger.ApplicationLoader.applicationContext;
+        org.telegram.messenger.Utilities.globalQueue.postRunnable(() -> {
+            org.telegram.messenger.tj.TjSubtitleFile file = null;
+            try (java.io.InputStream in = context.getContentResolver().openInputStream(uri)) {
+                if (in != null) {
+                    java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+                    byte[] buffer = new byte[16 * 1024];
+                    int read;
+                    // Subtitles are text; anything past a few megabytes is not one.
+                    while ((read = in.read(buffer)) > 0 && out.size() < 8 * 1024 * 1024) {
+                        out.write(buffer, 0, read);
+                    }
+                    file = org.telegram.messenger.tj.TjSubtitleFile.parse(displayName(context, uri), out.toByteArray());
+                }
+            } catch (Throwable e) {
+                FileLog.e(e);
+            }
+            final org.telegram.messenger.tj.TjSubtitleFile result = file;
+            AndroidUtilities.runOnUIThread(() -> {
+                if (result == null) {
+                    if (getParentActivity() != null) {
+                        android.widget.Toast.makeText(getParentActivity(), TjLocale.getString(R.string.TjPlayerSubtitlesBadFile), android.widget.Toast.LENGTH_SHORT).show();
+                    }
+                    return;
+                }
+                subtitleChosenByHand = true;
+                if (player != null) player.selectSubtitleTrack(null);
+                setExternalSubtitles(result);
+            });
+        });
+    }
+
+    private static String displayName(Context context, Uri uri) {
+        try (android.database.Cursor cursor = context.getContentResolver().query(uri, new String[]{android.provider.OpenableColumns.DISPLAY_NAME}, null, null, null)) {
+            if (cursor != null && cursor.moveToFirst()) {
+                String name = cursor.getString(0);
+                if (!TextUtils.isEmpty(name)) return name;
+            }
+        } catch (Throwable ignore) {
+        }
+        String last = uri.getLastPathSegment();
+        return TextUtils.isEmpty(last) ? TjLocale.getString(R.string.TjPlayerSubtitles) : last;
+    }
+
+    private void setExternalSubtitles(org.telegram.messenger.tj.TjSubtitleFile file) {
+        externalSubtitles = file;
+        externalSubtitlesFor = file != null ? episodeKey() : null;
+        AndroidUtilities.cancelRunOnUIThread(externalSubtitlesTicker);
+        subtitles.clear();
+        if (file != null) {
+            java.util.List<com.google.android.exoplayer2.text.Cue> cues = file.cuesAt(playPosition(), true);
+            if (cues != null) subtitles.setCues(cues);
+            AndroidUtilities.runOnUIThread(externalSubtitlesTicker);
+        }
     }
 
     private LinearLayout trackColumn(LinearLayout sheet, String title) {
@@ -1614,6 +1732,7 @@ public class TjWatchPlayerActivity extends BaseFragment {
     public void onFragmentDestroy() {
         seasonClient.cancel();
         AndroidUtilities.cancelRunOnUIThread(ticker);
+        AndroidUtilities.cancelRunOnUIThread(externalSubtitlesTicker);
         AndroidUtilities.cancelRunOnUIThread(hideControls);
         cancelCountdown();
         AndroidUtilities.cancelRunOnUIThread(hideLockOverlay);

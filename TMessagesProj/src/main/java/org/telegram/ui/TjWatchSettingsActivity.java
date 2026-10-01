@@ -103,6 +103,18 @@ public class TjWatchSettingsActivity extends BaseFragment {
         addCard(caption, true, true);
         addInfo(context, TjLocale.getString(R.string.TjWatchSearchCaptionInfo));
 
+        addHeader(context, TjLocale.getString(R.string.TjWatchDisplayHeader));
+
+        org.telegram.ui.Cells.TextCheckCell tabBar = new org.telegram.ui.Cells.TextCheckCell(context);
+        tabBar.setTextAndCheck(TjLocale.getString(R.string.TjWatchTabBar), TjConfig.watchTabBar(), false);
+        tabBar.setOnClickListener(v -> {
+            boolean value = !TjConfig.watchTabBar();
+            TjConfig.setWatchTabBar(value);
+            tabBar.setChecked(value);
+        });
+        addCard(tabBar, true, true);
+        addInfo(context, TjLocale.getString(R.string.TjWatchTabBarInfo));
+
         addHeader(context, TjLocale.getString(R.string.TjWatchHistory));
 
         TextSettingsCell history = new TextSettingsCell(context);

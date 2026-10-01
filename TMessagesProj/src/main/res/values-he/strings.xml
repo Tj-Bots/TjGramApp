@@ -343,6 +343,12 @@
     <string name="TjWatchSearchHint">חפש סרט או סדרה</string>
     <string name="TjWatchAll">הכל</string>
     <string name="TjWatchCategories">קטגוריות</string>
+    <string name="TjWatchDisplayHeader">תצוגה</string>
+    <string name="TjWatchTabBar">סרגל לשוניות במסך הצפייה</string>
+    <string name="TjWatchTabBarInfo">סרגל הלשוניות הצף של האפליקציה בתחתית מסך הצפייה הראשי, כדי לעבור לצ\'אטים או להגדרות בלחיצה אחת. בדף של כותר ובנגן הוא לא מופיע.</string>
+    <string name="TjPlayerSubtitlesAdd">הוספה מהמכשיר</string>
+    <string name="TjPlayerSubtitlesFromDevice">מהמכשיר</string>
+    <string name="TjPlayerSubtitlesBadFile">לא ניתן לקרוא כתוביות מהקובץ הזה</string>
     <string name="TjFavedStickersLimit">מדבקות מועדפות</string>
     <string name="TjFavedStickersLimitInfo">טלגרם שומרת 5 מדבקות מועדפות (10 עם פרימיום). מה שמעבר לזה נשמר רק במכשיר הזה ולא יופיע באפליקציות אחרות.</string>
     <string name="TjCopyThumbnailDone">תמונת התצוגה הועתקה</string>

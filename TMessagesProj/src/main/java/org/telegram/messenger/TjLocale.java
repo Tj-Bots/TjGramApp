@@ -508,6 +508,12 @@ public class TjLocale {
         m.put("TjWatchSearchHint", "חפש סרט או סדרה");
         m.put("TjWatchAll", "הכל");
         m.put("TjWatchCategories", "קטגוריות");
+        m.put("TjWatchDisplayHeader", "תצוגה");
+        m.put("TjWatchTabBar", "סרגל לשוניות במסך הצפייה");
+        m.put("TjWatchTabBarInfo", "סרגל הלשוניות הצף של האפליקציה בתחתית מסך הצפייה הראשי, כדי לעבור לצ'אטים או להגדרות בלחיצה אחת. בדף של כותר ובנגן הוא לא מופיע.");
+        m.put("TjPlayerSubtitlesAdd", "הוספה מהמכשיר");
+        m.put("TjPlayerSubtitlesFromDevice", "מהמכשיר");
+        m.put("TjPlayerSubtitlesBadFile", "לא ניתן לקרוא כתוביות מהקובץ הזה");
         m.put("TjFavedStickersLimit", "מדבקות מועדפות");
         m.put("TjFavedStickersLimitInfo", "טלגרם שומרת 5 מדבקות מועדפות (10 עם פרימיום). מה שמעבר לזה נשמר רק במכשיר הזה ולא יופיע באפליקציות אחרות.");
         m.put("TjCopyThumbnailDone", "תמונת התצוגה הועתקה");

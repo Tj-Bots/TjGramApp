@@ -98,13 +98,13 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
     private boolean mediaTabVisible = org.telegram.messenger.tj.TjConfig.showMediaTab();
 
     // Tab order along the bar. Watch sits where it was asked for, between contacts and settings.
-    private static final int INDEX_CHATS = 0;
-    private static final int INDEX_CONTACTS = 1;
-    private static final int INDEX_WATCH = 2;
-    private static final int INDEX_SETTINGS = 3;
-    private static final int INDEX_CALLS = 4;
-    private static final int INDEX_PROFILE = 5;
-    private static final int INDEX_MEDIA = 6;
+    public static final int INDEX_CHATS = 0;
+    public static final int INDEX_CONTACTS = 1;
+    public static final int INDEX_WATCH = 2;
+    public static final int INDEX_SETTINGS = 3;
+    public static final int INDEX_CALLS = 4;
+    public static final int INDEX_PROFILE = 5;
+    public static final int INDEX_MEDIA = 6;
     private boolean watchTabVisible = org.telegram.messenger.tj.TjConfig.showWatchTab();
 
     /**
@@ -122,6 +122,14 @@ public class MainTabsActivity extends ViewPagerActivity implements NotificationC
             case INDEX_MEDIA: return POSITION_MEDIA;
             default: return -1;
         }
+    }
+
+    /** The copy of this bar on the Watch home screen lands here: the page that tab stands for. */
+    public void tjOpenTab(int index) {
+        final int position = indexToPosition(index);
+        if (position < 0 || viewPager == null) return;
+        selectTab(position, false);
+        viewPager.setPosition(position);
     }
 
     /** The bar grows by about one tab's worth for each of the two optional tabs. */

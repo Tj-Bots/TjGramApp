@@ -60,6 +60,33 @@ public final class TjGhostController {
         readContexts.keySet().removeIf(key -> key.startsWith(prefix));
     }
 
+    /**
+     * Mentions the user has scrolled past. Clearing a mention tells nobody anything - there is no
+     * "seen" mark on a mention - but holding the request back left the server counting it as unread,
+     * so old mentions came back after every restart and the mention button jumped to them. Voice and
+     * round messages never get here: their "listened" dot is what would give the user away.
+     */
+    private static final ConcurrentHashMap<String, Long> allowedMentionReads = new ConcurrentHashMap<>();
+
+    public static void allowMentionRead(int account, int messageId) {
+        allowedMentionReads.put(account + ":" + messageId, android.os.SystemClock.elapsedRealtime() + 15_000L);
+    }
+
+    private static boolean onlyAllowedMentions(int account, TLObject request) {
+        java.util.ArrayList<Integer> ids = request instanceof TLRPC.TL_messages_readMessageContents
+                ? ((TLRPC.TL_messages_readMessageContents) request).id
+                : request instanceof TLRPC.TL_channels_readMessageContents
+                ? ((TLRPC.TL_channels_readMessageContents) request).id : null;
+        if (ids == null || ids.isEmpty()) return false;
+        long now = android.os.SystemClock.elapsedRealtime();
+        for (Integer id : ids) {
+            Long expires = allowedMentionReads.get(account + ":" + id);
+            if (expires == null || expires < now) return false;
+        }
+        for (Integer id : ids) allowedMentionReads.remove(account + ":" + id);
+        return true;
+    }
+
     public static void allowReadRequest(int account, long dialogId, int messageId) {
         allowedReadRequests.add(new ReadAllowance(account, dialogId, messageId));
     }
@@ -158,8 +185,58 @@ public final class TjGhostController {
         return TjReactionReadState.filterCount(account, dialogId, topicId, count);
     }
 
+    private static android.content.SharedPreferences readPrefs() {
+        return org.telegram.messenger.ApplicationLoader.applicationContext
+                .getSharedPreferences("tjghostreads", android.content.Context.MODE_PRIVATE);
+    }
+
+    private static String readKey(int account, long dialogId) {
+        return UserConfig.getInstance(account).getClientUserId() + ":" + dialogId;
+    }
+
+    /**
+     * How far the user has read in a chat whose read receipt Ghost held back. The server never
+     * learns it, so every reload of the chat list brought the old unread count and the old "unread
+     * messages" line back, and opening the chat jumped up to messages read long ago.
+     */
+    public static void recordSuppressedRead(int account, TLObject request) {
+        long dialogId;
+        int maxId;
+        if (request instanceof TLRPC.TL_messages_readHistory) {
+            dialogId = getDialogId(((TLRPC.TL_messages_readHistory) request).peer);
+            maxId = ((TLRPC.TL_messages_readHistory) request).max_id;
+        } else if (request instanceof TLRPC.TL_channels_readHistory) {
+            dialogId = -((TLRPC.TL_channels_readHistory) request).channel.channel_id;
+            maxId = ((TLRPC.TL_channels_readHistory) request).max_id;
+        } else {
+            return;
+        }
+        if (dialogId == 0 || maxId <= 0) return;
+        String key = readKey(account, dialogId);
+        if (readPrefs().getInt(key, 0) < maxId) readPrefs().edit().putInt(key, maxId).apply();
+    }
+
+    /** Puts the locally known read position back over what the server reports. */
+    public static void applyLocalReads(int account, java.util.ArrayList<TLRPC.Dialog> dialogs) {
+        if (dialogs == null || dialogs.isEmpty()) return;
+        android.content.SharedPreferences prefs = readPrefs();
+        if (prefs.getAll().isEmpty()) return;
+        for (TLRPC.Dialog dialog : dialogs) {
+            if (dialog == null) continue;
+            int read = prefs.getInt(readKey(account, dialog.id), 0);
+            if (read <= 0 || dialog.read_inbox_max_id >= read) continue;
+            dialog.read_inbox_max_id = read;
+            if (dialog.top_message > 0 && dialog.top_message <= read) {
+                dialog.unread_count = 0;
+            }
+        }
+    }
+
     public static boolean shouldDropRead(int account, TLObject request) {
         if (!isReadRequest(request)) {
+            return false;
+        }
+        if (onlyAllowedMentions(account, request)) {
             return false;
         }
         long requestDialogId = getReadDialogId(account, request);
@@ -230,8 +307,9 @@ public final class TjGhostController {
                 || request instanceof TLRPC.TL_messages_readDiscussion
                 || request instanceof TLRPC.TL_messages_readSavedHistory
                 || request instanceof TLRPC.TL_messages_readMessageContents
-                || request instanceof TLRPC.TL_channels_readMessageContents
-                || request instanceof TLRPC.TL_messages_readMentions;
+                || request instanceof TLRPC.TL_channels_readMessageContents;
+        // Not readMentions either, for the same reason as reactions below: clearing the mentions of a
+        // chat shows nothing to anyone, and holding it back made every old mention come back.
         // Deliberately not readReactions. Nobody is told that their reaction was seen - Telegram
         // has no indicator for it - so holding that request back revealed nothing to anyone and
         // cost the user everything: the server went on counting reactions as unread, and brought

@@ -11567,6 +11567,12 @@
     <string name="TjWatchSearchHint">Search a film or a series</string>
     <string name="TjWatchAll">All</string>
     <string name="TjWatchCategories">Categories</string>
+    <string name="TjWatchDisplayHeader">Display</string>
+    <string name="TjWatchTabBar">Tab bar on the Watch screen</string>
+    <string name="TjWatchTabBarInfo">The app\'s floating tab bar at the bottom of the Watch home screen, for getting to chats or settings in one tap. A title page and the player always stay full screen.</string>
+    <string name="TjPlayerSubtitlesAdd">Add from device</string>
+    <string name="TjPlayerSubtitlesFromDevice">From device</string>
+    <string name="TjPlayerSubtitlesBadFile">Couldn\'t read subtitles from this file</string>
     <string name="TjFavedStickersLimit">Favourite stickers</string>
     <string name="TjFavedStickersLimitInfo">Telegram keeps 5 favourite stickers (10 with Premium). The ones beyond that are kept on this device only and do not appear in other apps.</string>
     <string name="TjCopyThumbnailDone">Preview picture copied</string>

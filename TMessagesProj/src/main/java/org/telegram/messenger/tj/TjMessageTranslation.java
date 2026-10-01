@@ -81,6 +81,9 @@ public final class TjMessageTranslation {
         if (!hasWords(message.messageOwner.message)) {
             return false;
         }
+        if (inOwnScript(message.messageOwner.message)) {
+            return false;
+        }
         String language = message.messageOwner.originalLanguage;
         if (TextUtils.isEmpty(language)) {
             language = languages.get(key(message));
@@ -108,6 +111,32 @@ public final class TjMessageTranslation {
         return false;
     }
 
+    /**
+     * Hebrew letters in a Hebrew app are Hebrew to whoever reads them. The detector is not sure of
+     * a word or two - it calls them Yiddish, or anything else - so the script decides for those.
+     */
+    private static boolean inOwnScript(String text) {
+        final boolean hebrewHere = "he".equals(root(TranslateController.currentLanguage()))
+                || "he".equals(root(TranslateAlert2.getToLanguage()));
+        if (!hebrewHere) {
+            return false;
+        }
+        int hebrew = 0;
+        int other = 0;
+        for (int i = 0; i < text.length(); ) {
+            final int codePoint = text.codePointAt(i);
+            if (Character.isLetter(codePoint)) {
+                if (Character.UnicodeScript.of(codePoint) == Character.UnicodeScript.HEBREW) {
+                    hebrew++;
+                } else {
+                    other++;
+                }
+            }
+            i += Character.charCount(codePoint);
+        }
+        return hebrew > 0 && hebrew >= other * 2;
+    }
+
     private static boolean spokenHere(String language) {
         if (UNDETECTABLE.equals(language)) {
             return false;
@@ -124,7 +153,14 @@ public final class TjMessageTranslation {
         if (TextUtils.isEmpty(language)) {
             return "";
         }
-        return language.split("[-_]")[0].toLowerCase();
+        String root = language.split("[-_]")[0].toLowerCase();
+        // The old codes some detectors still give.
+        switch (root) {
+            case "iw": return "he";
+            case "ji": return "yi";
+            case "in": return "id";
+            default: return root;
+        }
     }
 
     private static void detect(MessageObject message, Runnable onDetected) {

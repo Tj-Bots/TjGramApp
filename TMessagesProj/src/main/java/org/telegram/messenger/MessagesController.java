@@ -12921,6 +12921,8 @@ public class MessagesController extends BaseController implements NotificationCe
             });
         } else if (resetDialogsPinned != null && resetDialogsAll != null) {
             int messagesCount = resetDialogsAll.messages.size();
+            TjGhostController.applyLocalReads(currentAccount, resetDialogsAll.dialogs);
+            TjGhostController.applyLocalReads(currentAccount, resetDialogsPinned.dialogs);
             int dialogsCount = resetDialogsAll.dialogs.size();
             fetchFolderInLoadedPinnedDialogs(resetDialogsPinned);
             resetDialogsAll.dialogs.addAll(resetDialogsPinned.dialogs);
@@ -13359,6 +13361,7 @@ public class MessagesController extends BaseController implements NotificationCe
             if (BuildVars.LOGS_ENABLED) {
                 FileLog.d("loaded folderId " + folderId + " loadType " + loadType + " count " + dialogsRes.dialogs.size());
             }
+            if (!fromCache) TjGhostController.applyLocalReads(currentAccount, dialogsRes.dialogs);
             long[] dialogsLoadOffset = getUserConfig().getDialogLoadOffsets(folderId);
             if (loadType == DIALOGS_LOAD_TYPE_CACHE && dialogsRes.dialogs.size() == 0) {
                 AndroidUtilities.runOnUIThread(() -> {
@@ -14098,6 +14101,7 @@ public class MessagesController extends BaseController implements NotificationCe
 
     public void processDialogsUpdate(final TLRPC.messages_Dialogs dialogsRes, ArrayList<TLRPC.EncryptedChat> encChats, boolean fromCache) {
         Utilities.stageQueue.postRunnable(() -> {
+            if (!fromCache) TjGhostController.applyLocalReads(currentAccount, dialogsRes.dialogs);
             LongSparseArray<TLRPC.Dialog> new_dialogs_dict = new LongSparseArray<>();
             LongSparseArray<ArrayList<MessageObject>> new_dialogMessage = new LongSparseArray<>();
             LongSparseArray<TLRPC.User> usersDict = new LongSparseArray<>(dialogsRes.users.size());
@@ -14485,6 +14489,7 @@ public class MessagesController extends BaseController implements NotificationCe
 
     public void markMentionMessageAsRead(int mid, long channelId, long did) {
         TjGhostController.registerReadContext(currentAccount, did, mid);
+        TjGhostController.allowMentionRead(currentAccount, mid);
         getMessagesStorage().markMentionMessageAsRead(-channelId, mid, did);
         if (channelId != 0) {
             TLRPC.TL_channels_readMessageContents req = new TLRPC.TL_channels_readMessageContents();

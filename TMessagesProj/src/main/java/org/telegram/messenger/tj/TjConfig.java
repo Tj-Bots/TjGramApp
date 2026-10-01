@@ -332,6 +332,11 @@ public final class TjConfig {
     public static void setWatchSearchCaption(boolean value) {
         prefs().edit().putBoolean("watch_search_caption", value).apply();
     }
+    /** Watch: the app's floating tab bar on the Watch home screen too - never over a title or the player. */
+    public static boolean watchTabBar() { return get("watch_tab_bar", true); }
+    public static void setWatchTabBar(boolean value) {
+        prefs().edit().putBoolean("watch_tab_bar", value).apply();
+    }
     public static boolean showKillInDrawer() { return get("show_kill_in_drawer", false); }
 
     public static String deletedMark() { return prefs().getString("deleted_mark", "🗑️"); }

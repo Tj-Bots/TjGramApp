@@ -32,6 +32,11 @@ import org.telegram.messenger.tj.TjMediaLibrary;
 import org.telegram.messenger.tj.TjMediaTitle;
 import org.telegram.messenger.tj.TjTmdb;
 import org.telegram.messenger.tj.TjWatchHistory;
+import org.telegram.ui.Components.glass.GlassTabView;
+import org.telegram.ui.Components.blur3.BlurredBackgroundDrawableViewFactory;
+import org.telegram.ui.Components.blur3.drawable.BlurredBackgroundDrawable;
+import org.telegram.ui.Components.blur3.drawable.color.impl.BlurredBackgroundProviderImpl;
+import org.telegram.ui.Components.blur3.source.BlurredBackgroundSourceColor;
 import org.telegram.ui.ActionBar.ActionBar;
 import org.telegram.ui.ActionBar.ActionBarMenu;
 import org.telegram.ui.ActionBar.ActionBarMenuItem;
@@ -241,11 +246,14 @@ public class TjWatchActivity extends BaseFragment {
                 if (dy > 0) checkLoadMore();
                 headerScroll = view.canScrollVertically(-1) ? Math.max(0, headerScroll + dy) : 0;
                 moveHeader();
+                if (dy > dp(2)) showTabBar(false);
+                else if (dy < -dp(2) || !view.canScrollVertically(-1)) showTabBar(true);
             }
         });
         content.addView(listView, LayoutHelper.createFrame(-1, -1));
         content.addView(status, LayoutHelper.createFrame(-1, -2, Gravity.TOP));
         content.addView(filtersHeader, LayoutHelper.createFrame(-1, -2, Gravity.TOP));
+        buildTabBar(context);
         applyMode();
 
         if (!TjTmdb.available(currentAccount)) {
@@ -272,12 +280,119 @@ public class TjWatchActivity extends BaseFragment {
     private void applyListPadding() {
         if (listView == null) return;
         int header = filtersHeader == null ? 0 : filtersHeader.getHeight();
+        int bottom = dp(24) + (tabBar != null ? dp(DialogsActivity.MAIN_TABS_HEIGHT_WITH_MARGINS) : 0);
         if (gridMode) {
-            listView.setPadding(dp(6), header + dp(6), dp(6), dp(24));
+            listView.setPadding(dp(6), header + dp(6), dp(6), bottom);
         } else {
-            listView.setPadding(0, header + dp(2), 0, dp(24));
+            listView.setPadding(0, header + dp(2), 0, bottom);
         }
         moveHeader();
+    }
+
+    private MainTabsLayout tabBar;
+    private boolean tabBarShown = true;
+
+    /** The screen the app's own bar lives on, when Watch was opened over it. */
+    private MainTabsActivity mainTabsHost() {
+        if (getParentLayout() == null) return null;
+        java.util.List<BaseFragment> stack = getParentLayout().getFragmentStack();
+        for (int i = stack.size() - 1; i >= 0; i--) {
+            if (stack.get(i) instanceof MainTabsActivity) return (MainTabsActivity) stack.get(i);
+        }
+        return null;
+    }
+
+    /**
+     * The app's floating tab bar, on the Watch home screen too, with Watch marked: from here one
+     * tap reaches chats or settings the way it does from any other tab. A title and the player
+     * are full screens of their own and never get it.
+     */
+    private void buildTabBar(Context context) {
+        if (!TjConfig.watchTabBar() || mainTabsHost() == null) return;
+        Theme.ResourcesProvider rp = getResourceProvider();
+        tabBar = new MainTabsLayout(context, rp);
+        tabBar.setClipChildren(false);
+        int pad = dp(DialogsActivity.MAIN_TABS_MARGIN + 4);
+        tabBar.setPadding(pad, pad, pad, pad);
+        boolean calls = getUserConfig().showCallsTab;
+        boolean media = TjConfig.showMediaTab();
+        tabBar.setMaxWidth(dp(328 + 82 + (media ? 82 : 0) + DialogsActivity.MAIN_TABS_MARGIN * 2));
+        java.util.ArrayList<Integer> order = new java.util.ArrayList<>();
+        order.add(MainTabsActivity.INDEX_CHATS);
+        order.add(MainTabsActivity.INDEX_CONTACTS);
+        order.add(MainTabsActivity.INDEX_WATCH);
+        order.add(calls ? MainTabsActivity.INDEX_CALLS : MainTabsActivity.INDEX_SETTINGS);
+        order.add(MainTabsActivity.INDEX_PROFILE);
+        if (media) order.add(MainTabsActivity.INDEX_MEDIA);
+        for (int index : order) {
+            GlassTabView tab;
+            switch (index) {
+                case MainTabsActivity.INDEX_CHATS:
+                    tab = GlassTabView.createMainTab(context, rp, GlassTabView.TabAnimation.CHATS, R.string.MainTabsChats);
+                    break;
+                case MainTabsActivity.INDEX_CONTACTS:
+                    tab = GlassTabView.createMainTab(context, rp, GlassTabView.TabAnimation.CONTACTS, R.string.MainTabsContacts);
+                    break;
+                case MainTabsActivity.INDEX_CALLS:
+                    tab = GlassTabView.createMainTab(context, rp, GlassTabView.TabAnimation.CALLS, R.string.MainTabsCalls);
+                    break;
+                case MainTabsActivity.INDEX_SETTINGS:
+                    tab = GlassTabView.createMainTab(context, rp, GlassTabView.TabAnimation.SETTINGS, R.string.Settings);
+                    break;
+                case MainTabsActivity.INDEX_PROFILE:
+                    tab = GlassTabView.createAvatar(context, rp, currentAccount, R.string.MainTabsProfile);
+                    break;
+                case MainTabsActivity.INDEX_MEDIA:
+                    tab = GlassTabView.createMainTab(context, rp, GlassTabView.TabAnimation.GALLERY, R.string.TjMediaTab);
+                    tab.setText(TjLocale.getString(R.string.TjMediaTab));
+                    break;
+                default:
+                    tab = GlassTabView.createMainTab(context, rp, GlassTabView.TabAnimation.MEDIA_WATCH, R.string.TjWatchTitle);
+                    tab.setText(TjLocale.getString(R.string.TjWatchTitle));
+                    break;
+            }
+            final int target = index;
+            tab.setOnClickListener(v -> {
+                if (target == MainTabsActivity.INDEX_WATCH) {
+                    if (listView != null) listView.smoothScrollToPosition(0);
+                    return;
+                }
+                leaveTo(target);
+            });
+            tabBar.addView(tab);
+            tabBar.setViewVisible(tab, true, false);
+            tab.setSelected(index == MainTabsActivity.INDEX_WATCH, false);
+        }
+        BlurredBackgroundSourceColor source = new BlurredBackgroundSourceColor();
+        source.setColor(getThemedColor(Theme.key_windowBackgroundWhite));
+        BlurredBackgroundDrawable background = new BlurredBackgroundDrawableViewFactory(source)
+                .create(tabBar, BlurredBackgroundProviderImpl.mainTabs(rp));
+        background.setRadius(dp(DialogsActivity.MAIN_TABS_HEIGHT / 2f));
+        background.setPadding(dp(DialogsActivity.MAIN_TABS_MARGIN - 0.334f));
+        tabBar.setBackground(background);
+        root.addView(tabBar, LayoutHelper.createFrame(-1, DialogsActivity.MAIN_TABS_HEIGHT_WITH_MARGINS, Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL));
+    }
+
+    private void showTabBar(boolean show) {
+        if (tabBar == null || tabBarShown == show) return;
+        tabBarShown = show;
+        tabBar.animate().cancel();
+        tabBar.animate().translationY(show ? 0 : dp(DialogsActivity.MAIN_TABS_HEIGHT_WITH_MARGINS + 8))
+                .alpha(show ? 1f : 0f).setDuration(200).start();
+    }
+
+    /** Back to the main screen, on the page of the tab pressed, with whatever was opened on the way. */
+    private void leaveTo(int index) {
+        MainTabsActivity host = mainTabsHost();
+        if (host == null) return;
+        host.tjOpenTab(index);
+        java.util.List<BaseFragment> stack = getParentLayout().getFragmentStack();
+        java.util.ArrayList<BaseFragment> between = new java.util.ArrayList<>();
+        for (int i = stack.indexOf(host) + 1; i < stack.size(); i++) {
+            if (stack.get(i) != this) between.add(stack.get(i));
+        }
+        for (BaseFragment fragment : between) fragment.removeSelfFromStack();
+        finishFragment();
     }
 
     private void open(Item item) {

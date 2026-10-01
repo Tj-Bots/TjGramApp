@@ -432,6 +432,7 @@ public class ConnectionsManager extends BaseController {
             TjSyncController.onReadRequest(currentAccount, object);
         }
         if (TjGhostController.shouldDropRead(currentAccount, object)) {
+            TjGhostController.recordSuppressedRead(currentAccount, object);
             TLObject response = TjGhostController.createSuppressedReadResponse(object);
             Utilities.stageQueue.postRunnable(() -> {
                 if (onComplete != null) {

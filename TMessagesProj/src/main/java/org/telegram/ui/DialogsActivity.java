@@ -8598,6 +8598,15 @@ public class DialogsActivity extends BaseFragment implements NotificationCenter.
                 getMessagesController().markDialogAsUnread(dialog.id, null, 0);
             }
         });
+        // TJ: mute or unmute from the list, without opening the chat.
+        if (dialog.id != getUserConfig().getClientUserId()) {
+            final boolean muted = getMessagesController().isDialogMuted(dialog.id, 0);
+            options.add(muted ? R.drawable.msg_unmute : R.drawable.msg_mute, LocaleController.getString(muted ? R.string.Unmute : R.string.Mute), () -> {
+                getNotificationsController().setDialogNotificationsSettings(dialog.id, 0,
+                        muted ? NotificationsController.SETTING_MUTE_UNMUTE : NotificationsController.SETTING_MUTE_FOREVER);
+                BulletinFactory.createMuteBulletin(this, !muted, null).show();
+            });
+        }
         if (!getMessagesController().isPromoDialog(dialog.id, false)) {
             final boolean archived = dialog.folder_id != 0;
             options.add(archived ? R.drawable.msg_unarchive : R.drawable.msg_archive, LocaleController.getString(archived ? R.string.Unarchive : R.string.Archive), () -> {
