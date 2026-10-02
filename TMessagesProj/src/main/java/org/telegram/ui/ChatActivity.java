@@ -32814,7 +32814,7 @@ public class ChatActivity extends BaseFragment implements
 
                 boolean showNoForwards = (isPeerNoForwards() || message.messageOwner.noforwards && currentUser != null && currentUser.bot) && message.messageOwner.action == null && message.isSent() && !message.isEditing() && chatMode != MODE_SCHEDULED && chatMode != MODE_SAVED && getDialogId() != UserObject.VERIFY;
                 // With re-upload on, the restriction still stands - say so, and say what happens instead.
-                final boolean tjReupload = showNoForwards && TjProtectedForwarder.canReupload(currentAccount, message);
+                final boolean tjReupload = showNoForwards && org.telegram.messenger.tj.TjConfig.protectedForwarding() && TjProtectedForwarder.canReupload(currentAccount, message);
                 scrimPopupContainerLayout.addView(popupLayout, LayoutHelper.createLinearRelatively(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.LEFT, isReactionsAvailable ? 16 : 0, 0, isReactionsAvailable ? 36 : 0, 0));
                 scrimPopupContainerLayout.setPopupWindowLayout(popupLayout);
                 if (showNoForwards) {
@@ -34105,6 +34105,14 @@ public class ChatActivity extends BaseFragment implements
         final ChatActivity fragment = new ChatActivity(args);
         lastFragment.presentFragment(fragment);
         return fragment;
+    }
+
+    private boolean tjMessageFileExists(MessageObject messageObject) {
+        if (messageObject == null || messageObject.messageOwner == null || messageObject.getDocument() == null) return false;
+        String path = messageObject.messageOwner.attachPath;
+        if (!TextUtils.isEmpty(path) && new File(path).exists()) return true;
+        File f = FileLoader.getInstance(currentAccount).getPathToMessage(messageObject.messageOwner);
+        return f != null && f.exists() && f.length() > 0;
     }
 
     private void saveMessageToGallery(MessageObject messageObject) {
@@ -47189,6 +47197,17 @@ public class ChatActivity extends BaseFragment implements
                     items.add(TjLocale.getString(R.string.TjCopyThumbnail));
                     options.add(OPTION_COPY_VIDEO_THUMB);
                     icons.add(R.drawable.msg_copy);
+                }
+                if ((selectedObject.isVoice() || selectedObject.isRoundVideo()) && !noforwardsOrPaidMedia
+                        && !selectedObject.isVoiceOnce() && !selectedObject.isRoundOnce() && chatMode != MODE_SCHEDULED
+                        && tjMessageFileExists(selectedObject)) {
+                    // TJ: a voice or round message is a file like a song is - save it, or hand it to another app.
+                    items.add(LocaleController.getString(R.string.SaveToDownloads));
+                    options.add(OPTION_SAVE_TO_DOWNLOADS_OR_MUSIC);
+                    icons.add(R.drawable.msg_download);
+                    items.add(LocaleController.getString(R.string.ShareFile));
+                    options.add(OPTION_SHARE);
+                    icons.add(R.drawable.msg_shareout);
                 }
                 if (type == 2) {
                     if (chatMode != MODE_SCHEDULED) {

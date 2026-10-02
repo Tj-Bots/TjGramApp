@@ -34,7 +34,7 @@ public final class TjProtectedForwarder {
     }
 
     public static boolean shouldReupload(int account, ArrayList<MessageObject> messages) {
-        if (!TjConfig.protectedForwarding() || messages == null) {
+        if (messages == null) {
             return false;
         }
         MessagesController controller = MessagesController.getInstance(account);
@@ -51,7 +51,7 @@ public final class TjProtectedForwarder {
     }
 
     private static boolean canReupload(int account, MessageObject message, MessagesController controller) {
-        if (!TjConfig.protectedForwarding() || message == null || message.messageOwner == null ||
+        if (message == null || message.messageOwner == null ||
                 message.messageOwner instanceof TLRPC.TL_messageService ||
                 message.type == MessageObject.TYPE_PAID_MEDIA || message.isVoiceOnce() || message.isRoundOnce()
                 || org.telegram.messenger.DialogObject.isEncryptedDialog(message.getDialogId())
@@ -59,8 +59,12 @@ public final class TjProtectedForwarder {
                 || message.messageOwner.media != null && message.messageOwner.media.ttl_seconds != 0) {
             return false;
         }
-        boolean protectedSource = message.messageOwner.tjDeleted || message.messageOwner.noforwards ||
-                controller.isPeerNoForwards(message.getDialogId());
+        // A message kept after it was deleted no longer exists on the server, so Telegram cannot
+        // forward it - it always goes out as a new copy, whatever the protected-content switch says.
+        // Content that was protected stays under the protected-content switch even after deletion.
+        boolean deleted = message.messageOwner.tjDeleted;
+        boolean noForwards = message.messageOwner.noforwards || controller.isPeerNoForwards(message.getDialogId());
+        boolean protectedSource = noForwards ? TjConfig.protectedForwarding() : deleted;
         boolean supportedContent = !TextUtils.isEmpty(message.messageOwner.message) ||
                 message.getDocument() != null || message.isPhoto();
         return protectedSource && supportedContent;
