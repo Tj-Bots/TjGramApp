@@ -508,6 +508,13 @@ public class TjLocale {
         m.put("TjWatchSearchHint", "חפש סרט או סדרה");
         m.put("TjWatchAll", "הכל");
         m.put("TjWatchCategories", "קטגוריות");
+        m.put("TjWatchIsraeli", "מישראל");
+        m.put("TjWatchRandom", "בחירה אקראית");
+        m.put("TjWatchRandomAny", "הכל");
+        m.put("TjWatchRandomFrom", "בחירה אקראית מתוך…");
+        m.put("TjWatchReviews", "ביקורות");
+        m.put("TjWatchMoreReviews", "עוד %1$d ביקורות");
+        m.put("TjWatchShowOriginal", "הצג מקור");
         m.put("TjWatchFavoriteShort", "אהבתי");
         m.put("TjShowForwardsCount", "מספר העברות בפוסטים של ערוצים");
         m.put("TjDiscussionButton", "כפתור קבוצת דיון בערוצים");

@@ -11,6 +11,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -136,6 +137,54 @@ public final class TjTmdb {
         request(account, "discover/" + (series ? "tv" : "movie"), params, callback);
     }
 
+    /**
+     * The language the app is read in, as the original language of a film - Hebrew for Israeli
+     * titles, Russian for Russian ones. Null for English: that would be most of the catalogue.
+     */
+    public static String localLanguage() {
+        String root = language().split("-")[0].toLowerCase(Locale.ROOT);
+        if (root.equals("iw")) root = "he";
+        if (root.isEmpty() || root.equals("en")) return null;
+        return root;
+    }
+
+    /** Films or series first made in the app's own language, best known first. */
+    public void local(int account, boolean series, String originalLanguage, int page, Callback callback) {
+        Map<String, String> params = new LinkedHashMap<>();
+        params.put("with_original_language", originalLanguage);
+        params.put("sort_by", "popularity.desc");
+        params.put("include_adult", "false");
+        if (page > 1) params.put("page", Integer.toString(page));
+        request(account, "discover/" + (series ? "tv" : "movie"), params, callback);
+    }
+
+    /**
+     * One page, picked at random, of titles enough people rated - optionally of one genre or first
+     * made in one language. Which title of the page is then up to the caller.
+     */
+    public void randomPage(int account, boolean series, int genre, String originalLanguage, Callback callback) {
+        Map<String, String> params = new LinkedHashMap<>();
+        boolean israeli = originalLanguage != null;
+        if (genre > 0) params.put("with_genres", Integer.toString(genre));
+        if (israeli) params.put("with_original_language", originalLanguage);
+        params.put("sort_by", "popularity.desc");
+        params.put("include_adult", "false");
+        params.put("vote_count.gte", israeli ? "5" : "150");
+        int pages = israeli ? 3 : genre > 0 ? 10 : 25;
+        params.put("page", Integer.toString(1 + new java.util.Random().nextInt(pages)));
+        request(account, "discover/" + (series ? "tv" : "movie"), params, callback);
+    }
+
+    /**
+     * What people wrote about a title on TMDB. Almost all of it is in English, and asking in the
+     * app's language would leave most titles with none - so these are asked for without one.
+     */
+    public void reviews(int account, long id, boolean series, Callback callback) {
+        Map<String, String> params = new LinkedHashMap<>();
+        params.put("language", "");
+        request(account, (series ? "tv/" : "movie/") + id + "/reviews", params, callback);
+    }
+
     public interface Verification {
         void complete(int error);
     }
@@ -194,9 +243,11 @@ public final class TjTmdb {
             } else if (params.containsKey("query") && params.get("query").isEmpty()) {
                 error = INVALID;
             } else {
-                HttpUrl.Builder url = HttpUrl.parse("https://api.themoviedb.org/3/" + path).newBuilder()
-                        .addQueryParameter("language", language());
+                HttpUrl.Builder url = HttpUrl.parse("https://api.themoviedb.org/3/" + path).newBuilder();
+                if (!params.containsKey("language")) url.addQueryParameter("language", language());
                 for (Map.Entry<String, String> param : params.entrySet()) {
+                    // An empty language means "every language".
+                    if ("language".equals(param.getKey()) && param.getValue().isEmpty()) continue;
                     url.addQueryParameter(param.getKey(), param.getValue());
                 }
                 boolean apiKey = credential.matches("[a-fA-F0-9]{32}");

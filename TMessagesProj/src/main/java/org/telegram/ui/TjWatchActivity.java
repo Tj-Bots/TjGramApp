@@ -99,6 +99,8 @@ public class TjWatchActivity extends BaseFragment {
         ArrayList<TjWatchHistory.Entry> resume;
         /** The "for you" row: the recently watched titles its suggestions come from. */
         ArrayList<TjWatchHistory.Entry> forYou;
+        /** Films and series made in Israel. */
+        boolean israel;
 
         Shelf(String title, Genre genre) { this.title = title; this.genre = genre; }
     }
@@ -131,7 +133,7 @@ public class TjWatchActivity extends BaseFragment {
         }
     }
 
-    private static final int MENU_HISTORY = 1, MENU_SETTINGS = 2, MENU_COPY_LINK = 3, MENU_STREAM = 4;
+    private static final int MENU_HISTORY = 1, MENU_SETTINGS = 2, MENU_COPY_LINK = 3, MENU_STREAM = 4, MENU_RANDOM = 5;
     /** How many genre rows the home screen offers before it becomes a list of lists. */
     private static final int MAX_SHELVES = 12;
 
@@ -153,6 +155,7 @@ public class TjWatchActivity extends BaseFragment {
     private Adapter adapter;
     private ShelfAdapter shelfAdapter;
     private Shelf trendingShelf;
+    private Shelf israelShelf;
     private boolean gridMode;
     private int page = 1;
     private boolean loadingMore, moreSeries, moreMovies;
@@ -179,6 +182,7 @@ public class TjWatchActivity extends BaseFragment {
                 else if (id == MENU_HISTORY) presentFragment(new TjWatchHistoryActivity());
                 else if (id == MENU_STREAM) presentFragment(new TjWatchStreamActivity());
                 else if (id == MENU_SETTINGS) presentFragment(new TjWatchSettingsActivity());
+                else if (id == MENU_RANDOM) pickRandom(selectedGenre, false);
                 else if (id == MENU_COPY_LINK) {
                     org.telegram.messenger.AndroidUtilities.addToClipboard(
                             org.telegram.messenger.tj.TjSettingsLinks.build(
@@ -200,6 +204,13 @@ public class TjWatchActivity extends BaseFragment {
                     }
                 });
         searchItem.setSearchFieldHint(TjLocale.getString(R.string.TjWatchSearchHint));
+        // "Can't decide?" - a title picked at random; held down, from a category picked first.
+        ActionBarMenuItem random = menu.addItem(MENU_RANDOM, R.drawable.dice);
+        random.setContentDescription(TjLocale.getString(R.string.TjWatchRandom));
+        random.setOnLongClickListener(v -> {
+            showRandomCategories(v);
+            return true;
+        });
         searchItem.setContentDescription(LocaleController.getString(R.string.Search));
 
         ActionBarMenuItem other = menu.addItem(0, R.drawable.ic_ab_other);
@@ -240,6 +251,11 @@ public class TjWatchActivity extends BaseFragment {
         listView.setOnItemClickListener((view, position) -> {
             if (!gridMode || position < 0 || position >= items.size()) return;
             open(items.get(position));
+        });
+        listView.setOnItemLongClickListener((view, position) -> {
+            if (!gridMode || position < 0 || position >= items.size()) return false;
+            toggleFavorite(items.get(position));
+            return true;
         });
         listView.setOnScrollListener(new RecyclerView.OnScrollListener() {
             @Override public void onScrolled(RecyclerView view, int dx, int dy) {
@@ -393,6 +409,85 @@ public class TjWatchActivity extends BaseFragment {
         }
         for (BaseFragment fragment : between) fragment.removeSelfFromStack();
         finishFragment();
+    }
+
+    private final TjTmdb randomClient = new TjTmdb();
+    private boolean pickingRandom;
+
+    /**
+     * Opens a title picked at random: films, series or either - as the pills above say - and from
+     * the category open right now, or the one asked for.
+     */
+    private void pickRandom(Genre genre, boolean israeli) {
+        if (pickingRandom || !TjTmdb.available(currentAccount)) return;
+        boolean series;
+        java.util.Random random = new java.util.Random();
+        if (genre != null && genre.seriesId > 0 != genre.movieId > 0) {
+            series = genre.seriesId > 0;
+        } else if (kind == KIND_SERIES) {
+            series = true;
+        } else if (kind == KIND_MOVIES) {
+            series = false;
+        } else {
+            series = random.nextBoolean();
+        }
+        int genreId = genre == null ? 0 : series ? genre.seriesId : genre.movieId;
+        pickingRandom = true;
+        randomClient.randomPage(currentAccount, series, genreId, israeli ? TjTmdb.localLanguage() : null, (body, error) -> {
+            pickingRandom = false;
+            ArrayList<Item> found = new ArrayList<>();
+            read(body, series, found, null);
+            if (found.isEmpty()) {
+                org.telegram.ui.Components.BulletinFactory.of(this).createErrorBulletin(
+                        TjLocale.getString(R.string.TjWatchOffline)).show();
+                return;
+            }
+            open(found.get(random.nextInt(found.size())));
+        });
+    }
+
+    private void showRandomCategories(View anchor) {
+        if (getParentActivity() == null) return;
+        ArrayList<CharSequence> names = new ArrayList<>();
+        ArrayList<Genre> picked = new ArrayList<>();
+        names.add(TjLocale.getString(R.string.TjWatchRandomAny));
+        picked.add(null);
+        boolean hasLocal = TjTmdb.localLanguage() != null;
+        if (hasLocal) {
+            names.add(localTitle());
+            picked.add(null);
+        }
+        for (Genre genre : genres) {
+            if (!fits(genre)) continue;
+            names.add(genre.name);
+            picked.add(genre);
+        }
+        showDialog(new AlertDialog.Builder(getParentActivity())
+                .setTitle(TjLocale.getString(R.string.TjWatchRandomFrom))
+                .setItems(names.toArray(new CharSequence[0]), (dialog, which) -> pickRandom(picked.get(which), hasLocal && which == 1))
+                .create());
+    }
+
+    /** Held down on any poster: into the favourites, or out of them, without opening it. */
+    private void toggleFavorite(Item item) {
+        boolean now = org.telegram.messenger.tj.TjWatchFavorites.toggle(item.id, item.series, item.name, item.poster, item.date, item.rating);
+        org.telegram.ui.Components.BulletinFactory.of(this).createSimpleBulletin(
+                now ? R.raw.contact_check : R.raw.ic_delete,
+                TjLocale.getString(now ? R.string.TjWatchFavoriteAdded : R.string.TjWatchFavoriteRemoved)).show();
+        buildShelvesIfHome();
+    }
+
+    /** "From Israel" in Hebrew; elsewhere the language's own name - "Русский", "Español" - which reads right in any app. */
+    private static String localTitle() {
+        String local = TjTmdb.localLanguage();
+        if ("he".equals(local)) return TjLocale.getString(R.string.TjWatchIsraeli);
+        String name = local == null ? "" : java.util.Locale.forLanguageTag(local).getDisplayLanguage(java.util.Locale.forLanguageTag(local));
+        if (!name.isEmpty()) name = name.substring(0, 1).toUpperCase(java.util.Locale.forLanguageTag(local)) + name.substring(1);
+        return name;
+    }
+
+    private void buildShelvesIfHome() {
+        if (!gridMode && gate == null && shelfAdapter != null && TjTmdb.available(currentAccount)) buildShelves();
     }
 
     private void open(Item item) {
@@ -903,6 +998,12 @@ public class TjWatchActivity extends BaseFragment {
         if (forYouShelf != null) shelves.add(forYouShelf);
         if (trendingShelf == null) trendingShelf = new Shelf(TjLocale.getString(R.string.TjWatchTrending), null);
         shelves.add(trendingShelf);
+        // Titles from the viewer's own part of the world: first made in the language the app is in.
+        if (israelShelf == null && TjTmdb.localLanguage() != null) {
+            israelShelf = new Shelf(localTitle(), null);
+            israelShelf.israel = true;
+        }
+        if (israelShelf != null) shelves.add(israelShelf);
         int genreRows = 0;
         for (Genre genre : genres) {
             if (!fits(genre)) continue;
@@ -923,6 +1024,14 @@ public class TjWatchActivity extends BaseFragment {
         if (shelf.asked) return;
         shelf.asked = true;
         if (shelf.resume != null) return;
+        if (shelf.israel) {
+            boolean askSeries = wantsSeries(), askMovies = wantsMovies();
+            shelf.pending = (askSeries ? 1 : 0) + (askMovies ? 1 : 0);
+            String local = TjTmdb.localLanguage();
+            if (askSeries) shelf.seriesClient.local(currentAccount, true, local, 1, (body, error) -> shelfArrived(shelf, body, true));
+            if (askMovies) shelf.movieClient.local(currentAccount, false, local, 1, (body, error) -> shelfArrived(shelf, body, false));
+            return;
+        }
         if (shelf.forYou != null) {
             loadForYou(shelf);
             return;
@@ -1191,7 +1300,12 @@ public class TjWatchActivity extends BaseFragment {
                 }
             });
             row.setOnItemLongClickListener((view, position) -> {
-                if (resumeShown.isEmpty() || position < 0 || position >= resumeShown.size()) return false;
+                if (resumeShown.isEmpty()) {
+                    if (position < 0 || position >= shown.size()) return false;
+                    toggleFavorite(shown.get(position));
+                    return true;
+                }
+                if (position < 0 || position >= resumeShown.size()) return false;
                 askToForget(resumeShown.get(position));
                 return true;
             });

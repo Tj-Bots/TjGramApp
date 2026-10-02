@@ -27,6 +27,7 @@ import org.telegram.messenger.tj.TjMediaKind;
 import org.telegram.messenger.tj.TjMediaLibrary;
 import org.telegram.messenger.tj.TjMediaStore;
 import org.telegram.messenger.tj.TjTmdb;
+import org.telegram.tgnet.TLRPC;
 import org.telegram.ui.ActionBar.ActionBar;
 import org.telegram.ui.ActionBar.AlertDialog;
 import org.telegram.ui.ActionBar.BaseFragment;
@@ -170,7 +171,14 @@ public class TjTitleActivity extends BaseFragment {
         episodeList.setOrientation(LinearLayout.VERTICAL);
         body.addView(episodeList, LayoutHelper.createLinear(-1, -2, 0, 4, 0, 24));
 
+        // What people who watched it wrote, under everything else.
+        reviewsList = new LinearLayout(context);
+        reviewsList.setOrientation(LinearLayout.VERTICAL);
+        reviewsList.setVisibility(View.GONE);
+        body.addView(reviewsList, LayoutHelper.createLinear(-1, -2, 0, 0, 0, 24));
+
         loadDetails();
+        loadReviews();
         return fragmentView;
     }
 
@@ -278,6 +286,134 @@ public class TjTitleActivity extends BaseFragment {
         }
     }
 
+    private LinearLayout reviewsList;
+    private final TjTmdb reviewsClient = new TjTmdb();
+    private static final int REVIEWS_SHOWN = 3;
+
+    private void loadReviews() {
+        reviewsClient.reviews(currentAccount, id, series, (body, error) -> {
+            if (getParentActivity() == null || reviewsList == null || body == null) return;
+            JSONArray results = body.optJSONArray("results");
+            if (results == null || results.length() == 0) return;
+            Context context = getParentActivity();
+            reviewsList.removeAllViews();
+            TextView header = text(context, 17, Theme.key_windowBackgroundWhiteBlackText);
+            header.setTypeface(AndroidUtilities.bold());
+            header.setText(TjLocale.getString(R.string.TjWatchReviews) + "  ·  " + body.optInt("total_results", results.length()));
+            reviewsList.addView(header, LayoutHelper.createLinear(-1, -2, 16, 8, 16, 6));
+            ArrayList<View> hidden = new ArrayList<>();
+            for (int i = 0; i < results.length(); i++) {
+                JSONObject review = results.optJSONObject(i);
+                if (review == null) continue;
+                View card = reviewCard(context, review);
+                if (card == null) continue;
+                if (reviewsList.getChildCount() > REVIEWS_SHOWN) {
+                    card.setVisibility(View.GONE);
+                    hidden.add(card);
+                }
+                reviewsList.addView(card, LayoutHelper.createLinear(-1, -2, 12, 4, 12, 4));
+            }
+            if (!hidden.isEmpty()) {
+                TextView more = text(context, 14, Theme.key_windowBackgroundWhiteBlueText4);
+                more.setTypeface(AndroidUtilities.bold());
+                more.setText(TjLocale.formatString(R.string.TjWatchMoreReviews, hidden.size()));
+                more.setPadding(dp(16), dp(10), dp(16), dp(10));
+                more.setBackground(Theme.getSelectorDrawable(false));
+                more.setOnClickListener(v -> {
+                    for (View card : hidden) card.setVisibility(View.VISIBLE);
+                    v.setVisibility(View.GONE);
+                });
+                reviewsList.addView(more, LayoutHelper.createLinear(-1, -2));
+            }
+            reviewsList.setVisibility(View.VISIBLE);
+        });
+    }
+
+    /** One review: who wrote it, the score they gave, and the text - folded, with a translate button. */
+    private View reviewCard(Context context, JSONObject review) {
+        String content = cleanReview(review.optString("content", ""));
+        if (content.isEmpty()) return null;
+        JSONObject details = review.optJSONObject("author_details");
+        String author = review.optString("author", "");
+        if (details != null && !details.optString("name", "").isEmpty()) author = details.optString("name");
+        double score = details == null || details.isNull("rating") ? 0 : details.optDouble("rating", 0);
+        String date = review.optString("created_at", "");
+        if (date.length() >= 10) date = date.substring(0, 10);
+
+        LinearLayout card = new LinearLayout(context);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setPadding(dp(14), dp(12), dp(14), dp(10));
+        card.setBackground(Theme.createRoundRectDrawable(dp(14), Theme.getColor(Theme.key_windowBackgroundWhite)));
+
+        TextView who = text(context, 14, Theme.key_windowBackgroundWhiteBlackText);
+        who.setTypeface(AndroidUtilities.bold());
+        who.setText(author + (score > 0 ? String.format(Locale.US, "   ★ %.0f/10", score) : ""));
+        card.addView(who, LayoutHelper.createLinear(-1, -2));
+        if (!date.isEmpty()) {
+            TextView when = text(context, 12, Theme.key_windowBackgroundWhiteGrayText);
+            when.setText(date);
+            card.addView(when, LayoutHelper.createLinear(-1, -2, 0, 1, 0, 0));
+        }
+
+        TextView body = text(context, 14, Theme.key_windowBackgroundWhiteBlackText);
+        body.setLineSpacing(dp(1.5f), 1f);
+        body.setText(content);
+        body.setMaxLines(4);
+        body.setEllipsize(TextUtils.TruncateAt.END);
+        body.setOnClickListener(v -> {
+            boolean open = body.getMaxLines() != Integer.MAX_VALUE;
+            body.setMaxLines(open ? Integer.MAX_VALUE : 4);
+        });
+        card.addView(body, LayoutHelper.createLinear(-1, -2, 0, 8, 0, 0));
+
+        TextView translate = text(context, 13, Theme.key_windowBackgroundWhiteBlueText4);
+        translate.setTypeface(AndroidUtilities.bold());
+        translate.setText(LocaleController.getString(R.string.TranslateMessage));
+        translate.setPadding(0, dp(8), dp(8), dp(2));
+        final String[] translated = {null};
+        final boolean[] showingTranslation = {false};
+        translate.setOnClickListener(v -> {
+            if (translated[0] != null) {
+                showingTranslation[0] = !showingTranslation[0];
+                body.setText(showingTranslation[0] ? translated[0] : content);
+                translate.setText(showingTranslation[0] ? TjLocale.getString(R.string.TjWatchShowOriginal)
+                        : LocaleController.getString(R.string.TranslateMessage));
+                return;
+            }
+            translate.setText(LocaleController.getString(R.string.Loading));
+            translate.setEnabled(false);
+            TLRPC.TL_messages_translateText req = new TLRPC.TL_messages_translateText();
+            req.flags |= 2;
+            TLRPC.TL_textWithEntities text = new TLRPC.TL_textWithEntities();
+            text.text = content.length() > 3500 ? content.substring(0, 3500) : content;
+            req.text.add(text);
+            req.to_lang = org.telegram.ui.Components.TranslateAlert2.getToLanguage();
+            getConnectionsManager().sendRequest(req, (res, err) -> AndroidUtilities.runOnUIThread(() -> {
+                translate.setEnabled(true);
+                if (res instanceof TLRPC.TL_messages_translateResult
+                        && !((TLRPC.TL_messages_translateResult) res).result.isEmpty()) {
+                    translated[0] = ((TLRPC.TL_messages_translateResult) res).result.get(0).text;
+                    showingTranslation[0] = true;
+                    body.setText(translated[0]);
+                    body.setMaxLines(Integer.MAX_VALUE);
+                    translate.setText(TjLocale.getString(R.string.TjWatchShowOriginal));
+                } else {
+                    translate.setText(LocaleController.getString(R.string.TranslateMessage));
+                    org.telegram.ui.Components.BulletinFactory.of(this).createErrorBulletin(
+                            LocaleController.getString(R.string.ErrorOccurred)).show();
+                }
+            }));
+        });
+        card.addView(translate, LayoutHelper.createLinear(-2, -2, LocaleController.isRTL ? Gravity.RIGHT : Gravity.LEFT, 0, 0, 0, 0));
+        return card;
+    }
+
+    /** TMDB reviews come with Markdown and stray HTML; plain text reads better here. */
+    private static String cleanReview(String text) {
+        return text.replace("\r\n", "\n").replaceAll("<[^>]+>", "")
+                .replaceAll("\\*\\*|__|(?m)^#+\\s*", "").replaceAll("\n{3,}", "\n\n").trim();
+    }
+
     private TextView text(Context context, int size, int colorKey) {
         TextView view = new TextView(context);
         view.setTextSize(size);
@@ -314,7 +450,9 @@ public class TjTitleActivity extends BaseFragment {
             double rating = body.optDouble("vote_average", 0);
             this.rating = rating;
             org.telegram.messenger.tj.TjWatchFavorites.refresh(id, series, posterPath, date, rating);
-            if (rating > 0) meta.add(String.format(Locale.US, "★ %.1f", rating));
+            int votes = body.optInt("vote_count", 0);
+            if (rating > 0) meta.add(String.format(Locale.US, "★ %.1f", rating)
+                    + (votes > 0 ? " (" + LocaleController.formatShortNumber(votes, null) + ")" : ""));
             if (series) {
                 int count = body.optInt("number_of_seasons", 0);
                 if (count > 0) meta.add(count == 1 ? TjLocale.getString(R.string.TjWatchOneSeason)

@@ -11567,6 +11567,13 @@
     <string name="TjWatchSearchHint">Search a film or a series</string>
     <string name="TjWatchAll">All</string>
     <string name="TjWatchCategories">Categories</string>
+    <string name="TjWatchIsraeli">From Israel</string>
+    <string name="TjWatchRandom">Random pick</string>
+    <string name="TjWatchRandomAny">Anything</string>
+    <string name="TjWatchRandomFrom">Random pick from…</string>
+    <string name="TjWatchReviews">Reviews</string>
+    <string name="TjWatchMoreReviews">%1$d more reviews</string>
+    <string name="TjWatchShowOriginal">Show original</string>
     <string name="TjWatchFavoriteShort">Liked</string>
     <string name="TjShowForwardsCount">Forwards count on channel posts</string>
     <string name="TjDiscussionButton">Discussion group button in channels</string>

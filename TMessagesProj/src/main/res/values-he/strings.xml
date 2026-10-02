@@ -343,6 +343,13 @@
     <string name="TjWatchSearchHint">חפש סרט או סדרה</string>
     <string name="TjWatchAll">הכל</string>
     <string name="TjWatchCategories">קטגוריות</string>
+    <string name="TjWatchIsraeli">מישראל</string>
+    <string name="TjWatchRandom">בחירה אקראית</string>
+    <string name="TjWatchRandomAny">הכל</string>
+    <string name="TjWatchRandomFrom">בחירה אקראית מתוך…</string>
+    <string name="TjWatchReviews">ביקורות</string>
+    <string name="TjWatchMoreReviews">עוד %1$d ביקורות</string>
+    <string name="TjWatchShowOriginal">הצג מקור</string>
     <string name="TjWatchFavoriteShort">אהבתי</string>
     <string name="TjShowForwardsCount">מספר העברות בפוסטים של ערוצים</string>
     <string name="TjDiscussionButton">כפתור קבוצת דיון בערוצים</string>
