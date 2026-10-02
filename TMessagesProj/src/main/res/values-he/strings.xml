@@ -343,6 +343,12 @@
     <string name="TjWatchSearchHint">חפש סרט או סדרה</string>
     <string name="TjWatchAll">הכל</string>
     <string name="TjWatchCategories">קטגוריות</string>
+    <string name="TjWatchFavoriteShort">אהבתי</string>
+    <string name="TjShowForwardsCount">מספר העברות בפוסטים של ערוצים</string>
+    <string name="TjDiscussionButton">כפתור קבוצת דיון בערוצים</string>
+    <string name="TjChannelExtrasInfo">הצגת מספר הפעמים שפוסט בערוץ הועבר ליד הצפיות, וכפתור בתחתית הערוץ שפותח את קבוצת הדיון שלו.</string>
+    <string name="TjOpenLinkedChannel">פתח ערוץ</string>
+    <string name="TjLinkedChatUnavailable">הצ\'אט המקושר עדיין לא זמין</string>
     <string name="TjWatchFavorites">מועדפים</string>
     <string name="TjWatchFavoriteAdded">נוסף למועדפים</string>
     <string name="TjWatchFavoriteRemoved">הוסר מהמועדפים</string>

@@ -1672,6 +1672,7 @@ public class ChatActivity extends BaseFragment implements
     private final static int toggle_pinned_visibility = 1008;
     private final static int toggle_chat_ghost = 1015;
     private final static int tj_add_to_folder = 1016;
+    private final static int tj_open_linked_channel = 1017;
     private final static int edit = 23;
     private final static int add_shortcut = 24;
     private final static int save_to = 25;
@@ -3906,6 +3907,8 @@ public class ChatActivity extends BaseFragment implements
                     showDialog(AlertsCreator.createTTLAlert(getParentActivity(), currentEncryptedChat, themeDelegate).create());
                 } else if (id == tj_add_to_folder) {
                     showAddToFolder();
+                } else if (id == tj_open_linked_channel) {
+                    tjOpenLinkedChat();
                 } else if (id == jump_to_first_message) {
                     jumpToDate(1);
                 } else if (id == toggle_pinned_visibility) {
@@ -4558,6 +4561,10 @@ public class ChatActivity extends BaseFragment implements
             }
             if (currentEncryptedChat == null && !isTopic && chatMode == MODE_DEFAULT && !isInScheduleMode() && !inPreviewMode) {
                 headerItem.lazilyAddSubItem(tj_add_to_folder, R.drawable.msg_addfolder, TjLocale.getString(R.string.TjAddToFolder));
+            }
+            if (ChatObject.isMegagroup(currentChat) && currentChat.has_link && !isTopic && chatMode == MODE_DEFAULT) {
+                // A discussion group: one tap back to the channel it belongs to.
+                headerItem.lazilyAddSubItem(tj_open_linked_channel, R.drawable.msg_channel, TjLocale.getString(R.string.TjOpenLinkedChannel));
             }
             headerItem.lazilyAddSubItem(jump_to_first_message, R.drawable.msg_go_up, TjLocale.getString(R.string.TjGoToFirstMessage));
             pinnedVisibilityItem = headerItem.lazilyAddSubItem(toggle_pinned_visibility, R.drawable.msg_archive, TjLocale.getString(R.string.TjHidePinnedMessage));
@@ -8498,6 +8505,7 @@ public class ChatActivity extends BaseFragment implements
             createUndoView();
             undoView.showWithAction(dialog_id, UndoView.ACTION_TEXT_INFO, LocaleController.getString(R.string.BroadcastGroupInfo));
         });
+        bottomChannelButtonsLayout.setButtonOnClickListener(ChatActivityChannelButtonsLayout.BUTTON_DISCUSSION, v -> tjOpenLinkedChat());
         bottomChannelButtonsLayout.setButtonOnClickListener(ChatActivityChannelButtonsLayout.BUTTON_GIFT, v -> {
             HintsController.Hint.ChannelGiftHint.doNotShowAgain();
             showDialog(new GiftSheet(getContext(), currentAccount, getDialogId(), null, null));
@@ -22995,6 +23003,11 @@ public class ChatActivity extends BaseFragment implements
                 long prevLinkedChatId = chatInfo != null ? chatInfo.linked_chat_id : 0;
                 chatInfo = chatFull;
                 gotChatInfo();
+                if (prevLinkedChatId != chatInfo.linked_chat_id && org.telegram.messenger.tj.TjConfig.discussionButton()
+                        && ChatObject.isChannelAndNotMegaGroup(currentChat) && bottomChannelButtonsLayout != null) {
+                    // The discussion group is known only now; its button can come in.
+                    updateBottomOverlay(true);
+                }
                 if (ChatObject.isBoostSupported(currentChat) && !ChatObject.isMonoForum(currentChat) /*chatMode != MODE_SUGGESTIONS*/) {
                     getMessagesController().getBoostsController().getBoostsStats(dialog_id, boostsStatus -> {
                         if (boostsStatus == null) {
@@ -28557,6 +28570,8 @@ public class ChatActivity extends BaseFragment implements
         bottomChannelButtonsLayout.updateWrappingVisible(animated);
         bottomChannelButtonsLayout.showButton(ChatActivityChannelButtonsLayout.BUTTON_SEARCH, showSearchButton && bottomChannelButtonsLayout.getVisibility() == View.VISIBLE, animated);
         bottomChannelButtonsLayout.showButton(ChatActivityChannelButtonsLayout.BUTTON_DIRECT, showSuggestButton && bottomChannelButtonsLayout.getVisibility() == View.VISIBLE, animated);
+        bottomChannelButtonsLayout.showButton(ChatActivityChannelButtonsLayout.BUTTON_DISCUSSION, showSearchButton && tjHasDiscussion()
+                && bottomChannelButtonsLayout.getVisibility() == View.VISIBLE, animated);
         bottomChannelButtonsLayout.showButton(ChatActivityChannelButtonsLayout.BUTTON_GIFT, showGiftButton && bottomChannelButtonsLayout.getVisibility() == View.VISIBLE, animated);
         bottomChannelButtonsLayout.showButton(ChatActivityChannelButtonsLayout.BUTTON_GIGA_GROUP_INFO, showGigaGroupButton && bottomChannelButtonsLayout.getVisibility() == View.VISIBLE, animated);
 
@@ -33831,6 +33846,31 @@ public class ChatActivity extends BaseFragment implements
     }
 
     /** The same folder sheet the chat list uses, for the one chat that is open. */
+    /** A channel with a discussion group, when TjGram is set to show the shortcut to it. */
+    private boolean tjHasDiscussion() {
+        return org.telegram.messenger.tj.TjConfig.discussionButton() && ChatObject.isChannelAndNotMegaGroup(currentChat)
+                && chatMode == MODE_DEFAULT && chatInfo != null && chatInfo.linked_chat_id != 0
+                && getMessagesController().getChat(chatInfo.linked_chat_id) != null;
+    }
+
+    /** The other half of a channel and its discussion group: from either one, open the other. */
+    private void tjOpenLinkedChat() {
+        if (chatInfo == null || chatInfo.linked_chat_id == 0) {
+            BulletinFactory.of(this).createSimpleBulletin(R.raw.error, TjLocale.getString(R.string.TjLinkedChatUnavailable)).show();
+            return;
+        }
+        TLRPC.Chat linked = getMessagesController().getChat(chatInfo.linked_chat_id);
+        if (linked == null) {
+            BulletinFactory.of(this).createSimpleBulletin(R.raw.error, TjLocale.getString(R.string.TjLinkedChatUnavailable)).show();
+            return;
+        }
+        Bundle args = new Bundle();
+        args.putLong("chat_id", linked.id);
+        if (getMessagesController().checkCanOpenChat(args, this)) {
+            presentFragment(new ChatActivity(args));
+        }
+    }
+
     private void showAddToFolder() {
         if (getParentActivity() == null || dialog_id == 0) {
             return;

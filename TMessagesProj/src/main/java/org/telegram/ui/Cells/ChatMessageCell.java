@@ -1792,7 +1792,7 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
 
     private StaticLayout viewsLayout;
     private int viewsTextWidth;
-    private String currentViewsString;
+    private CharSequence currentViewsString;
 
     private StaticLayout repliesLayout;
     private int repliesTextWidth;
@@ -18645,7 +18645,10 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
                 currentTimeString = TextUtils.concat(formatString(R.string.MessageScheduledRepeatSeconds, period), ", ", currentTimeString);
             }
         }
-        timeTextWidth = timeWidth = (int) Math.ceil(Theme.chat_timePaint.measureText(currentTimeString, 0, currentTimeString == null ? 0 : currentTimeString.length()));
+        // The deleted / edited marks are icons inside the text; only a layout measures them at their drawn width.
+        timeTextWidth = timeWidth = (int) Math.ceil(currentTimeString instanceof android.text.Spanned
+                ? Layout.getDesiredWidth(currentTimeString, Theme.chat_timePaint)
+                : Theme.chat_timePaint.measureText(currentTimeString, 0, currentTimeString == null ? 0 : currentTimeString.length()));
         if (currentMessageObject.scheduled && currentMessageObject.messageOwner.date == 0x7FFFFFFE || currentMessageObject.notime) {
             timeWidth -= dp(8);
         }
@@ -18653,7 +18656,20 @@ public class ChatMessageCell extends BaseCell implements SeekBar.SeekBarDelegate
         final boolean isInWelcomeMessages = delegate != null && delegate.getChatMode() == ChatActivity.MODE_WELCOME_MESSAGES;
         if ((messageObject.messageOwner.flags & TLRPC.MESSAGE_FLAG_HAS_VIEWS) != 0 && !isInWelcomeMessages) {
             currentViewsString = String.format("%s", LocaleController.formatShortNumber(Math.max(1, messageObject.messageOwner.views), null));
-            viewsTextWidth = (int) Math.ceil(Theme.chat_timePaint.measureText(currentViewsString));
+            if (org.telegram.messenger.tj.TjConfig.showForwardsCount() && messageObject.messageOwner.forwards > 0) {
+                // How many times the post was forwarded, after its views, the way Plus shows it.
+                android.text.SpannableStringBuilder withForwards = new android.text.SpannableStringBuilder(currentViewsString).append("  ");
+                int icon = withForwards.length();
+                withForwards.append("f");
+                ColoredImageSpan forwardsIcon = new ColoredImageSpan(R.drawable.mini_forwarded, ColoredImageSpan.ALIGN_CENTER);
+                forwardsIcon.setSize(dp(13));
+                withForwards.setSpan(forwardsIcon, icon, icon + 1, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                withForwards.append(" ").append(LocaleController.formatShortNumber(messageObject.messageOwner.forwards, null));
+                currentViewsString = withForwards;
+            }
+            viewsTextWidth = (int) Math.ceil(currentViewsString instanceof android.text.Spanned
+                    ? Layout.getDesiredWidth(currentViewsString, Theme.chat_timePaint)
+                    : Theme.chat_timePaint.measureText(currentViewsString.toString()));
             float drawableWidth = Theme.chat_msgInViewsDrawable.getIntrinsicWidth() * (Theme.chat_timePaint.getTextSize() - dp(2)) / Theme.chat_msgInViewsDrawable.getIntrinsicHeight();
             timeWidth += viewsTextWidth + drawableWidth + dp(10);
         }

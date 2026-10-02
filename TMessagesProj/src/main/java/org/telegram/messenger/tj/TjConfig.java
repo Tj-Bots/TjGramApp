@@ -284,6 +284,10 @@ public final class TjConfig {
      */
     public static boolean fastDownload() { return get("fast_download", false); }
     /** Draws a presence dot next to people in the chat list and in member lists. */
+    /** Channel posts: how many times they were forwarded, next to their views. */
+    public static boolean showForwardsCount() { return get("show_forwards_count", true); }
+    /** Channels: a button at the bottom that opens the linked discussion group. */
+    public static boolean discussionButton() { return get("discussion_button", true); }
     public static boolean showOnlineIndicator() { return get("show_online_indicator", true); }
     /** Keeps the app connected while it is off screen instead of relying on push alone. */
     public static boolean backgroundConnection() { return get("background_connection", true); }

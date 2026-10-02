@@ -40,7 +40,9 @@ public class ChatActivityChannelButtonsLayout extends FrameLayout implements Fac
     public static final int BUTTON_DIRECT = 2;
     public static final int BUTTON_GIGA_GROUP_INFO = 3;
     public static final int BUTTON_RECENT_ACTIONS_INFO = 4;
-    private static final int BUTTONS_COUNT = 5;
+    /** TjGram: the channel's discussion group, next to search. */
+    public static final int BUTTON_DISCUSSION = 5;
+    private static final int BUTTONS_COUNT = 6;
 
     private final ButtonHolder[] buttonHolders = new ButtonHolder[BUTTONS_COUNT];
     private final OnClickListener[] onClickListeners = new OnClickListener[BUTTONS_COUNT];
@@ -55,10 +57,12 @@ public class ChatActivityChannelButtonsLayout extends FrameLayout implements Fac
         R.drawable.input_gift_s,
         R.drawable.input_message,
         R.drawable.msg_help,
-        R.drawable.msg_help
+        R.drawable.msg_help,
+        R.drawable.msg_discussion
     };
     private static final int[] buttonsOrderLeft = new int[] {
-        BUTTON_SEARCH
+        BUTTON_SEARCH,
+        BUTTON_DISCUSSION
     };
     private static final int[] buttonsOrderRight = new int[] {
         BUTTON_GIFT,
@@ -133,6 +137,8 @@ public class ChatActivityChannelButtonsLayout extends FrameLayout implements Fac
                 button.setContentDescription(getString(R.string.Search));
             } else if (buttonId == BUTTON_GIGA_GROUP_INFO) {
                 button.setContentDescription(getString(R.string.BroadcastGroupInfo));
+            } else if (buttonId == BUTTON_DISCUSSION) {
+                button.setContentDescription(getString(R.string.ViewDiscussion));
             }
 
             ScaleStateListAnimator.apply(button, .13f, 2f);

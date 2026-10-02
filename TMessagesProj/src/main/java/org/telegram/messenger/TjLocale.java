@@ -508,6 +508,12 @@ public class TjLocale {
         m.put("TjWatchSearchHint", "חפש סרט או סדרה");
         m.put("TjWatchAll", "הכל");
         m.put("TjWatchCategories", "קטגוריות");
+        m.put("TjWatchFavoriteShort", "אהבתי");
+        m.put("TjShowForwardsCount", "מספר העברות בפוסטים של ערוצים");
+        m.put("TjDiscussionButton", "כפתור קבוצת דיון בערוצים");
+        m.put("TjChannelExtrasInfo", "הצגת מספר הפעמים שפוסט בערוץ הועבר ליד הצפיות, וכפתור בתחתית הערוץ שפותח את קבוצת הדיון שלו.");
+        m.put("TjOpenLinkedChannel", "פתח ערוץ");
+        m.put("TjLinkedChatUnavailable", "הצ'אט המקושר עדיין לא זמין");
         m.put("TjWatchFavorites", "מועדפים");
         m.put("TjWatchFavoriteAdded", "נוסף למועדפים");
         m.put("TjWatchFavoriteRemoved", "הוסר מהמועדפים");

@@ -36,7 +36,7 @@ public class TjMarksPickerView extends LinearLayout {
 
     private final TextView previewTime;
     private final LinearLayout previewBubble;
-    private final Flow deletedGrid, editedGrid, colorRow;
+    private final LinearLayout deletedGrid, editedGrid, colorRow;
 
     public TjMarksPickerView(Context context) {
         super(context);
@@ -65,35 +65,35 @@ public class TjMarksPickerView extends LinearLayout {
         addView(preview, LayoutHelper.createLinear(-1, -2));
 
         addView(label(context, R.string.TjDeletedMarker), LayoutHelper.createLinear(-1, -2, 20, 14, 20, 6));
-        deletedGrid = new Flow(context);
+        deletedGrid = row(context);
         for (String key : TjMessageMarks.DELETED) {
             deletedGrid.addView(new MarkOption(context, key, null, () -> {
                 TjMessageMarks.setDeleted(key);
                 refresh();
-            }));
+            }), LayoutHelper.createLinear(-2, 40, 0, 0, 8, 0));
         }
-        addView(deletedGrid, LayoutHelper.createLinear(-1, -2, 14, 0, 14, 0));
+        addView(scroller(context, deletedGrid), LayoutHelper.createLinear(-1, -2));
 
         addView(label(context, R.string.TjEditedMarker), LayoutHelper.createLinear(-1, -2, 20, 14, 20, 6));
-        editedGrid = new Flow(context);
+        editedGrid = row(context);
         for (String key : TjMessageMarks.EDITED) {
             String text = "text".equals(key) ? LocaleController.getString(R.string.EditedMessage) : null;
             editedGrid.addView(new MarkOption(context, key, text, () -> {
                 TjMessageMarks.setEdited(key);
                 refresh();
-            }));
+            }), LayoutHelper.createLinear(-2, 40, 0, 0, 8, 0));
         }
-        addView(editedGrid, LayoutHelper.createLinear(-1, -2, 14, 0, 14, 0));
+        addView(scroller(context, editedGrid), LayoutHelper.createLinear(-1, -2));
 
         addView(label(context, R.string.TjMarksColor), LayoutHelper.createLinear(-1, -2, 20, 14, 20, 6));
-        colorRow = new Flow(context);
+        colorRow = row(context);
         for (int color : TjMessageMarks.COLORS) {
             colorRow.addView(new ColorOption(context, color, () -> {
                 TjConfig.put("marks_color", color);
                 refresh();
-            }));
+            }), LayoutHelper.createLinear(34, 34, 0, 0, 10, 0));
         }
-        addView(colorRow, LayoutHelper.createLinear(-1, -2, 14, 0, 14, 0));
+        addView(scroller(context, colorRow), LayoutHelper.createLinear(-1, -2));
 
         refresh();
     }
@@ -131,50 +131,27 @@ public class TjMarksPickerView extends LinearLayout {
         previewBubble.setAlpha(TjConfig.dimDeletedMessages() ? 0.6f : 1f);
     }
 
-    /** Lays its children out in rows of equal cells, from the reading side. */
-    private static class Flow extends ViewGroup {
-        private static final int CELL = 48;
-
-        Flow(Context context) {
-            super(context);
-        }
-
-        private int columns(int width) {
-            return Math.max(1, width / dp(CELL + 4));
-        }
-
-        @Override
-        protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
-            int width = MeasureSpec.getSize(widthMeasureSpec);
-            int columns = columns(width);
-            int rows = (getChildCount() + columns - 1) / columns;
-            int cell = dp(CELL);
-            for (int i = 0; i < getChildCount(); i++) {
-                getChildAt(i).measure(MeasureSpec.makeMeasureSpec(cell, MeasureSpec.EXACTLY),
-                        MeasureSpec.makeMeasureSpec(cell, MeasureSpec.EXACTLY));
-            }
-            setMeasuredDimension(width, rows * (cell + dp(6)));
-        }
-
-        @Override
-        protected void onLayout(boolean changed, int l, int t, int r, int b) {
-            int width = r - l;
-            int columns = columns(width);
-            int cell = dp(CELL);
-            int gap = columns > 1 ? (width - columns * cell) / (columns - 1) : 0;
-            gap = Math.min(gap, dp(14));
-            for (int i = 0; i < getChildCount(); i++) {
-                int column = i % columns;
-                int row = i / columns;
-                int x = column * (cell + gap);
-                if (LocaleController.isRTL) x = width - x - cell;
-                int y = row * (cell + dp(6));
-                getChildAt(i).layout(x, y, x + cell, y + cell);
-            }
-        }
+    /** One line of choices, read from the reading side. */
+    private static LinearLayout row(Context context) {
+        LinearLayout row = new LinearLayout(context);
+        row.setOrientation(HORIZONTAL);
+        row.setLayoutDirection(LocaleController.isRTL ? LAYOUT_DIRECTION_RTL : LAYOUT_DIRECTION_LTR);
+        row.setPadding(dp(20), dp(2), dp(12), dp(4));
+        return row;
     }
 
-    /** One mark: its icon (or the word) in a circle that fills in when chosen. */
+    /** A row that slides sideways when it is wider than the screen, instead of breaking in two. */
+    private static View scroller(Context context, LinearLayout row) {
+        android.widget.HorizontalScrollView scroll = new android.widget.HorizontalScrollView(context);
+        scroll.setHorizontalScrollBarEnabled(false);
+        scroll.setOverScrollMode(OVER_SCROLL_NEVER);
+        scroll.setClipToPadding(false);
+        scroll.setLayoutDirection(LocaleController.isRTL ? LAYOUT_DIRECTION_RTL : LAYOUT_DIRECTION_LTR);
+        scroll.addView(row, new android.widget.HorizontalScrollView.LayoutParams(-2, -2));
+        return scroll;
+    }
+
+    /** One mark: its icon (or the word) on a soft rounded chip that takes the accent when chosen. */
     private static class MarkOption extends View {
         final String key;
         private final String text;
@@ -190,12 +167,18 @@ public class TjMarksPickerView extends LinearLayout {
             this.text = text;
             icon = text == null ? ContextCompat.getDrawable(context, TjMessageMarks.iconRes(key)).mutate() : null;
             ring.setStyle(Paint.Style.STROKE);
-            ring.setStrokeWidth(dp(2));
-            textPaint.setTextSize(dp(11));
+            ring.setStrokeWidth(dp(1.5f));
+            textPaint.setTextSize(dp(13));
             textPaint.setTypeface(AndroidUtilities.bold());
             setOnClickListener(v -> onPick.run());
             setContentDescription(text != null ? text : key);
             ScaleStateListAnimator.apply(this, 0.1f, 1.5f);
+        }
+
+        @Override
+        protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
+            int width = text != null ? (int) Math.ceil(textPaint.measureText(text)) + dp(28) : dp(48);
+            setMeasuredDimension(width, dp(40));
         }
 
         void setSelectedMark(boolean value) {
@@ -207,23 +190,25 @@ public class TjMarksPickerView extends LinearLayout {
         protected void onDraw(Canvas canvas) {
             int accent = Theme.getColor(Theme.key_featuredStickers_addButton);
             int plain = Theme.getColor(Theme.key_windowBackgroundWhiteGrayIcon);
-            float cx = getWidth() / 2f, cy = getHeight() / 2f, radius = Math.min(cx, cy) - dp(2);
-            fill.setColor(chosen ? ColorUtils.setAlphaComponent(accent, 0x33)
-                    : ColorUtils.setAlphaComponent(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText), 0x0D));
-            canvas.drawCircle(cx, cy, radius, fill);
+            float cx = getWidth() / 2f, cy = getHeight() / 2f, radius = Math.min(cx, cy);
+            android.graphics.RectF rect = AndroidUtilities.rectTmp;
+            rect.set(dp(1), dp(1), getWidth() - dp(1), getHeight() - dp(1));
+            fill.setColor(chosen ? ColorUtils.setAlphaComponent(accent, 0x2E)
+                    : ColorUtils.setAlphaComponent(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText), 0x0F));
+            canvas.drawRoundRect(rect, dp(12), dp(12), fill);
             if (chosen) {
                 ring.setColor(accent);
-                canvas.drawCircle(cx, cy, radius - dp(1), ring);
+                canvas.drawRoundRect(rect, dp(12), dp(12), ring);
             }
             int color = chosen ? accent : plain;
             if (icon != null) {
-                int size = dp(22);
+                int size = dp(20);
                 icon.setColorFilter(new PorterDuffColorFilter(color, PorterDuff.Mode.SRC_IN));
                 icon.setBounds((int) (cx - size / 2f), (int) (cy - size / 2f), (int) (cx + size / 2f), (int) (cy + size / 2f));
                 icon.draw(canvas);
             } else {
                 textPaint.setColor(color);
-                String shown = TextUtils.ellipsize(text, textPaint, radius * 2 - dp(4), TextUtils.TruncateAt.END).toString();
+                String shown = text;
                 float w = textPaint.measureText(shown);
                 canvas.drawText(shown, cx - w / 2f, cy - (textPaint.descent() + textPaint.ascent()) / 2f, textPaint);
             }
@@ -254,14 +239,19 @@ public class TjMarksPickerView extends LinearLayout {
         @Override
         protected void onDraw(Canvas canvas) {
             int shown = color != 0 ? color : Theme.getColor(Theme.key_chat_inTimeText);
-            float cx = getWidth() / 2f, cy = getHeight() / 2f, radius = Math.min(cx, cy) - dp(3);
+            float cx = getWidth() / 2f, cy = getHeight() / 2f, radius = Math.min(cx, cy) - dp(1);
             fill.setColor(shown);
+            canvas.drawCircle(cx, cy, radius, fill);
             if (chosen) {
-                ring.setColor(shown);
-                canvas.drawCircle(cx, cy, radius, ring);
-                canvas.drawCircle(cx, cy, radius - dp(5), fill);
-            } else {
-                canvas.drawCircle(cx, cy, radius, fill);
+                // A white tick on the chosen colour, as a colour picker marks it.
+                ring.setColor(0xFFFFFFFF);
+                ring.setStrokeCap(Paint.Cap.ROUND);
+                ring.setStrokeJoin(Paint.Join.ROUND);
+                android.graphics.Path tick = new android.graphics.Path();
+                tick.moveTo(cx - radius * 0.38f, cy + radius * 0.02f);
+                tick.lineTo(cx - radius * 0.08f, cy + radius * 0.32f);
+                tick.lineTo(cx + radius * 0.42f, cy - radius * 0.28f);
+                canvas.drawPath(tick, ring);
             }
         }
     }

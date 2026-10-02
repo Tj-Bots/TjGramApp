@@ -73,8 +73,8 @@ public class TjTitleActivity extends BaseFragment {
     private String posterPath = "";
     private String releaseDate = "";
     private double rating;
-    private static final int MENU_FAVORITE = 1;
-    private org.telegram.ui.ActionBar.ActionBarMenuItem favoriteItem;
+    private android.widget.ImageView favoriteIcon;
+    private TextView favoriteLabel;
     private int year;
     /** Which episode the current search is for, so what gets played can be remembered as that. */
     private int pendingSeason = -1, pendingEpisode = -1;
@@ -119,12 +119,8 @@ public class TjTitleActivity extends BaseFragment {
         actionBar.setActionBarMenuOnItemClick(new ActionBar.ActionBarMenuOnItemClick() {
             @Override public void onItemClick(int id) {
                 if (id == -1) finishFragment();
-                else if (id == MENU_FAVORITE) toggleFavorite();
             }
         });
-        // "I liked this one": a heart that keeps the title in a row of its own on the Watch screen.
-        favoriteItem = actionBar.createMenu().addItem(MENU_FAVORITE, R.drawable.media_like);
-        updateFavoriteIcon(false);
 
         ScrollView scroll = new ScrollView(context);
         scroll.setFillViewport(true);
@@ -146,6 +142,20 @@ public class TjTitleActivity extends BaseFragment {
         overviewView = text(context, 15, Theme.key_windowBackgroundWhiteBlackText);
         overviewView.setLineSpacing(dp(2), 1f);
         body.addView(overviewView, LayoutHelper.createLinear(-1, -2, 16, 12, 16, 4));
+
+        // The row under the summary a streaming app has: an icon over a word for each action,
+        // "I liked this one" first - it keeps the title in a row of its own on the Watch screen.
+        LinearLayout actions = new LinearLayout(context);
+        actions.setOrientation(LinearLayout.HORIZONTAL);
+        actions.setLayoutDirection(LocaleController.isRTL ? View.LAYOUT_DIRECTION_RTL : View.LAYOUT_DIRECTION_LTR);
+        View favorite = actionButton(context, R.drawable.media_like, TjLocale.getString(R.string.TjWatchFavoriteShort), v -> toggleFavorite());
+        favoriteIcon = (android.widget.ImageView) ((LinearLayout) favorite).getChildAt(0);
+        favoriteLabel = (TextView) ((LinearLayout) favorite).getChildAt(1);
+        actions.addView(favorite, LayoutHelper.createLinear(84, -2));
+        actions.addView(actionButton(context, R.drawable.msg_share, LocaleController.getString(R.string.ShareFile), v -> shareTitle()),
+                LayoutHelper.createLinear(84, -2));
+        body.addView(actions, LayoutHelper.createLinear(-1, -2, 6, 10, 6, 2));
+        updateFavoriteIcon(false);
 
         if (series) {
             seasonRow = new LinearLayout(context);
@@ -213,18 +223,51 @@ public class TjTitleActivity extends BaseFragment {
                 TjLocale.getString(now ? R.string.TjWatchFavoriteAdded : R.string.TjWatchFavoriteRemoved)).show();
     }
 
+    private View actionButton(Context context, int icon, String label, View.OnClickListener onClick) {
+        LinearLayout button = new LinearLayout(context);
+        button.setOrientation(LinearLayout.VERTICAL);
+        button.setGravity(Gravity.CENTER_HORIZONTAL);
+        button.setPadding(0, dp(8), 0, dp(6));
+        button.setBackground(Theme.createSimpleSelectorRoundRectDrawable(dp(12), 0, Theme.getColor(Theme.key_listSelector)));
+        android.widget.ImageView image = new android.widget.ImageView(context);
+        image.setImageResource(icon);
+        image.setScaleType(android.widget.ImageView.ScaleType.FIT_CENTER);
+        image.setColorFilter(new android.graphics.PorterDuffColorFilter(
+                Theme.getColor(Theme.key_windowBackgroundWhiteBlackText), android.graphics.PorterDuff.Mode.SRC_IN));
+        button.addView(image, LayoutHelper.createLinear(26, 26));
+        TextView text = new TextView(context);
+        text.setTextSize(12);
+        text.setGravity(Gravity.CENTER);
+        text.setSingleLine(true);
+        text.setEllipsize(TextUtils.TruncateAt.END);
+        text.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText));
+        text.setText(label);
+        button.addView(text, LayoutHelper.createLinear(-2, -2, Gravity.CENTER_HORIZONTAL, 4, 5, 4, 0));
+        button.setOnClickListener(onClick);
+        org.telegram.ui.Components.ScaleStateListAnimator.apply(button, 0.06f, 1.4f);
+        return button;
+    }
+
+    private void shareTitle() {
+        if (getParentActivity() == null) return;
+        String link = "https://www.themoviedb.org/" + (series ? "tv/" : "movie/") + id;
+        String text = name + (year > 0 ? " (" + year + ")" : "") + "\n" + link;
+        showDialog(org.telegram.ui.Components.ShareAlert.createShareAlert(getParentActivity(), null, text, false, link, false));
+    }
+
     private void updateFavoriteIcon(boolean animated) {
-        if (favoriteItem == null) return;
+        if (favoriteIcon == null) return;
         boolean favorite = org.telegram.messenger.tj.TjWatchFavorites.contains(id, series);
-        favoriteItem.setIcon(favorite ? R.drawable.media_like_active : R.drawable.media_like);
-        favoriteItem.setContentDescription(TjLocale.getString(favorite ? R.string.TjWatchFavoriteRemove : R.string.TjWatchFavoriteAdd));
-        android.widget.ImageView icon = favoriteItem.getIconView();
+        android.widget.ImageView icon = favoriteIcon;
+        icon.setImageResource(favorite ? R.drawable.media_like_active : R.drawable.media_like);
+        ((View) icon.getParent()).setContentDescription(TjLocale.getString(favorite ? R.string.TjWatchFavoriteRemove : R.string.TjWatchFavoriteAdd));
+        favoriteLabel.setTextColor(favorite ? 0xFFFF4D5E : Theme.getColor(Theme.key_windowBackgroundWhiteGrayText));
         if (icon != null) {
             if (favorite) {
                 icon.setColorFilter(new android.graphics.PorterDuffColorFilter(0xFFFF4D5E, android.graphics.PorterDuff.Mode.SRC_IN));
             } else {
                 icon.setColorFilter(new android.graphics.PorterDuffColorFilter(
-                        Theme.getColor(Theme.key_actionBarDefaultIcon), android.graphics.PorterDuff.Mode.SRC_IN));
+                        Theme.getColor(Theme.key_windowBackgroundWhiteBlackText), android.graphics.PorterDuff.Mode.SRC_IN));
             }
             if (animated && favorite) {
                 icon.setScaleX(0.6f);

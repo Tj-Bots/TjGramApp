@@ -24,6 +24,9 @@ import java.util.ArrayList;
 public final class TjReleaseNotes {
 
     private static boolean running;
+    private static long lastAttempt;
+    /** How long a new build keeps looking for its post - it is often posted after it was installed. */
+    private static final long WAIT_FOR_POST_MS = 7L * 24 * 60 * 60 * 1000;
 
     private TjReleaseNotes() {
     }
@@ -44,6 +47,9 @@ public final class TjReleaseNotes {
             return;
         }
         if (shown.equals(version)) return;
+        long now = android.os.SystemClock.elapsedRealtime();
+        if (lastAttempt != 0 && now - lastAttempt < 10 * 60 * 1000L) return;
+        lastAttempt = now;
         running = true;
         MessagesController controller = MessagesController.getInstance(account);
         controller.getUserNameResolver().resolve(TjCommunity.UPDATES_USERNAME, peerId -> {
@@ -60,37 +66,56 @@ public final class TjReleaseNotes {
                 running = false;
                 if (!(response instanceof TLRPC.messages_Messages)) return;
                 TLRPC.messages_Messages res = (TLRPC.messages_Messages) response;
-                TLRPC.Message post = pick(res.messages);
-                if (post != null && post.message != null && !post.message.trim().isEmpty()) {
-                    write(account, version, post, peerId);
+                TLRPC.Message post = pick(res.messages, version);
+                if (post != null) {
+                    if (post.message != null && !post.message.trim().isEmpty()) {
+                        write(account, version, post, peerId);
+                    }
+                    prefs().edit().putString("version", version).apply();
+                } else if (installedAt() > 0 && System.currentTimeMillis() - installedAt() > WAIT_FOR_POST_MS) {
+                    // Never posted: this build simply gets no notes.
+                    prefs().edit().putString("version", version).apply();
                 }
-                // Answered either way: a build with no post of its own gets no notes, not a retry.
-                prefs().edit().putString("version", version).apply();
+                // Otherwise the post is not up yet - asked again on a later start, never an older one.
             }));
         });
     }
 
-    /**
-     * The post this build came in: the APK of exactly this size, or else the newest one posted
-     * before this copy was installed.
-     */
-    private static TLRPC.Message pick(ArrayList<TLRPC.Message> messages) {
-        long installedSize = 0, installedAt = 0;
+    private static long installedAt() {
         try {
             Context context = ApplicationLoader.applicationContext;
             PackageInfo info = context.getPackageManager().getPackageInfo(context.getPackageName(), 0);
-            installedSize = new File(context.getApplicationInfo().sourceDir).length();
-            installedAt = info.lastUpdateTime / 1000L;
+            return info.lastUpdateTime;
+        } catch (Exception e) {
+            return 0;
+        }
+    }
+
+    /**
+     * The post of exactly this build: the APK of exactly this size, or a post that names this
+     * version. Nothing else - the newest post from before the install is the previous build's, and
+     * its notes are the wrong ones.
+     */
+    private static TLRPC.Message pick(ArrayList<TLRPC.Message> messages, String version) {
+        long installedSize = 0;
+        try {
+            installedSize = new File(ApplicationLoader.applicationContext.getApplicationInfo().sourceDir).length();
         } catch (Exception ignore) {
         }
-        TLRPC.Message best = null;
+        java.util.regex.Pattern named = java.util.regex.Pattern.compile(
+                "(?<![0-9.])" + java.util.regex.Pattern.quote(version) + "(?![0-9])");
+        TLRPC.Message byName = null;
         for (TLRPC.Message message : messages) {
             TLRPC.Document document = MessageObject.getDocument(message);
             if (!TjUpdates.isApk(document)) continue;
             if (document.size == installedSize) return message;
-            if (message.date <= installedAt + 600 && (best == null || message.date > best.date)) best = message;
+            String fileName = org.telegram.messenger.FileLoader.getDocumentFileName(document);
+            if (byName == null && (message.message != null && named.matcher(message.message).find()
+                    || fileName != null && named.matcher(fileName).find())) {
+                byName = message;
+            }
         }
-        return best;
+        return byName;
     }
 
     private static void write(int account, String version, TLRPC.Message post, long channelDialogId) {

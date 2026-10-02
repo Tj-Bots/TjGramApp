@@ -91,6 +91,8 @@ public class TjPrivacySettingsActivity extends BaseFragment implements Notificat
     private static final int KEEP_ALIVE = 65;
     private static final int SHOW_MEDIA_IN_DRAWER = 66;
     private static final int SHOW_MEDIA_TAB = 67;
+    private static final int SHOW_FORWARDS = 68;
+    private static final int DISCUSSION_BUTTON = 69;
     private static final int SYNC_ENABLED = 70;
     private static final int SYNC_SECURE = 71;
     private static final int SYNC_SERVER = 72;
@@ -303,6 +305,9 @@ public class TjPrivacySettingsActivity extends BaseFragment implements Notificat
         items.add(new Item(TYPE_CHECK, LOCAL_PREMIUM, R.string.TjLocalPremium));
         items.add(new Item(TYPE_CHECK, HIDE_SPONSORED, R.string.TjHideSponsored));
         items.add(new Item(TYPE_INFO, 0, R.string.TjLocalPremiumInfo));
+        items.add(new Item(TYPE_CHECK, SHOW_FORWARDS, R.string.TjShowForwardsCount));
+        items.add(new Item(TYPE_CHECK, DISCUSSION_BUTTON, R.string.TjDiscussionButton));
+        items.add(new Item(TYPE_INFO, 0, R.string.TjChannelExtrasInfo));
         items.add(new Item(TYPE_CHECK, SHOW_GHOST_IN_DRAWER, R.string.TjShowGhostInDrawer));
         items.add(new Item(TYPE_CHECK, SHOW_KILL_IN_DRAWER, R.string.TjShowKillInDrawer));
         items.add(new Item(TYPE_CHECK, SHOW_MEDIA_IN_DRAWER, R.string.TjMediaShowInDrawer));
@@ -479,6 +484,8 @@ public class TjPrivacySettingsActivity extends BaseFragment implements Notificat
             case SHOW_GHOST_IN_DRAWER: return TjConfig.showGhostInDrawer();
             case SHOW_MEDIA_IN_DRAWER: return TjConfig.showMediaInDrawer();
             case SHOW_MEDIA_TAB: return TjConfig.showMediaTab();
+            case SHOW_FORWARDS: return TjConfig.showForwardsCount();
+            case DISCUSSION_BUTTON: return TjConfig.discussionButton();
             case SHOW_KILL_IN_DRAWER: return TjConfig.showKillInDrawer();
             case KEEP_ALIVE: return MessagesController.getGlobalNotificationsSettings()
                     .getBoolean("pushService", true);
@@ -524,6 +531,8 @@ public class TjPrivacySettingsActivity extends BaseFragment implements Notificat
             case SHOW_GHOST_IN_DRAWER: key = "show_ghost_in_drawer"; break;
             case SHOW_MEDIA_IN_DRAWER: key = "show_media_in_drawer"; break;
             case SHOW_MEDIA_TAB: key = "show_media_tab"; break;
+            case SHOW_FORWARDS: key = "show_forwards_count"; break;
+            case DISCUSSION_BUTTON: key = "discussion_button"; break;
             case SHOW_KILL_IN_DRAWER: key = "show_kill_in_drawer"; break;
             case KEEP_ALIVE:
                 MessagesController.getGlobalNotificationsSettings().edit()
@@ -534,6 +543,12 @@ public class TjPrivacySettingsActivity extends BaseFragment implements Notificat
         }
         if (key != null) {
             TjConfig.put(key, value);
+        }
+        if (id == DIM_DELETED && adapter != null) {
+            // The preview bubble below shows the dimming the moment it changes.
+            for (int i = 0; i < items.size(); i++) {
+                if (items.get(i).type == TYPE_MARKS) adapter.notifyItemChanged(i);
+            }
         }
     }
 

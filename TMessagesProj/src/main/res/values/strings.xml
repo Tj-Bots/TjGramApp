@@ -11567,6 +11567,12 @@
     <string name="TjWatchSearchHint">Search a film or a series</string>
     <string name="TjWatchAll">All</string>
     <string name="TjWatchCategories">Categories</string>
+    <string name="TjWatchFavoriteShort">Liked</string>
+    <string name="TjShowForwardsCount">Forwards count on channel posts</string>
+    <string name="TjDiscussionButton">Discussion group button in channels</string>
+    <string name="TjChannelExtrasInfo">Show how many times a channel post was forwarded next to its views, and a button at the bottom of a channel that opens its discussion group.</string>
+    <string name="TjOpenLinkedChannel">Open channel</string>
+    <string name="TjLinkedChatUnavailable">The linked chat isn\'t available yet</string>
     <string name="TjWatchFavorites">Favourites</string>
     <string name="TjWatchFavoriteAdded">Added to favourites</string>
     <string name="TjWatchFavoriteRemoved">Removed from favourites</string>
