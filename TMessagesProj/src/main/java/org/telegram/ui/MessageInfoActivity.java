@@ -189,6 +189,9 @@ public class MessageInfoActivity extends BaseFragment {
                 addRow(container, "Size", sizeStr, sizeStr);
             }
             String quality = tjVideoQuality(document, filePath);
+            if (quality == null) {
+                quality = tjAudioQuality(document, filePath);
+            }
             if (quality != null) {
                 addRow(container, "Quality", quality, quality);
             }
@@ -298,6 +301,79 @@ public class MessageInfoActivity extends BaseFragment {
         else if (shortSide >= 360) label = "360p";
         else label = shortSide + "p";
         return label + " · " + w + "×" + h + (fps != null ? " · " + fps : "");
+    }
+
+    /**
+     * "320 kbps · 44.1 kHz · stereo" for music and voice. The file on the device says it exactly;
+     * before it is downloaded the rate is worked out from its size and length - an average.
+     */
+    private static String tjAudioQuality(TLRPC.Document document, String filePath) {
+        int duration = 0;
+        boolean audio = document.mime_type != null && document.mime_type.startsWith("audio/");
+        for (TLRPC.DocumentAttribute attribute : document.attributes) {
+            if (attribute instanceof TLRPC.TL_documentAttributeAudio) {
+                audio = true;
+                duration = (int) attribute.duration;
+            }
+        }
+        if (!audio) return null;
+        long bitrate = 0;
+        int sampleRate = 0, channels = 0;
+        boolean exact = false;
+        if (filePath != null && new java.io.File(filePath).exists()) {
+            android.media.MediaExtractor extractor = new android.media.MediaExtractor();
+            try {
+                extractor.setDataSource(filePath);
+                for (int i = 0; i < extractor.getTrackCount(); i++) {
+                    android.media.MediaFormat format = extractor.getTrackFormat(i);
+                    String mime = format.getString(android.media.MediaFormat.KEY_MIME);
+                    if (mime == null || !mime.startsWith("audio/")) continue;
+                    if (format.containsKey(android.media.MediaFormat.KEY_SAMPLE_RATE)) sampleRate = format.getInteger(android.media.MediaFormat.KEY_SAMPLE_RATE);
+                    if (format.containsKey(android.media.MediaFormat.KEY_CHANNEL_COUNT)) channels = format.getInteger(android.media.MediaFormat.KEY_CHANNEL_COUNT);
+                    if (format.containsKey(android.media.MediaFormat.KEY_BIT_RATE)) {
+                        bitrate = format.getInteger(android.media.MediaFormat.KEY_BIT_RATE);
+                        exact = bitrate > 0;
+                    }
+                    if (duration <= 0 && format.containsKey(android.media.MediaFormat.KEY_DURATION)) {
+                        duration = (int) (format.getLong(android.media.MediaFormat.KEY_DURATION) / 1_000_000L);
+                    }
+                    break;
+                }
+            } catch (Throwable ignore) {
+            } finally {
+                extractor.release();
+            }
+            if (bitrate <= 0) {
+                android.media.MediaMetadataRetriever retriever = new android.media.MediaMetadataRetriever();
+                try {
+                    retriever.setDataSource(filePath);
+                    Integer value = Utilities.parseInt(retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_BITRATE));
+                    if (value != null && value > 0) {
+                        bitrate = value;
+                        exact = true;
+                    }
+                } catch (Throwable ignore) {
+                } finally {
+                    try {
+                        retriever.release();
+                    } catch (Throwable ignore) {
+                    }
+                }
+            }
+        }
+        if (bitrate <= 0 && duration > 0 && document.size > 0) {
+            bitrate = document.size * 8L / duration;
+        }
+        java.util.ArrayList<String> parts = new java.util.ArrayList<>();
+        if (bitrate > 0) parts.add((exact ? "" : "~") + Math.round(bitrate / 1000.0) + " kbps");
+        if (sampleRate > 0) {
+            parts.add(sampleRate % 1000 == 0 ? sampleRate / 1000 + " kHz"
+                    : String.format(java.util.Locale.US, "%.1f kHz", sampleRate / 1000f));
+        }
+        if (channels == 1) parts.add("mono");
+        else if (channels == 2) parts.add("stereo");
+        else if (channels > 2) parts.add(channels + " ch");
+        return parts.isEmpty() ? null : TextUtils.join(" · ", parts);
     }
 
     private void addHistoryRow(LinearLayout container, int count) {
