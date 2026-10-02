@@ -32797,8 +32797,9 @@ public class ChatActivity extends BaseFragment implements
                     }
                 }
 
-                boolean showNoForwards = (isPeerNoForwards() || message.messageOwner.noforwards && currentUser != null && currentUser.bot) && message.messageOwner.action == null && message.isSent() && !message.isEditing() && chatMode != MODE_SCHEDULED && chatMode != MODE_SAVED && getDialogId() != UserObject.VERIFY
-                        && !TjProtectedForwarder.canReupload(currentAccount, message);
+                boolean showNoForwards = (isPeerNoForwards() || message.messageOwner.noforwards && currentUser != null && currentUser.bot) && message.messageOwner.action == null && message.isSent() && !message.isEditing() && chatMode != MODE_SCHEDULED && chatMode != MODE_SAVED && getDialogId() != UserObject.VERIFY;
+                // With re-upload on, the restriction still stands - say so, and say what happens instead.
+                final boolean tjReupload = showNoForwards && TjProtectedForwarder.canReupload(currentAccount, message);
                 scrimPopupContainerLayout.addView(popupLayout, LayoutHelper.createLinearRelatively(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.LEFT, isReactionsAvailable ? 16 : 0, 0, isReactionsAvailable ? 36 : 0, 0));
                 scrimPopupContainerLayout.setPopupWindowLayout(popupLayout);
                 if (showNoForwards) {
@@ -32824,6 +32825,10 @@ public class ChatActivity extends BaseFragment implements
                         tv.setText(AndroidUtilities.replaceTags(str));
                     } else {
                         tv.setText(LocaleController.getString(R.string.ForwardsRestrictedInfoBot));
+                    }
+                    if (tjReupload) {
+                        tv.setText(new android.text.SpannableStringBuilder(tv.getText()).append("\n\n")
+                                .append(AndroidUtilities.replaceTags(org.telegram.messenger.TjLocale.getString(R.string.TjForwardReuploadHint))));
                     }
                     tv.setMaxWidth(popupLayout.getMeasuredWidth() - AndroidUtilities.dp(38));
 

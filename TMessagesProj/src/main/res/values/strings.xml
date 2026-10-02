@@ -11567,6 +11567,12 @@
     <string name="TjWatchSearchHint">Search a film or a series</string>
     <string name="TjWatchAll">All</string>
     <string name="TjWatchCategories">Categories</string>
+    <string name="TjWatchFavorites">Favourites</string>
+    <string name="TjWatchFavoriteAdded">Added to favourites</string>
+    <string name="TjWatchFavoriteRemoved">Removed from favourites</string>
+    <string name="TjWatchFavoriteAdd">Add to favourites</string>
+    <string name="TjWatchFavoriteRemove">Remove from favourites</string>
+    <string name="TjForwardReuploadHint">**Re-upload protected messages** is on: TjGram will download it and send it again as a new message.</string>
     <string name="TjWatchDisplayHeader">Display</string>
     <string name="TjWatchTabBar">Tab bar on the Watch screen</string>
     <string name="TjWatchTabBarInfo">The app\'s floating tab bar at the bottom of the Watch home screen, for getting to chats or settings in one tap. A title page and the player always stay full screen.</string>

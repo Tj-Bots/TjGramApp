@@ -508,6 +508,12 @@ public class TjLocale {
         m.put("TjWatchSearchHint", "חפש סרט או סדרה");
         m.put("TjWatchAll", "הכל");
         m.put("TjWatchCategories", "קטגוריות");
+        m.put("TjWatchFavorites", "מועדפים");
+        m.put("TjWatchFavoriteAdded", "נוסף למועדפים");
+        m.put("TjWatchFavoriteRemoved", "הוסר מהמועדפים");
+        m.put("TjWatchFavoriteAdd", "הוספה למועדפים");
+        m.put("TjWatchFavoriteRemove", "הסרה מהמועדפים");
+        m.put("TjForwardReuploadHint", "**העלאה מחדש של הודעות מוגנות** פועלת: TjGram יוריד את ההודעה וישלח אותה מחדש כהודעה חדשה.");
         m.put("TjWatchDisplayHeader", "תצוגה");
         m.put("TjWatchTabBar", "סרגל לשוניות במסך הצפייה");
         m.put("TjWatchTabBarInfo", "סרגל הלשוניות הצף של האפליקציה בתחתית מסך הצפייה הראשי, כדי לעבור לצ'אטים או להגדרות בלחיצה אחת. בדף של כותר ובנגן הוא לא מופיע.");

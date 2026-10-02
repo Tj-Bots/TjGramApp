@@ -71,6 +71,10 @@ public class TjTitleActivity extends BaseFragment {
     /** What the catalogue also calls it, and when it came out - both decide which file is right. */
     private String originalName = "";
     private String posterPath = "";
+    private String releaseDate = "";
+    private double rating;
+    private static final int MENU_FAVORITE = 1;
+    private org.telegram.ui.ActionBar.ActionBarMenuItem favoriteItem;
     private int year;
     /** Which episode the current search is for, so what gets played can be remembered as that. */
     private int pendingSeason = -1, pendingEpisode = -1;
@@ -115,8 +119,12 @@ public class TjTitleActivity extends BaseFragment {
         actionBar.setActionBarMenuOnItemClick(new ActionBar.ActionBarMenuOnItemClick() {
             @Override public void onItemClick(int id) {
                 if (id == -1) finishFragment();
+                else if (id == MENU_FAVORITE) toggleFavorite();
             }
         });
+        // "I liked this one": a heart that keeps the title in a row of its own on the Watch screen.
+        favoriteItem = actionBar.createMenu().addItem(MENU_FAVORITE, R.drawable.media_like);
+        updateFavoriteIcon(false);
 
         ScrollView scroll = new ScrollView(context);
         scroll.setFillViewport(true);
@@ -197,6 +205,36 @@ public class TjTitleActivity extends BaseFragment {
         return hero;
     }
 
+    private void toggleFavorite() {
+        boolean now = org.telegram.messenger.tj.TjWatchFavorites.toggle(TjTitleActivity.this.id, series, name, posterPath, releaseDate, rating);
+        updateFavoriteIcon(true);
+        org.telegram.ui.Components.BulletinFactory.of(this).createSimpleBulletin(
+                now ? R.raw.contact_check : R.raw.ic_delete,
+                TjLocale.getString(now ? R.string.TjWatchFavoriteAdded : R.string.TjWatchFavoriteRemoved)).show();
+    }
+
+    private void updateFavoriteIcon(boolean animated) {
+        if (favoriteItem == null) return;
+        boolean favorite = org.telegram.messenger.tj.TjWatchFavorites.contains(id, series);
+        favoriteItem.setIcon(favorite ? R.drawable.media_like_active : R.drawable.media_like);
+        favoriteItem.setContentDescription(TjLocale.getString(favorite ? R.string.TjWatchFavoriteRemove : R.string.TjWatchFavoriteAdd));
+        android.widget.ImageView icon = favoriteItem.getIconView();
+        if (icon != null) {
+            if (favorite) {
+                icon.setColorFilter(new android.graphics.PorterDuffColorFilter(0xFFFF4D5E, android.graphics.PorterDuff.Mode.SRC_IN));
+            } else {
+                icon.setColorFilter(new android.graphics.PorterDuffColorFilter(
+                        Theme.getColor(Theme.key_actionBarDefaultIcon), android.graphics.PorterDuff.Mode.SRC_IN));
+            }
+            if (animated && favorite) {
+                icon.setScaleX(0.6f);
+                icon.setScaleY(0.6f);
+                icon.animate().scaleX(1f).scaleY(1f).setDuration(260)
+                        .setInterpolator(new android.view.animation.OvershootInterpolator(3f)).start();
+            }
+        }
+    }
+
     private TextView text(Context context, int size, int colorKey) {
         TextView view = new TextView(context);
         view.setTextSize(size);
@@ -224,12 +262,15 @@ public class TjTitleActivity extends BaseFragment {
 
             ArrayList<String> meta = new ArrayList<>();
             String date = body.optString(series ? "first_air_date" : "release_date", "");
+            releaseDate = date;
             if (date.length() >= 4) {
                 meta.add(date.substring(0, 4));
                 try { year = Integer.parseInt(date.substring(0, 4)); } catch (NumberFormatException ignore) { }
             }
             originalName = body.optString(series ? "original_name" : "original_title", "");
             double rating = body.optDouble("vote_average", 0);
+            this.rating = rating;
+            org.telegram.messenger.tj.TjWatchFavorites.refresh(id, series, posterPath, date, rating);
             if (rating > 0) meta.add(String.format(Locale.US, "★ %.1f", rating));
             if (series) {
                 int count = body.optInt("number_of_seasons", 0);

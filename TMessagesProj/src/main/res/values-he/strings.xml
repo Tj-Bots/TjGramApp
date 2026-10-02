@@ -343,6 +343,12 @@
     <string name="TjWatchSearchHint">חפש סרט או סדרה</string>
     <string name="TjWatchAll">הכל</string>
     <string name="TjWatchCategories">קטגוריות</string>
+    <string name="TjWatchFavorites">מועדפים</string>
+    <string name="TjWatchFavoriteAdded">נוסף למועדפים</string>
+    <string name="TjWatchFavoriteRemoved">הוסר מהמועדפים</string>
+    <string name="TjWatchFavoriteAdd">הוספה למועדפים</string>
+    <string name="TjWatchFavoriteRemove">הסרה מהמועדפים</string>
+    <string name="TjForwardReuploadHint">**העלאה מחדש של הודעות מוגנות** פועלת: TjGram יוריד את ההודעה וישלח אותה מחדש כהודעה חדשה.</string>
     <string name="TjWatchDisplayHeader">תצוגה</string>
     <string name="TjWatchTabBar">סרגל לשוניות במסך הצפייה</string>
     <string name="TjWatchTabBarInfo">סרגל הלשוניות הצף של האפליקציה בתחתית מסך הצפייה הראשי, כדי לעבור לצ\'אטים או להגדרות בלחיצה אחת. בדף של כותר ובנגן הוא לא מופיע.</string>

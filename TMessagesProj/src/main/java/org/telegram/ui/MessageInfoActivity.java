@@ -162,8 +162,12 @@ public class MessageInfoActivity extends BaseFragment {
                         }
                     });
         }
-        if (msg.views != 0) {
-            addRow(container, "Views", String.valueOf(msg.views), String.valueOf(msg.views));
+        if (msg.views != 0 || msg.forwards != 0) {
+            // How many times a channel post was viewed and forwarded - the counters Telegram keeps on
+            // the post itself, asked for again below so they are today's and not the cached ones.
+            TextView views = addRow(container, "Views", String.valueOf(msg.views), String.valueOf(msg.views));
+            TextView forwards = addRow(container, "Forwards", String.valueOf(msg.forwards), String.valueOf(msg.forwards));
+            tjRefreshCounters(msg, views, forwards);
         }
         if (hasReply) {
             if (replyName != null || replyUsername != null) {
@@ -350,9 +354,37 @@ public class MessageInfoActivity extends BaseFragment {
         container.addView(divider, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 1));
     }
 
-    private void addRow(LinearLayout container, String label, CharSequence value, String copyText) {
+    private void tjRefreshCounters(TLRPC.Message msg, TextView views, TextView forwards) {
+        if (msg.id <= 0 || messageObject.getDialogId() >= 0) return;
+        TLRPC.TL_messages_getMessagesViews req = new TLRPC.TL_messages_getMessagesViews();
+        req.peer = getMessagesController().getInputPeer(messageObject.getDialogId());
+        req.id.add(msg.id);
+        req.increment = false;
+        getConnectionsManager().sendRequest(req, (response, error) -> AndroidUtilities.runOnUIThread(() -> {
+            if (!(response instanceof TLRPC.TL_messages_messageViews)) return;
+            TLRPC.TL_messages_messageViews res = (TLRPC.TL_messages_messageViews) response;
+            if (res.views.isEmpty()) return;
+            TLRPC.TL_messageViews counters = res.views.get(0);
+            if ((counters.flags & 1) != 0 && counters.views > 0) {
+                msg.views = Math.max(msg.views, counters.views);
+                setRowValue(views, String.valueOf(msg.views));
+            }
+            if ((counters.flags & 2) != 0) {
+                msg.forwards = counters.forwards;
+                setRowValue(forwards, String.valueOf(msg.forwards));
+            }
+        }));
+    }
+
+    private void setRowValue(TextView valueView, String value) {
+        if (valueView == null) return;
+        valueView.setText(value);
+        ((View) valueView.getParent()).setOnClickListener(v -> copyValue(value));
+    }
+
+    private TextView addRow(LinearLayout container, String label, CharSequence value, String copyText) {
         if (TextUtils.isEmpty(value)) {
-            return;
+            return null;
         }
         LinearLayout row = new LinearLayout(getContext());
         row.setOrientation(LinearLayout.VERTICAL);
@@ -378,6 +410,7 @@ public class MessageInfoActivity extends BaseFragment {
 
         container.addView(row, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT));
         addDivider(container);
+        return valueView;
     }
 
     private void addPersonRow(LinearLayout container, String label, String name, String username, long id) {

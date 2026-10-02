@@ -878,6 +878,15 @@ public class TjWatchActivity extends BaseFragment {
         if (continueShelf != null && continueShelf.resume != null && !continueShelf.resume.isEmpty()) {
             shelves.add(continueShelf);
         }
+        // What was marked with the heart, newest first - already on the device, nothing to fetch.
+        Shelf favorites = new Shelf(TjLocale.getString(R.string.TjWatchFavorites), null);
+        favorites.asked = true;
+        for (JSONObject entry : org.telegram.messenger.tj.TjWatchFavorites.all()) {
+            boolean isSeries = entry.optBoolean("series");
+            if (isSeries ? !wantsSeries() : !wantsMovies()) continue;
+            favorites.items.add(new Item(entry, isSeries));
+        }
+        if (!favorites.items.isEmpty()) shelves.add(favorites);
         // Then one row for you: what TMDB suggests to people who liked the last few titles watched
         // here, taken in turn from each - the part of "for you" a device can know on its own.
         ArrayList<TjWatchHistory.Entry> sources = forYouSources();
