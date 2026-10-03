@@ -157,10 +157,6 @@ public class TjTitleActivity extends BaseFragment {
         reviewsButton = actionButton(context, R.drawable.msg_discussion, TjLocale.getString(R.string.TjWatchReviews), v -> showReviews());
         reviewsButton.setVisibility(View.GONE);
         actions.addView(reviewsButton, LayoutHelper.createLinear(84, -2));
-        // The trailer, when the catalogue has one on YouTube - played in the app's own YouTube sheet.
-        trailerButton = actionButton(context, R.drawable.msg_played, TjLocale.getString(R.string.TjWatchTrailer), v -> playTrailer());
-        trailerButton.setVisibility(View.GONE);
-        actions.addView(trailerButton, LayoutHelper.createLinear(84, -2));
         actions.addView(actionButton(context, R.drawable.msg_share, LocaleController.getString(R.string.ShareFile), v -> shareTitle()),
                 LayoutHelper.createLinear(84, -2));
         body.addView(actions, LayoutHelper.createLinear(-1, -2, 6, 10, 6, 2));
@@ -205,6 +201,17 @@ public class TjTitleActivity extends BaseFragment {
         hero.setWillNotDraw(false);
         backdrop = new BackupImageView(context);
         hero.addView(backdrop, LayoutHelper.createFrame(-1, 210));
+        // As on a streaming app: a play button on the wide picture plays the trailer. It shows up
+        // only once the catalogue turns out to have one.
+        trailerButton = new TrailerButton(context);
+        trailerButton.setContentDescription(TjLocale.getString(R.string.TjWatchTrailer));
+        trailerButton.setVisibility(View.GONE);
+        trailerButton.setOnClickListener(v -> playTrailer());
+        ScaleStateListAnimator.apply(trailerButton, 0.08f, 1.5f);
+        hero.addView(trailerButton, LayoutHelper.createFrame(64, 64, Gravity.CENTER_HORIZONTAL | Gravity.TOP, 0, 73, 0, 0));
+        backdrop.setOnClickListener(v -> {
+            if (trailerKey != null) playTrailer();
+        });
 
         poster = new BackupImageView(context);
         poster.setRoundRadius(dp(8));
@@ -354,8 +361,46 @@ public class TjTitleActivity extends BaseFragment {
                     trailerName = video.optString("name", name);
                 }
             }
-            if (trailerKey != null) trailerButton.setVisibility(View.VISIBLE);
+            if (trailerKey != null) {
+                trailerButton.setAlpha(0f);
+                trailerButton.setScaleX(0.6f);
+                trailerButton.setScaleY(0.6f);
+                trailerButton.setVisibility(View.VISIBLE);
+                trailerButton.animate().alpha(1f).scaleX(1f).scaleY(1f).setDuration(250).start();
+            }
         });
+    }
+
+    /** A round, see-through dark button with a white play triangle, drawn over the picture. */
+    private static class TrailerButton extends View {
+        private final Paint fill = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Paint ring = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final android.graphics.Path triangle = new android.graphics.Path();
+
+        TrailerButton(Context context) {
+            super(context);
+            fill.setColor(0x80000000);
+            ring.setStyle(Paint.Style.STROKE);
+            ring.setStrokeWidth(dp(2));
+            ring.setColor(0xE6FFFFFF);
+        }
+
+        @Override
+        protected void onDraw(Canvas canvas) {
+            float cx = getWidth() / 2f, cy = getHeight() / 2f, r = Math.min(cx, cy) - dp(2);
+            canvas.drawCircle(cx, cy, r, fill);
+            canvas.drawCircle(cx, cy, r, ring);
+            float s = r * 0.42f;
+            triangle.reset();
+            triangle.moveTo(cx - s * 0.6f, cy - s);
+            triangle.lineTo(cx + s, cy);
+            triangle.lineTo(cx - s * 0.6f, cy + s);
+            triangle.close();
+            Paint white = ring;
+            white.setStyle(Paint.Style.FILL);
+            canvas.drawPath(triangle, white);
+            white.setStyle(Paint.Style.STROKE);
+        }
     }
 
     private void playTrailer() {
