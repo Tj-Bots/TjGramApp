@@ -181,6 +181,12 @@ public class TjTitleActivity extends BaseFragment {
         return fragmentView;
     }
 
+    private FrameLayout heroView;
+    private TextView heroTitle;
+    private android.webkit.WebView trailerView;
+    private View trailerClose;
+    private android.app.Dialog trailerFullscreen;
+
     private View hero(Context context) {
         FrameLayout hero = new FrameLayout(context) {
             private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -188,6 +194,7 @@ public class TjTitleActivity extends BaseFragment {
 
             @Override protected void dispatchDraw(Canvas canvas) {
                 super.dispatchDraw(canvas);
+                if (trailerView != null) return;
                 if (gradientHeight != getHeight()) {
                     gradientHeight = getHeight();
                     // Artwork has to give way to text at the bottom, or the name lands on whatever
@@ -199,6 +206,7 @@ public class TjTitleActivity extends BaseFragment {
             }
         };
         hero.setWillNotDraw(false);
+        heroView = hero;
         backdrop = new BackupImageView(context);
         hero.addView(backdrop, LayoutHelper.createFrame(-1, 210));
         // As on a streaming app: a play button on the wide picture plays the trailer. It shows up
@@ -219,6 +227,7 @@ public class TjTitleActivity extends BaseFragment {
                 (LocaleController.isRTL ? Gravity.RIGHT : Gravity.LEFT) | Gravity.BOTTOM, 16, 0, 16, 0));
 
         TextView titleView = new TextView(context);
+        heroTitle = titleView;
         titleView.setTextSize(21);
         titleView.setMaxLines(3);
         titleView.setTypeface(AndroidUtilities.getTypeface("fonts/rmedium.ttf"));
@@ -403,12 +412,153 @@ public class TjTitleActivity extends BaseFragment {
         }
     }
 
+    /** YouTube's own player, filling the page and starting at once, with its controls. */
+    private static final String TRAILER_FRAME = "<!DOCTYPE html><html><head>"
+            + "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">"
+            + "<style>html,body{margin:0;width:100%%;height:100%%;background:#000;overflow:hidden}"
+            + "#player{position:absolute;top:0;left:0;width:100%%;height:100%%}</style></head><body>"
+            + "<div id=\"player\"></div>"
+            + "<script src=\"https://www.youtube.com/iframe_api\"></script><script>"
+            + "YT.ready(function(){new YT.Player('player',{width:'100%%',height:'100%%',videoId:'%1$s',"
+            + "playerVars:{autoplay:1,playsinline:1,controls:1,rel:0,modestbranding:1,iv_load_policy:3,fs:1},"
+            + "events:{onReady:function(e){e.target.playVideo();}}});});"
+            + "</script></body></html>";
+
+    /**
+     * The trailer plays where the wide picture was, as a streaming app does it: the picture, the
+     * poster and the name step aside, and a close button puts them back.
+     */
+    @android.annotation.SuppressLint("SetJavaScriptEnabled")
     private void playTrailer() {
-        if (trailerKey == null || getParentActivity() == null) return;
-        String watch = "https://www.youtube.com/watch?v=" + trailerKey;
-        org.telegram.ui.Components.EmbedBottomSheet.show(this, null, null, "YouTube",
-                trailerName != null ? trailerName : name, watch,
-                "https://www.youtube.com/embed/" + trailerKey, 1280, 720, false);
+        if (trailerKey == null || getParentActivity() == null || heroView == null) return;
+        if (trailerView != null) return;
+        Context context = getParentActivity();
+        android.webkit.WebView web;
+        try {
+            web = new android.webkit.WebView(context);
+        } catch (Throwable e) {
+            // No WebView on this device: the YouTube sheet still works through the system.
+            org.telegram.ui.Components.EmbedBottomSheet.show(this, null, null, "YouTube",
+                    trailerName != null ? trailerName : name, "https://www.youtube.com/watch?v=" + trailerKey,
+                    "https://www.youtube.com/embed/" + trailerKey, 1280, 720, false);
+            return;
+        }
+        web.setBackgroundColor(0xFF000000);
+        android.webkit.WebSettings settings = web.getSettings();
+        settings.setJavaScriptEnabled(true);
+        settings.setDomStorageEnabled(true);
+        settings.setMediaPlaybackRequiresUserGesture(false);
+        android.webkit.CookieManager.getInstance().setAcceptThirdPartyCookies(web, true);
+        web.setWebChromeClient(new android.webkit.WebChromeClient() {
+            @Override
+            public void onShowCustomView(View view, CustomViewCallback callback) {
+                showTrailerFullscreen(view, callback);
+            }
+
+            @Override
+            public void onHideCustomView() {
+                hideTrailerFullscreen();
+            }
+        });
+        web.setWebViewClient(new android.webkit.WebViewClient() {
+            @Override
+            public boolean shouldOverrideUrlLoading(android.webkit.WebView view, String url) {
+                // Taps on the YouTube logo or title leave for the YouTube app, not this page.
+                if (url != null && (url.contains("youtube.com/watch") || url.startsWith("vnd.youtube"))) {
+                    org.telegram.messenger.browser.Browser.openUrl(getParentActivity(), url);
+                    return true;
+                }
+                return false;
+            }
+        });
+        trailerView = web;
+        int width = heroView.getWidth() > 0 ? heroView.getWidth() : AndroidUtilities.displaySize.x;
+        int height = Math.min(width * 9 / 16, dp(250));
+        heroView.addView(web, new FrameLayout.LayoutParams(-1, height, Gravity.TOP));
+
+        android.widget.ImageView close = new android.widget.ImageView(context);
+        close.setImageResource(R.drawable.ic_close_white);
+        close.setScaleType(android.widget.ImageView.ScaleType.CENTER);
+        close.setBackground(Theme.createCircleDrawable(dp(34), 0x99000000));
+        close.setContentDescription(LocaleController.getString(R.string.Close));
+        close.setOnClickListener(v -> stopTrailer());
+        heroView.addView(close, LayoutHelper.createFrame(34, 34,
+                (LocaleController.isRTL ? Gravity.LEFT : Gravity.RIGHT) | Gravity.TOP, 10, 10, 10, 0));
+        trailerClose = close;
+
+        backdrop.setVisibility(View.INVISIBLE);
+        trailerButton.setVisibility(View.GONE);
+        poster.setVisibility(View.GONE);
+        if (heroTitle != null) heroTitle.setVisibility(View.GONE);
+        web.loadDataWithBaseURL("https://messenger.telegram.org/", String.format(Locale.US, TRAILER_FRAME, trailerKey),
+                "text/html", "UTF-8", "https://youtube.com");
+        heroView.invalidate();
+    }
+
+    private void stopTrailer() {
+        hideTrailerFullscreen();
+        if (trailerView == null || heroView == null) return;
+        android.webkit.WebView web = trailerView;
+        trailerView = null;
+        heroView.removeView(web);
+        if (trailerClose != null) heroView.removeView(trailerClose);
+        trailerClose = null;
+        try {
+            web.stopLoading();
+            web.loadUrl("about:blank");
+            web.destroy();
+        } catch (Throwable ignore) {
+        }
+        backdrop.setVisibility(View.VISIBLE);
+        trailerButton.setVisibility(View.VISIBLE);
+        poster.setVisibility(View.VISIBLE);
+        if (heroTitle != null) heroTitle.setVisibility(View.VISIBLE);
+        heroView.invalidate();
+    }
+
+    /** YouTube's own full-screen button: the video on a black screen of its own, sideways. */
+    private void showTrailerFullscreen(View view, android.webkit.WebChromeClient.CustomViewCallback callback) {
+        if (getParentActivity() == null) {
+            callback.onCustomViewHidden();
+            return;
+        }
+        hideTrailerFullscreen();
+        android.app.Dialog dialog = new android.app.Dialog(getParentActivity(), android.R.style.Theme_Black_NoTitleBar_Fullscreen);
+        FrameLayout frame = new FrameLayout(getParentActivity());
+        frame.setBackgroundColor(0xFF000000);
+        frame.addView(view, new FrameLayout.LayoutParams(-1, -1));
+        dialog.setContentView(frame);
+        dialog.setOnDismissListener(d -> {
+            frame.removeAllViews();
+            callback.onCustomViewHidden();
+            if (getParentActivity() != null) {
+                getParentActivity().setRequestedOrientation(android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED);
+            }
+            trailerFullscreen = null;
+        });
+        trailerFullscreen = dialog;
+        getParentActivity().setRequestedOrientation(android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE);
+        dialog.show();
+    }
+
+    private void hideTrailerFullscreen() {
+        if (trailerFullscreen != null) {
+            android.app.Dialog dialog = trailerFullscreen;
+            trailerFullscreen = null;
+            dialog.dismiss();
+        }
+    }
+
+    @Override
+    public void onPause() {
+        super.onPause();
+        if (trailerView != null) trailerView.onPause();
+    }
+
+    @Override
+    public void onFragmentDestroy() {
+        stopTrailer();
+        super.onFragmentDestroy();
     }
 
     /** One review: who wrote it, the score they gave, and the text - folded, with a translate button. */
@@ -730,6 +880,7 @@ public class TjTitleActivity extends BaseFragment {
     @Override
     public void onResume() {
         super.onResume();
+        if (trailerView != null) trailerView.onResume();
         // Back from the player: the lines under the episodes have moved on.
         if (episodeList != null && !episodes.isEmpty()) {
             episodeList.removeAllViews();
