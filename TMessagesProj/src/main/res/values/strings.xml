@@ -11567,6 +11567,12 @@
     <string name="TjWatchSearchHint">Search a film or a series</string>
     <string name="TjWatchAll">All</string>
     <string name="TjWatchCategories">Categories</string>
+    <string name="TjWatchTrailer">Trailer</string>
+    <string name="TjWatchOpenTitle">Open</string>
+    <string name="TjPlayerSaveToSaved">Save to Saved Messages</string>
+    <string name="TjPlayerSavedToSaved">Saved to Saved Messages</string>
+    <string name="TjPlayerAlreadySaved">This file is already in Saved Messages</string>
+    <string name="TjPlayerSaveRestricted">Saving isn\'t allowed in this chat</string>
     <string name="TjWatchIsraeli">From Israel</string>
     <string name="TjWatchRandom">Random pick</string>
     <string name="TjWatchRandomAny">Anything</string>

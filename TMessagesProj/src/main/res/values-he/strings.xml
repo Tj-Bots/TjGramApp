@@ -343,6 +343,12 @@
     <string name="TjWatchSearchHint">חפש סרט או סדרה</string>
     <string name="TjWatchAll">הכל</string>
     <string name="TjWatchCategories">קטגוריות</string>
+    <string name="TjWatchTrailer">טריילר</string>
+    <string name="TjWatchOpenTitle">פתח</string>
+    <string name="TjPlayerSaveToSaved">שמירה בהודעות שמורות</string>
+    <string name="TjPlayerSavedToSaved">נשמר בהודעות השמורות</string>
+    <string name="TjPlayerAlreadySaved">הקובץ הזה כבר בהודעות השמורות</string>
+    <string name="TjPlayerSaveRestricted">אי אפשר לשמור מהצ\'אט הזה</string>
     <string name="TjWatchIsraeli">מישראל</string>
     <string name="TjWatchRandom">בחירה אקראית</string>
     <string name="TjWatchRandomAny">הכל</string>

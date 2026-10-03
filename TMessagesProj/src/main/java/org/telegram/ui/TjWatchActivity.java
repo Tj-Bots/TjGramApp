@@ -205,7 +205,7 @@ public class TjWatchActivity extends BaseFragment {
                 });
         searchItem.setSearchFieldHint(TjLocale.getString(R.string.TjWatchSearchHint));
         // "Can't decide?" - a title picked at random; held down, from a category picked first.
-        ActionBarMenuItem random = menu.addItem(MENU_RANDOM, R.drawable.dice);
+        ActionBarMenuItem random = menu.addItem(MENU_RANDOM, R.drawable.menu_random);
         random.setContentDescription(TjLocale.getString(R.string.TjWatchRandom));
         random.setOnLongClickListener(v -> {
             showRandomCategories(v);
@@ -254,7 +254,7 @@ public class TjWatchActivity extends BaseFragment {
         });
         listView.setOnItemLongClickListener((view, position) -> {
             if (!gridMode || position < 0 || position >= items.size()) return false;
-            toggleFavorite(items.get(position));
+            showPosterMenu(items.get(position));
             return true;
         });
         listView.setOnScrollListener(new RecyclerView.OnScrollListener() {
@@ -468,7 +468,31 @@ public class TjWatchActivity extends BaseFragment {
                 .create());
     }
 
-    /** Held down on any poster: into the favourites, or out of them, without opening it. */
+    /** Held down on a poster: it comes up larger over the dimmed screen, with what can be done with it. */
+    private void showPosterMenu(Item item) {
+        if (getParentActivity() == null) return;
+        boolean favorite = org.telegram.messenger.tj.TjWatchFavorites.contains(item.id, item.series);
+        ArrayList<org.telegram.ui.Components.TjPosterPreview.Option> options = new ArrayList<>();
+        options.add(new org.telegram.ui.Components.TjPosterPreview.Option(R.drawable.msg_openin,
+                TjLocale.getString(R.string.TjWatchOpenTitle), false, () -> open(item)));
+        options.add(new org.telegram.ui.Components.TjPosterPreview.Option(
+                favorite ? R.drawable.media_like_active : R.drawable.media_like,
+                TjLocale.getString(favorite ? R.string.TjWatchFavoriteRemove : R.string.TjWatchFavoriteAdd), favorite,
+                () -> toggleFavorite(item)));
+        options.add(new org.telegram.ui.Components.TjPosterPreview.Option(R.drawable.msg_share,
+                LocaleController.getString(R.string.ShareFile), false, () -> {
+                    if (getParentActivity() == null) return;
+                    String link = "https://www.themoviedb.org/" + (item.series ? "tv/" : "movie/") + item.id;
+                    String year = item.date.length() >= 4 ? " (" + item.date.substring(0, 4) + ")" : "";
+                    showDialog(org.telegram.ui.Components.ShareAlert.createShareAlert(getParentActivity(), null,
+                            item.name + year + "\n" + link, false, link, false));
+                }));
+        String meta = (item.date.length() >= 4 ? item.date.substring(0, 4) : "")
+                + (item.rating > 0 ? (item.date.length() >= 4 ? "  ·  " : "") + String.format(java.util.Locale.US, "★ %.1f", item.rating) : "");
+        org.telegram.ui.Components.TjPosterPreview.show(getParentActivity(), TjTmdb.posterUrl(item.poster), item.name, meta, options);
+    }
+
+    /** Into the favourites, or out of them, without opening the title. */
     private void toggleFavorite(Item item) {
         boolean now = org.telegram.messenger.tj.TjWatchFavorites.toggle(item.id, item.series, item.name, item.poster, item.date, item.rating);
         org.telegram.ui.Components.BulletinFactory.of(this).createSimpleBulletin(
@@ -1302,7 +1326,7 @@ public class TjWatchActivity extends BaseFragment {
             row.setOnItemLongClickListener((view, position) -> {
                 if (resumeShown.isEmpty()) {
                     if (position < 0 || position >= shown.size()) return false;
-                    toggleFavorite(shown.get(position));
+                    showPosterMenu(shown.get(position));
                     return true;
                 }
                 if (position < 0 || position >= resumeShown.size()) return false;

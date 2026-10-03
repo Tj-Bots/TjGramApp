@@ -390,7 +390,7 @@ public class TjWatchPlayerActivity extends BaseFragment {
         titleView.setSingleLine(true);
         titleView.setEllipsize(TextUtils.TruncateAt.END);
         titleView.setGravity(Gravity.CENTER);
-        controls.addView(titleView, LayoutHelper.createFrame(-1, 48, Gravity.TOP, 120, 10, 120, 0));
+        controls.addView(titleView, LayoutHelper.createFrame(-1, 48, Gravity.TOP, 170, 10, 170, 0));
         updateTitle();
 
         LinearLayout actions = new LinearLayout(context);
@@ -414,10 +414,38 @@ public class TjWatchPlayerActivity extends BaseFragment {
                 castRouteButton = null;
             }
         }
+        // Keep this file: a copy in Saved Messages, to watch again without looking for it.
+        actions.addView(topIcon(context, R.drawable.msg_saved, TjLocale.getString(R.string.TjPlayerSaveToSaved), v -> saveToSavedMessages()),
+                LayoutHelper.createLinear(48, 48));
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             actions.addView(topIcon(context, R.drawable.menu_video_pip, TjLocale.getString(R.string.TjPlayerMinimize), v -> enterPip()), LayoutHelper.createLinear(48, 48));
         }
         controls.addView(actions, LayoutHelper.createFrame(-2, 48, Gravity.TOP | Gravity.RIGHT, 0, 10, 12, 0));
+    }
+
+    private void saveToSavedMessages() {
+        if (current == null || current.message == null) return;
+        org.telegram.messenger.MessageObject message = current.message;
+        int account = message.currentAccount;
+        long self = org.telegram.messenger.UserConfig.getInstance(account).getClientUserId();
+        if (message.getDialogId() == self) {
+            org.telegram.ui.Components.BulletinFactory.of(this).createSimpleBulletin(R.raw.saved_messages,
+                    TjLocale.getString(R.string.TjPlayerAlreadySaved)).show();
+            return;
+        }
+        boolean restricted = (message.messageOwner.noforwards
+                || org.telegram.messenger.MessagesController.getInstance(account).isPeerNoForwards(message.getDialogId()))
+                && !org.telegram.messenger.tj.TjProtectedForwarder.canReupload(account, message);
+        if (restricted) {
+            org.telegram.ui.Components.BulletinFactory.of(this).createErrorBulletin(
+                    TjLocale.getString(R.string.TjPlayerSaveRestricted)).show();
+            return;
+        }
+        ArrayList<org.telegram.messenger.MessageObject> list = new ArrayList<>();
+        list.add(message);
+        org.telegram.messenger.SendMessagesHelper.getInstance(account).sendMessage(list, self, false, false, true, 0, 0);
+        org.telegram.ui.Components.BulletinFactory.of(this).createSimpleBulletin(R.raw.saved_messages,
+                TjLocale.getString(R.string.TjPlayerSavedToSaved)).show();
     }
 
     private ImageView topIcon(Context context, int icon, String description, View.OnClickListener listener) {

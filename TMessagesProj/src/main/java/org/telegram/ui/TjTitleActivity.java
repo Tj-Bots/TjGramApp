@@ -153,6 +153,14 @@ public class TjTitleActivity extends BaseFragment {
         favoriteIcon = (android.widget.ImageView) ((LinearLayout) favorite).getChildAt(0);
         favoriteLabel = (TextView) ((LinearLayout) favorite).getChildAt(1);
         actions.addView(favorite, LayoutHelper.createLinear(84, -2));
+        // What people wrote about it, in a sheet of its own; the count arrives with the reviews.
+        reviewsButton = actionButton(context, R.drawable.msg_discussion, TjLocale.getString(R.string.TjWatchReviews), v -> showReviews());
+        reviewsButton.setVisibility(View.GONE);
+        actions.addView(reviewsButton, LayoutHelper.createLinear(84, -2));
+        // The trailer, when the catalogue has one on YouTube - played in the app's own YouTube sheet.
+        trailerButton = actionButton(context, R.drawable.msg_played, TjLocale.getString(R.string.TjWatchTrailer), v -> playTrailer());
+        trailerButton.setVisibility(View.GONE);
+        actions.addView(trailerButton, LayoutHelper.createLinear(84, -2));
         actions.addView(actionButton(context, R.drawable.msg_share, LocaleController.getString(R.string.ShareFile), v -> shareTitle()),
                 LayoutHelper.createLinear(84, -2));
         body.addView(actions, LayoutHelper.createLinear(-1, -2, 6, 10, 6, 2));
@@ -171,14 +179,9 @@ public class TjTitleActivity extends BaseFragment {
         episodeList.setOrientation(LinearLayout.VERTICAL);
         body.addView(episodeList, LayoutHelper.createLinear(-1, -2, 0, 4, 0, 24));
 
-        // What people who watched it wrote, under everything else.
-        reviewsList = new LinearLayout(context);
-        reviewsList.setOrientation(LinearLayout.VERTICAL);
-        reviewsList.setVisibility(View.GONE);
-        body.addView(reviewsList, LayoutHelper.createLinear(-1, -2, 0, 0, 0, 24));
-
         loadDetails();
         loadReviews();
+        loadTrailer();
         return fragmentView;
     }
 
@@ -286,47 +289,81 @@ public class TjTitleActivity extends BaseFragment {
         }
     }
 
-    private LinearLayout reviewsList;
+    private View reviewsButton, trailerButton;
+    private JSONArray reviews;
+    private int reviewsTotal;
+    private String trailerKey, trailerName;
     private final TjTmdb reviewsClient = new TjTmdb();
-    private static final int REVIEWS_SHOWN = 3;
+    private final TjTmdb videosClient = new TjTmdb();
 
     private void loadReviews() {
         reviewsClient.reviews(currentAccount, id, series, (body, error) -> {
-            if (getParentActivity() == null || reviewsList == null || body == null) return;
+            if (getParentActivity() == null || reviewsButton == null || body == null) return;
             JSONArray results = body.optJSONArray("results");
             if (results == null || results.length() == 0) return;
-            Context context = getParentActivity();
-            reviewsList.removeAllViews();
-            TextView header = text(context, 17, Theme.key_windowBackgroundWhiteBlackText);
-            header.setTypeface(AndroidUtilities.bold());
-            header.setText(TjLocale.getString(R.string.TjWatchReviews) + "  ·  " + body.optInt("total_results", results.length()));
-            reviewsList.addView(header, LayoutHelper.createLinear(-1, -2, 16, 8, 16, 6));
-            ArrayList<View> hidden = new ArrayList<>();
-            for (int i = 0; i < results.length(); i++) {
-                JSONObject review = results.optJSONObject(i);
-                if (review == null) continue;
-                View card = reviewCard(context, review);
-                if (card == null) continue;
-                if (reviewsList.getChildCount() > REVIEWS_SHOWN) {
-                    card.setVisibility(View.GONE);
-                    hidden.add(card);
-                }
-                reviewsList.addView(card, LayoutHelper.createLinear(-1, -2, 12, 4, 12, 4));
-            }
-            if (!hidden.isEmpty()) {
-                TextView more = text(context, 14, Theme.key_windowBackgroundWhiteBlueText4);
-                more.setTypeface(AndroidUtilities.bold());
-                more.setText(TjLocale.formatString(R.string.TjWatchMoreReviews, hidden.size()));
-                more.setPadding(dp(16), dp(10), dp(16), dp(10));
-                more.setBackground(Theme.getSelectorDrawable(false));
-                more.setOnClickListener(v -> {
-                    for (View card : hidden) card.setVisibility(View.VISIBLE);
-                    v.setVisibility(View.GONE);
-                });
-                reviewsList.addView(more, LayoutHelper.createLinear(-1, -2));
-            }
-            reviewsList.setVisibility(View.VISIBLE);
+            reviews = results;
+            reviewsTotal = body.optInt("total_results", results.length());
+            ((TextView) ((LinearLayout) reviewsButton).getChildAt(1)).setText(
+                    TjLocale.getString(R.string.TjWatchReviews) + " · " + reviewsTotal);
+            reviewsButton.setVisibility(View.VISIBLE);
         });
+    }
+
+    private void showReviews() {
+        if (getParentActivity() == null || reviews == null) return;
+        Context context = getParentActivity();
+        org.telegram.ui.ActionBar.BottomSheet sheet = new org.telegram.ui.ActionBar.BottomSheet(context, false);
+        LinearLayout list = new LinearLayout(context);
+        list.setOrientation(LinearLayout.VERTICAL);
+        list.setPadding(0, dp(8), 0, dp(16));
+        TextView header = text(context, 18, Theme.key_dialogTextBlack);
+        header.setTypeface(AndroidUtilities.bold());
+        header.setText(TjLocale.getString(R.string.TjWatchReviews) + "  ·  " + reviewsTotal);
+        list.addView(header, LayoutHelper.createLinear(-1, -2, 18, 6, 18, 10));
+        for (int i = 0; i < reviews.length(); i++) {
+            JSONObject review = reviews.optJSONObject(i);
+            if (review == null) continue;
+            View card = reviewCard(context, review);
+            if (card != null) list.addView(card, LayoutHelper.createLinear(-1, -2, 12, 4, 12, 4));
+        }
+        ScrollView scroll = new ScrollView(context);
+        scroll.addView(list, new ScrollView.LayoutParams(-1, -2));
+        sheet.setCustomView(scroll);
+        showDialog(sheet);
+    }
+
+    private void loadTrailer() {
+        videosClient.videos(currentAccount, id, series, (body, error) -> {
+            if (getParentActivity() == null || trailerButton == null || body == null) return;
+            JSONArray results = body.optJSONArray("results");
+            String local = TjTmdb.localLanguage();
+            int best = -1;
+            for (int i = 0; results != null && i < results.length(); i++) {
+                JSONObject video = results.optJSONObject(i);
+                if (video == null || !"YouTube".equalsIgnoreCase(video.optString("site"))) continue;
+                String key = video.optString("key", "");
+                if (key.isEmpty()) continue;
+                // A trailer beats a teaser, one in the viewer's language beats English, official first.
+                String type = video.optString("type", "");
+                int score = ("Trailer".equals(type) ? 4 : "Teaser".equals(type) ? 2 : 0)
+                        + (local != null && local.equals(video.optString("iso_639_1")) ? 8 : 0)
+                        + (video.optBoolean("official") ? 1 : 0);
+                if (score > best) {
+                    best = score;
+                    trailerKey = key;
+                    trailerName = video.optString("name", name);
+                }
+            }
+            if (trailerKey != null) trailerButton.setVisibility(View.VISIBLE);
+        });
+    }
+
+    private void playTrailer() {
+        if (trailerKey == null || getParentActivity() == null) return;
+        String watch = "https://www.youtube.com/watch?v=" + trailerKey;
+        org.telegram.ui.Components.EmbedBottomSheet.show(this, null, null, "YouTube",
+                trailerName != null ? trailerName : name, watch,
+                "https://www.youtube.com/embed/" + trailerKey, 1280, 720, false);
     }
 
     /** One review: who wrote it, the score they gave, and the text - folded, with a translate button. */
@@ -343,7 +380,8 @@ public class TjTitleActivity extends BaseFragment {
         LinearLayout card = new LinearLayout(context);
         card.setOrientation(LinearLayout.VERTICAL);
         card.setPadding(dp(14), dp(12), dp(14), dp(10));
-        card.setBackground(Theme.createRoundRectDrawable(dp(14), Theme.getColor(Theme.key_windowBackgroundWhite)));
+        card.setBackground(Theme.createRoundRectDrawable(dp(14), androidx.core.graphics.ColorUtils.blendARGB(
+                Theme.getColor(Theme.key_dialogBackground), Theme.getColor(Theme.key_dialogTextBlack), 0.06f)));
 
         TextView who = text(context, 14, Theme.key_windowBackgroundWhiteBlackText);
         who.setTypeface(AndroidUtilities.bold());

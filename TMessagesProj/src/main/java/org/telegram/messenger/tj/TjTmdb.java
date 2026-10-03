@@ -185,6 +185,14 @@ public final class TjTmdb {
         request(account, (series ? "tv/" : "movie/") + id + "/reviews", params, callback);
     }
 
+    /** Trailers and clips: YouTube keys, in the app's language where there are any, else English. */
+    public void videos(int account, long id, boolean series, Callback callback) {
+        Map<String, String> params = new LinkedHashMap<>();
+        String local = localLanguage();
+        params.put("include_video_language", (local != null ? local + "," : "") + "en,null");
+        request(account, (series ? "tv/" : "movie/") + id + "/videos", params, callback);
+    }
+
     public interface Verification {
         void complete(int error);
     }

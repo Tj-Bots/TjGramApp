@@ -508,6 +508,12 @@ public class TjLocale {
         m.put("TjWatchSearchHint", "חפש סרט או סדרה");
         m.put("TjWatchAll", "הכל");
         m.put("TjWatchCategories", "קטגוריות");
+        m.put("TjWatchTrailer", "טריילר");
+        m.put("TjWatchOpenTitle", "פתח");
+        m.put("TjPlayerSaveToSaved", "שמירה בהודעות שמורות");
+        m.put("TjPlayerSavedToSaved", "נשמר בהודעות השמורות");
+        m.put("TjPlayerAlreadySaved", "הקובץ הזה כבר בהודעות השמורות");
+        m.put("TjPlayerSaveRestricted", "אי אפשר לשמור מהצ'אט הזה");
         m.put("TjWatchIsraeli", "מישראל");
         m.put("TjWatchRandom", "בחירה אקראית");
         m.put("TjWatchRandomAny", "הכל");
